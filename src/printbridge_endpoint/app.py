@@ -1,10 +1,13 @@
-import logging
 import argparse
+import logging
+import signal
+import threading
 
-from printbridge_endpoint.config import ConfigStore
+from printbridge_endpoint.config import ClientTokenStore, ConfigStore
 from printbridge_endpoint.logging_setup import configure_logging
 from printbridge_endpoint.strings import APP_NAME
 from printbridge_endpoint.version import __version__
+from printbridge_endpoint.worker import PollingWorker
 
 
 logger = logging.getLogger(__name__)
@@ -24,7 +27,19 @@ def main() -> None:
     configure_logging(config)
     logger.info("%s %s starting", APP_NAME, __version__)
     if args.headless:
-        print(f"{APP_NAME} {__version__}")
+        token = ClientTokenStore().get()
+        worker = PollingWorker(config, token)
+        stop_event = threading.Event()
+
+        def stop(_signum: int, _frame: object) -> None:
+            worker.stop()
+            stop_event.set()
+
+        signal.signal(signal.SIGINT, stop)
+        signal.signal(signal.SIGTERM, stop)
+        worker.start()
+        stop_event.wait()
+        worker.join(timeout=10)
         return
 
     from printbridge_endpoint.gui import run_gui

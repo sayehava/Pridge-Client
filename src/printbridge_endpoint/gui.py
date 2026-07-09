@@ -6,6 +6,7 @@ import tkinter as tk
 from logging import Handler, LogRecord
 from tkinter import messagebox, ttk
 
+from printbridge_endpoint.autostart import AutoStartError, set_start_at_login
 from printbridge_endpoint.config import ClientTokenStore, ConfigStore, EndpointConfig
 from printbridge_endpoint.models import JobHistoryEntry
 from printbridge_endpoint.printers import Printer, PrinterError, PrinterManager
@@ -183,6 +184,10 @@ class EndpointGui:
         if token:
             self.token_store.set(token)
             self.client_token_var.set("")
+        try:
+            set_start_at_login(self.config.start_at_login)
+        except AutoStartError as exc:
+            logger.warning("Could not update auto-start setting: %s", exc)
         logger.info(MESSAGE_SETTINGS_SAVED)
         if show_message:
             messagebox.showinfo(WINDOW_TITLE, MESSAGE_SETTINGS_SAVED)
