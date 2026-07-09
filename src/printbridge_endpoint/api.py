@@ -26,12 +26,19 @@ class ReservedJob:
     copies: int = 1
 
 
+@dataclass
+class ServerInstructions:
+    polling_interval_seconds: int | None = None
+    heartbeat_interval_seconds: int | None = None
+
+
 class PrintBridgeClient:
     def __init__(self, server_url: str, client_token: str, timeout_seconds: int = 15) -> None:
         self.server_url = _normalize_server_url(server_url)
         self.client_token = client_token.strip()
         self.timeout_seconds = timeout_seconds
         self.session_token = ""
+        self.last_instructions = ServerInstructions()
         self.requests = _load_requests()
         self.session = self.requests.Session()
 
@@ -65,7 +72,8 @@ class PrintBridgeClient:
         payload: dict[str, Any] = {}
         if printer_name:
             payload["printer_name"] = printer_name
-        self._request("POST", "/api/endpoint/heartbeat", json=payload)
+        response = self._request("POST", "/api/endpoint/heartbeat", json=payload)
+        self._update_instructions_from_response(response)
         logger.debug("Heartbeat sent")
 
     def reserve_job(self, printer_name: str | None = None) -> ReservedJob | None:
@@ -77,6 +85,7 @@ class PrintBridgeClient:
             return None
 
         body = _json_object(response)
+        self._update_instructions(body)
         if body.get("job") is None:
             return None
         if not isinstance(body.get("job"), dict):
@@ -133,6 +142,18 @@ class PrintBridgeClient:
     def _url(self, path: str) -> str:
         return urljoin(f"{self.server_url}/", path.lstrip("/"))
 
+    def _update_instructions_from_response(self, response: Any) -> None:
+        if response.status_code == 204 or not getattr(response, "content", b""):
+            return
+        self._update_instructions(_json_object(response))
+
+    def _update_instructions(self, body: dict[str, Any]) -> None:
+        instructions = parse_server_instructions(body)
+        if instructions.polling_interval_seconds is not None:
+            self.last_instructions.polling_interval_seconds = instructions.polling_interval_seconds
+        if instructions.heartbeat_interval_seconds is not None:
+            self.last_instructions.heartbeat_interval_seconds = instructions.heartbeat_interval_seconds
+
 
 def _normalize_server_url(server_url: str) -> str:
     return server_url.strip().rstrip("/")
@@ -173,6 +194,42 @@ def _parse_reserved_job(raw: dict[str, Any]) -> ReservedJob:
         printer_name=printer_name if isinstance(printer_name, str) else None,
         copies=max(copies, 1),
     )
+
+
+def parse_server_instructions(body: dict[str, Any]) -> ServerInstructions:
+    settings = body.get("settings")
+    if isinstance(settings, dict):
+        source = {**body, **settings}
+    else:
+        source = body
+
+    return ServerInstructions(
+        polling_interval_seconds=_optional_interval(
+            source,
+            "polling_interval_seconds",
+            "poll_interval_seconds",
+            "next_poll_seconds",
+        ),
+        heartbeat_interval_seconds=_optional_interval(
+            source,
+            "heartbeat_interval_seconds",
+            "heartbeat_seconds",
+        ),
+    )
+
+
+def _optional_interval(source: dict[str, Any], *keys: str) -> int | None:
+    for key in keys:
+        value = source.get(key)
+        if value is None:
+            continue
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            continue
+        if parsed > 0:
+            return min(parsed, 3600)
+    return None
 
 
 def _load_requests() -> Any:

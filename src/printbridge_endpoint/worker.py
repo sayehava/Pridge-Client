@@ -4,7 +4,6 @@ import base64
 import binascii
 import logging
 import threading
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -23,6 +22,7 @@ MAX_BACKOFF_SECONDS = 60
 
 StatusCallback = Callable[[str], None]
 JobCallback = Callable[[JobHistoryEntry], None]
+ConfigCallback = Callable[[EndpointConfig], None]
 
 
 @dataclass
@@ -41,12 +41,14 @@ class PollingWorker:
         printer_manager: PrinterManager | None = None,
         on_status: StatusCallback | None = None,
         on_job: JobCallback | None = None,
+        on_config: ConfigCallback | None = None,
     ) -> None:
         self.config = config
         self.client_token = client_token
         self.printer_manager = printer_manager or PrinterManager()
         self.on_status = on_status
         self.on_job = on_job
+        self.on_config = on_config
         self.state = WorkerState()
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
@@ -79,10 +81,12 @@ class PollingWorker:
                 now = datetime.now(timezone.utc)
                 if now >= next_heartbeat:
                     client.heartbeat(self.config.selected_printer or None)
+                    self._apply_server_instructions(client)
                     self.state.last_heartbeat_at = now
                     next_heartbeat = now + timedelta(seconds=self.config.heartbeat_interval_seconds)
 
                 job = client.reserve_job(self.config.selected_printer or None)
+                self._apply_server_instructions(client)
                 if job is None:
                     backoff_seconds = self.config.polling_interval_seconds
                     self._stop_event.wait(self.config.polling_interval_seconds)
@@ -131,6 +135,24 @@ class PollingWorker:
         entry = JobHistoryEntry(job_id=job_id, status=status, detail=detail)
         if self.on_job:
             self.on_job(entry)
+
+    def _apply_server_instructions(self, client: PrintBridgeClient) -> None:
+        instructions = client.last_instructions
+        changed = False
+        if instructions.polling_interval_seconds and instructions.polling_interval_seconds != self.config.polling_interval_seconds:
+            self.config.polling_interval_seconds = instructions.polling_interval_seconds
+            changed = True
+        if instructions.heartbeat_interval_seconds and instructions.heartbeat_interval_seconds != self.config.heartbeat_interval_seconds:
+            self.config.heartbeat_interval_seconds = instructions.heartbeat_interval_seconds
+            changed = True
+        if changed:
+            logger.info(
+                "Server updated intervals: polling=%s heartbeat=%s",
+                self.config.polling_interval_seconds,
+                self.config.heartbeat_interval_seconds,
+            )
+            if self.on_config:
+                self.on_config(self.config)
 
 
 def decode_payload(payload_base64: str) -> bytes:

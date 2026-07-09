@@ -12,6 +12,7 @@ from printbridge_endpoint.models import JobHistoryEntry
 from printbridge_endpoint.printers import Printer, PrinterError, PrinterManager
 from printbridge_endpoint.strings import (
     ACTION_REFRESH_PRINTERS,
+    ACTION_QUIT,
     ACTION_SAVE,
     ACTION_START,
     ACTION_STOP,
@@ -31,6 +32,7 @@ from printbridge_endpoint.strings import (
     MESSAGE_NO_PRINTERS,
     MESSAGE_SETTINGS_SAVED,
     MESSAGE_TOKEN_NOT_DISPLAYED,
+    MESSAGE_WINDOW_MINIMIZED,
     STATUS_STOPPED,
     WINDOW_TITLE,
 )
@@ -89,6 +91,7 @@ class EndpointGui:
         self.root.title(WINDOW_TITLE)
         self.root.geometry("920x680")
         self.root.minsize(760, 560)
+        self.root.protocol("WM_DELETE_WINDOW", self.hide_window)
         style = ttk.Style()
         if "clam" in style.theme_names():
             style.theme_use("clam")
@@ -98,9 +101,14 @@ class EndpointGui:
 
     def _build(self) -> None:
         self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(2, weight=1)
+        self.root.rowconfigure(0, weight=1)
 
-        main = ttk.Frame(self.root, padding=16)
+        container = ttk.Frame(self.root, padding=16)
+        container.grid(row=0, column=0, sticky="nsew")
+        container.columnconfigure(0, weight=1)
+        container.rowconfigure(1, weight=1)
+
+        main = ttk.Frame(container)
         main.grid(row=0, column=0, sticky="nsew")
         main.columnconfigure(1, weight=1)
 
@@ -139,9 +147,10 @@ class EndpointGui:
         ttk.Button(actions, text=ACTION_SAVE, command=self.save_settings).pack(side="left")
         ttk.Button(actions, text=ACTION_START, command=self.start_worker).pack(side="left", padx=(8, 0))
         ttk.Button(actions, text=ACTION_STOP, command=self.stop_worker).pack(side="left", padx=(8, 0))
+        ttk.Button(actions, text=ACTION_QUIT, command=self.quit_application).pack(side="right")
 
-        lower = ttk.PanedWindow(self.root, orient=tk.VERTICAL)
-        lower.grid(row=2, column=0, sticky="nsew", padx=16, pady=(0, 16))
+        lower = ttk.PanedWindow(container, orient=tk.VERTICAL)
+        lower.grid(row=1, column=0, sticky="nsew", pady=(16, 0))
 
         jobs_frame = ttk.LabelFrame(lower, text=LABEL_RECENT_JOBS, padding=8)
         jobs_frame.rowconfigure(0, weight=1)
@@ -203,6 +212,7 @@ class EndpointGui:
             printer_manager=self.printer_manager,
             on_status=lambda status: self.events.put(("status", status)),
             on_job=lambda job: self.events.put(("job", job)),
+            on_config=lambda config: self.events.put(("config", config)),
         )
         self.worker.start()
 
@@ -210,6 +220,16 @@ class EndpointGui:
         if self.worker:
             self.worker.stop()
         self.connection_status_var.set(STATUS_STOPPED)
+
+    def hide_window(self) -> None:
+        logger.info(MESSAGE_WINDOW_MINIMIZED)
+        self.root.iconify()
+
+    def quit_application(self) -> None:
+        if self.worker:
+            self.worker.stop()
+            self.worker.join(timeout=5)
+        self.root.destroy()
 
     def _config_from_form(self) -> EndpointConfig:
         try:
@@ -249,6 +269,9 @@ class EndpointGui:
                     self.heartbeat_status_var.set(str(payload))
             elif event == "job" and isinstance(payload, JobHistoryEntry):
                 self.jobs.insert("", 0, values=(payload.status, f"{payload.job_id} {payload.detail}".strip()))
+            elif event == "config" and isinstance(payload, EndpointConfig):
+                self.polling_interval_var.set(payload.polling_interval_seconds)
+                self.heartbeat_interval_var.set(payload.heartbeat_interval_seconds)
             elif event == "log":
                 self._append_log(str(payload))
         self.root.after(200, self._drain_events)
