@@ -14,7 +14,13 @@ dependencies = [
 
 [project.optional-dependencies]
 secure = ["keyring>=24"]
-tray = ["pystray>=0.19", "Pillow>=10"]
+tray = [
+    "pystray==0.19.5",
+    "Pillow>=10",
+    "pyobjc-core==9.2; platform_system == 'Darwin'",
+    "pyobjc-framework-Cocoa==9.2; platform_system == 'Darwin'",
+    "pyobjc-framework-Quartz==9.2; platform_system == 'Darwin'",
+]
 windows = ["pywin32>=306; platform_system == 'Windows'"]
 linux = ["pycups>=2.0; platform_system == 'Linux'"]
 

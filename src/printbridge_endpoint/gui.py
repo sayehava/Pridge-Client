@@ -33,11 +33,14 @@ from printbridge_endpoint.strings import (
     MESSAGE_NO_PRINTERS,
     MESSAGE_SETTINGS_SAVED,
     MESSAGE_TOKEN_NOT_DISPLAYED,
+    MESSAGE_TRAY_UNAVAILABLE,
+    MESSAGE_WINDOW_HIDDEN,
     MESSAGE_WINDOW_MINIMIZED,
     MESSAGE_READY,
     STATUS_STOPPED,
     WINDOW_TITLE,
 )
+from printbridge_endpoint.tray import TrayController, TrayUnavailableError
 from printbridge_endpoint.worker import PollingWorker
 
 
@@ -67,6 +70,7 @@ class EndpointGui:
         self.printer_manager = printer_manager or PrinterManager()
         self.config = self.config_store.load()
         self.worker: PollingWorker | None = None
+        self.tray: TrayController | None = None
         self.events: queue.Queue[tuple[str, object]] = queue.Queue()
         self.printers: list[Printer] = []
 
@@ -84,7 +88,10 @@ class EndpointGui:
         self._configure_root()
         self._build()
         self.root.update_idletasks()
+        self.root.deiconify()
+        self.root.lift()
         self._install_log_handler()
+        self._start_tray()
         self.refresh_printers()
         self.root.after(200, self._drain_events)
 
@@ -97,8 +104,6 @@ class EndpointGui:
         self.root.minsize(760, 560)
         self.root.protocol("WM_DELETE_WINDOW", self.hide_window)
         style = ttk.Style()
-        if "clam" in style.theme_names():
-            style.theme_use("clam")
         style.configure("TButton", padding=(10, 6))
         style.configure("TLabel", padding=(0, 2))
         style.configure("Header.TLabel", font=("TkDefaultFont", 13, "bold"))
@@ -227,14 +232,37 @@ class EndpointGui:
         self.connection_status_var.set(STATUS_STOPPED)
 
     def hide_window(self) -> None:
-        logger.info(MESSAGE_WINDOW_MINIMIZED)
-        self.root.iconify()
+        if self.tray is None:
+            logger.warning(MESSAGE_TRAY_UNAVAILABLE)
+            self.root.iconify()
+            logger.info(MESSAGE_WINDOW_MINIMIZED)
+            return
+        logger.info(MESSAGE_WINDOW_HIDDEN)
+        self.root.withdraw()
+
+    def show_window(self) -> None:
+        self.root.after(0, self._show_window_on_main_thread)
+
+    def _show_window_on_main_thread(self) -> None:
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
 
     def quit_application(self) -> None:
+        if self.tray:
+            self.tray.stop()
         if self.worker:
             self.worker.stop()
             self.worker.join(timeout=5)
         self.root.destroy()
+
+    def _start_tray(self) -> None:
+        self.tray = TrayController(on_show=self.show_window, on_quit=lambda: self.root.after(0, self.quit_application))
+        try:
+            self.tray.start()
+        except TrayUnavailableError as exc:
+            self.tray = None
+            logger.warning("%s %s", MESSAGE_TRAY_UNAVAILABLE, exc)
 
     def _config_from_form(self) -> EndpointConfig:
         try:
@@ -290,5 +318,5 @@ class EndpointGui:
 
 def run_gui() -> None:
     root = tk.Tk()
-    EndpointGui(root)
+    root.endpoint_gui = EndpointGui(root)  # type: ignore[attr-defined]
     root.mainloop()
