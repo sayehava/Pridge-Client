@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,16 @@ KEYRING_USERNAME = "client-token"
 
 
 @dataclass
+class ServerConfig:
+    id: str
+    name: str = "Server"
+    server_url: str = ""
+    enabled: bool = True
+    polling_interval_seconds: int = 5
+    heartbeat_interval_seconds: int = 30
+
+
+@dataclass
 class LoggingConfig:
     level: str = "INFO"
     file_enabled: bool = True
@@ -23,6 +34,7 @@ class LoggingConfig:
 @dataclass
 class EndpointConfig:
     server_url: str = ""
+    servers: list[ServerConfig] = field(default_factory=list)
     selected_printer: str = ""
     polling_interval_seconds: int = 5
     heartbeat_interval_seconds: int = 30
@@ -53,8 +65,10 @@ class ConfigStore:
         if not isinstance(logging_raw, dict):
             logging_raw = {}
 
+        servers = _parse_servers(raw)
         return EndpointConfig(
             server_url=str(raw.get("server_url", "")),
+            servers=servers,
             selected_printer=str(raw.get("selected_printer", "")),
             polling_interval_seconds=_positive_int(raw.get("polling_interval_seconds", 5), 5),
             heartbeat_interval_seconds=_positive_int(raw.get("heartbeat_interval_seconds", 30), 30),
@@ -78,48 +92,54 @@ class ClientTokenStore:
     def __init__(self, config_dir: Path | None = None) -> None:
         self.config_dir = config_dir or default_config_dir()
 
-    def get(self) -> str:
+    def get(self, server_id: str = "default") -> str:
         keyring = _load_keyring()
         if keyring is not None:
-            token = keyring.get_password(KEYRING_SERVICE, KEYRING_USERNAME)
+            token = keyring.get_password(KEYRING_SERVICE, _token_username(server_id))
+            if token is None and server_id == "default":
+                token = keyring.get_password(KEYRING_SERVICE, KEYRING_USERNAME)
             return token or ""
 
-        fallback_path = self._fallback_path
+        fallback_path = self._fallback_path(server_id)
+        if not fallback_path.exists() and server_id == "default":
+            fallback_path = self.config_dir / "client-token"
         if not fallback_path.exists():
             return ""
         return fallback_path.read_text(encoding="utf-8").strip()
 
-    def set(self, token: str) -> None:
+    def set(self, token: str, server_id: str = "default") -> None:
         token = token.strip()
         keyring = _load_keyring()
         if keyring is not None:
-            keyring.set_password(KEYRING_SERVICE, KEYRING_USERNAME, token)
-            self._delete_fallback()
+            keyring.set_password(KEYRING_SERVICE, _token_username(server_id), token)
+            self._delete_fallback(server_id)
             return
 
         self.config_dir.mkdir(parents=True, exist_ok=True)
-        self._fallback_path.write_text(token, encoding="utf-8")
+        fallback_path = self._fallback_path(server_id)
+        fallback_path.write_text(token, encoding="utf-8")
         try:
-            os.chmod(self._fallback_path, 0o600)
+            os.chmod(fallback_path, 0o600)
         except OSError:
             pass
 
-    def clear(self) -> None:
+    def clear(self, server_id: str = "default") -> None:
         keyring = _load_keyring()
         if keyring is not None:
             try:
-                keyring.delete_password(KEYRING_SERVICE, KEYRING_USERNAME)
+                keyring.delete_password(KEYRING_SERVICE, _token_username(server_id))
             except Exception:
                 pass
-        self._delete_fallback()
+        self._delete_fallback(server_id)
 
-    @property
-    def _fallback_path(self) -> Path:
-        return self.config_dir / "client-token"
+    def _fallback_path(self, server_id: str) -> Path:
+        if server_id == "default":
+            return self.config_dir / "client-token"
+        return self.config_dir / f"client-token-{_safe_id(server_id)}"
 
-    def _delete_fallback(self) -> None:
+    def _delete_fallback(self, server_id: str) -> None:
         try:
-            self._fallback_path.unlink()
+            self._fallback_path(server_id).unlink()
         except FileNotFoundError:
             pass
 
@@ -154,6 +174,52 @@ def _positive_int(value: Any, default: int) -> int:
     except (TypeError, ValueError):
         return default
     return parsed if parsed > 0 else default
+
+
+def _parse_servers(raw: dict[str, Any]) -> list[ServerConfig]:
+    raw_servers = raw.get("servers", [])
+    if isinstance(raw_servers, list):
+        servers = [_parse_server(item) for item in raw_servers if isinstance(item, dict)]
+        servers = [server for server in servers if server.server_url]
+        if servers:
+            return servers
+
+    legacy_url = str(raw.get("server_url", "")).strip()
+    if not legacy_url:
+        return []
+    return [
+        ServerConfig(
+            id="default",
+            name="Primary Server",
+            server_url=legacy_url,
+            enabled=True,
+            polling_interval_seconds=_positive_int(raw.get("polling_interval_seconds", 5), 5),
+            heartbeat_interval_seconds=_positive_int(raw.get("heartbeat_interval_seconds", 30), 30),
+        )
+    ]
+
+
+def _parse_server(raw: dict[str, Any]) -> ServerConfig:
+    server_id = str(raw.get("id", "")).strip() or _safe_id(str(raw.get("name", "server")))
+    return ServerConfig(
+        id=server_id,
+        name=str(raw.get("name", "Server")).strip() or "Server",
+        server_url=str(raw.get("server_url", "")).strip(),
+        enabled=bool(raw.get("enabled", True)),
+        polling_interval_seconds=_positive_int(raw.get("polling_interval_seconds", 5), 5),
+        heartbeat_interval_seconds=_positive_int(raw.get("heartbeat_interval_seconds", 30), 30),
+    )
+
+
+def _token_username(server_id: str) -> str:
+    if server_id == "default":
+        return KEYRING_USERNAME
+    return f"{KEYRING_USERNAME}:{_safe_id(server_id)}"
+
+
+def _safe_id(value: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "-", value.strip()).strip("-")
+    return safe or "server"
 
 
 def _load_keyring() -> Any | None:

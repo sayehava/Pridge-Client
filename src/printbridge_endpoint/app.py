@@ -3,7 +3,7 @@ import logging
 import signal
 import threading
 
-from printbridge_endpoint.config import ClientTokenStore, ConfigStore
+from printbridge_endpoint.config import ClientTokenStore, ConfigStore, EndpointConfig, ServerConfig
 from printbridge_endpoint.logging_setup import configure_logging
 from printbridge_endpoint.strings import APP_NAME
 from printbridge_endpoint.version import __version__
@@ -27,21 +27,41 @@ def main() -> None:
     configure_logging(config)
     logger.info("%s %s starting", APP_NAME, __version__)
     if args.headless:
-        token = ClientTokenStore().get()
-        worker = PollingWorker(config, token)
+        token_store = ClientTokenStore()
+        workers = [
+            PollingWorker(_runtime_config(config, server), token_store.get(server.id))
+            for server in config.servers
+            if server.enabled
+        ]
         stop_event = threading.Event()
 
         def stop(_signum: int, _frame: object) -> None:
-            worker.stop()
+            for worker in workers:
+                worker.stop()
             stop_event.set()
 
         signal.signal(signal.SIGINT, stop)
         signal.signal(signal.SIGTERM, stop)
-        worker.start()
+        for worker in workers:
+            worker.start()
         stop_event.wait()
-        worker.join(timeout=10)
+        for worker in workers:
+            worker.join(timeout=10)
         return
 
     from printbridge_endpoint.gui import run_gui
 
     run_gui()
+
+
+def _runtime_config(config: EndpointConfig, server: ServerConfig) -> EndpointConfig:
+    return EndpointConfig(
+        server_url=server.server_url,
+        servers=[server],
+        selected_printer=config.selected_printer,
+        polling_interval_seconds=server.polling_interval_seconds,
+        heartbeat_interval_seconds=server.heartbeat_interval_seconds,
+        start_polling_on_launch=config.start_polling_on_launch,
+        start_at_login=config.start_at_login,
+        logging=config.logging,
+    )
