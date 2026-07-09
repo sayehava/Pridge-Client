@@ -5,8 +5,6 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin
 
-import requests
-
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +17,7 @@ class AuthenticationError(ApiError):
     pass
 
 
-@dataclass(slots=True)
+@dataclass
 class ReservedJob:
     job_id: str
     payload_base64: str
@@ -34,7 +32,8 @@ class PrintBridgeClient:
         self.client_token = client_token.strip()
         self.timeout_seconds = timeout_seconds
         self.session_token = ""
-        self.session = requests.Session()
+        self.requests = _load_requests()
+        self.session = self.requests.Session()
 
     @property
     def is_authenticated(self) -> bool:
@@ -104,7 +103,7 @@ class PrintBridgeClient:
         self._request("POST", f"/api/endpoint/jobs/{job_id}/status", json=payload)
         logger.info("Reported job %s as %s", job_id, status)
 
-    def _request(self, method: str, path: str, **kwargs: Any) -> requests.Response:
+    def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         if not self.session_token:
             self.authenticate()
 
@@ -139,7 +138,7 @@ def _normalize_server_url(server_url: str) -> str:
     return server_url.strip().rstrip("/")
 
 
-def _json_object(response: requests.Response) -> dict[str, Any]:
+def _json_object(response: Any) -> dict[str, Any]:
     try:
         body = response.json()
     except ValueError as exc:
@@ -174,3 +173,11 @@ def _parse_reserved_job(raw: dict[str, Any]) -> ReservedJob:
         printer_name=printer_name if isinstance(printer_name, str) else None,
         copies=max(copies, 1),
     )
+
+
+def _load_requests() -> Any:
+    try:
+        import requests
+    except ImportError as exc:
+        raise ApiError("The requests package is required for server communication.") from exc
+    return requests

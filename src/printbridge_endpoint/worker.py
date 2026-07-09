@@ -25,7 +25,7 @@ StatusCallback = Callable[[str], None]
 JobCallback = Callable[[JobHistoryEntry], None]
 
 
-@dataclass(slots=True)
+@dataclass
 class WorkerState:
     running: bool = False
     status: str = "Stopped"

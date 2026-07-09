@@ -7,7 +7,7 @@ name = "printbridge-endpoint"
 version = "0.1.0"
 description = "Endpoint-side desktop agent for PrintBridge"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 dependencies = [
     "requests>=2.31",
 ]

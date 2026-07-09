@@ -13,7 +13,7 @@ class PrinterError(RuntimeError):
     pass
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(frozen=True)
 class Printer:
     name: str
     is_default: bool = False

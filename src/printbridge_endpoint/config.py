@@ -14,13 +14,13 @@ KEYRING_SERVICE = "printbridge-endpoint"
 KEYRING_USERNAME = "client-token"
 
 
-@dataclass(slots=True)
+@dataclass
 class LoggingConfig:
     level: str = "INFO"
     file_enabled: bool = True
 
 
-@dataclass(slots=True)
+@dataclass
 class EndpointConfig:
     server_url: str = ""
     selected_printer: str = ""

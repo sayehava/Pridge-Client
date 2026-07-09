@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 
-@dataclass(slots=True)
+@dataclass
 class JobHistoryEntry:
     job_id: str
     status: str
