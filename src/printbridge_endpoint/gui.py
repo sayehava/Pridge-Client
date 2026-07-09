@@ -4,7 +4,7 @@ import logging
 import queue
 import tkinter as tk
 from logging import Handler, LogRecord
-from tkinter import messagebox, ttk
+from tkinter import messagebox
 
 from printbridge_endpoint.autostart import AutoStartError, set_start_at_login
 from printbridge_endpoint.config import ClientTokenStore, ConfigStore, EndpointConfig
@@ -103,82 +103,100 @@ class EndpointGui:
         self.root.geometry("920x680")
         self.root.minsize(760, 560)
         self.root.protocol("WM_DELETE_WINDOW", self.hide_window)
-        style = ttk.Style()
-        style.configure("TButton", padding=(10, 6))
-        style.configure("TLabel", padding=(0, 2))
-        style.configure("Header.TLabel", font=("TkDefaultFont", 13, "bold"))
+        self.root.configure(bg="#f4f6f8")
 
     def _build(self) -> None:
-        container = ttk.Frame(self.root, padding=16)
+        container = tk.Frame(self.root, bg="#f4f6f8", padx=18, pady=18)
         container.pack(fill="both", expand=True)
 
-        header = ttk.Frame(container)
+        header = tk.Frame(container, bg="#f4f6f8")
         header.pack(fill="x")
-        ttk.Label(header, text=APP_NAME, style="Header.TLabel").pack(side="left")
-        ttk.Label(header, textvariable=self.ready_status_var).pack(side="right")
+        tk.Label(
+            header,
+            text=APP_NAME,
+            bg="#f4f6f8",
+            fg="#111827",
+            font=("Helvetica", 18, "bold"),
+        ).pack(side="left")
+        tk.Label(
+            header,
+            textvariable=self.ready_status_var,
+            bg="#e8eefc",
+            fg="#1d4ed8",
+            padx=10,
+            pady=4,
+        ).pack(side="right")
 
-        main = ttk.LabelFrame(container, text=LABEL_SETTINGS, padding=12)
+        main = tk.LabelFrame(
+            container,
+            text=LABEL_SETTINGS,
+            bg="#ffffff",
+            fg="#111827",
+            padx=12,
+            pady=12,
+            bd=1,
+            relief="solid",
+        )
         main.pack(fill="x", pady=(16, 0))
         main.columnconfigure(1, weight=1)
 
-        ttk.Label(main, text=LABEL_SERVER_URL).grid(row=0, column=0, sticky="w")
-        ttk.Entry(main, textvariable=self.server_url_var).grid(row=0, column=1, columnspan=3, sticky="ew")
+        self._label(main, LABEL_SERVER_URL).grid(row=0, column=0, sticky="w", pady=4)
+        tk.Entry(main, textvariable=self.server_url_var).grid(row=0, column=1, columnspan=3, sticky="ew", pady=4)
 
-        ttk.Label(main, text=LABEL_CLIENT_TOKEN).grid(row=1, column=0, sticky="w")
-        ttk.Entry(main, textvariable=self.client_token_var, show="*").grid(row=1, column=1, columnspan=3, sticky="ew")
-        ttk.Label(main, text=MESSAGE_TOKEN_NOT_DISPLAYED).grid(row=2, column=1, columnspan=3, sticky="w")
+        self._label(main, LABEL_CLIENT_TOKEN).grid(row=1, column=0, sticky="w", pady=4)
+        tk.Entry(main, textvariable=self.client_token_var, show="*").grid(row=1, column=1, columnspan=3, sticky="ew", pady=4)
+        self._hint(main, MESSAGE_TOKEN_NOT_DISPLAYED).grid(row=2, column=1, columnspan=3, sticky="w", pady=(0, 6))
 
-        ttk.Label(main, text=LABEL_PRINTER).grid(row=3, column=0, sticky="w", pady=(8, 0))
-        self.printer_combo = ttk.Combobox(main, textvariable=self.printer_var, state="readonly")
-        self.printer_combo.grid(row=3, column=1, sticky="ew", pady=(8, 0))
-        ttk.Button(main, text=ACTION_REFRESH_PRINTERS, command=self.refresh_printers).grid(row=3, column=2, sticky="e", padx=(8, 0), pady=(8, 0))
+        self._label(main, LABEL_PRINTER).grid(row=3, column=0, sticky="w", pady=4)
+        self.printer_menu = tk.OptionMenu(main, self.printer_var, "")
+        self.printer_menu.configure(bg="#ffffff", anchor="w")
+        self.printer_menu.grid(row=3, column=1, sticky="ew", pady=4)
+        self._button(main, ACTION_REFRESH_PRINTERS, self.refresh_printers).grid(row=3, column=2, sticky="e", padx=(8, 0), pady=4)
 
-        ttk.Label(main, text=LABEL_POLLING_INTERVAL).grid(row=4, column=0, sticky="w")
-        ttk.Spinbox(main, from_=1, to=3600, textvariable=self.polling_interval_var, width=8).grid(row=4, column=1, sticky="w")
-        ttk.Label(main, text=LABEL_SECONDS).grid(row=4, column=1, sticky="w", padx=(80, 0))
+        self._label(main, LABEL_POLLING_INTERVAL).grid(row=4, column=0, sticky="w", pady=4)
+        tk.Spinbox(main, from_=1, to=3600, textvariable=self.polling_interval_var, width=8).grid(row=4, column=1, sticky="w", pady=4)
+        self._label(main, LABEL_SECONDS).grid(row=4, column=1, sticky="w", padx=(80, 0), pady=4)
 
-        ttk.Label(main, text=LABEL_HEARTBEAT_INTERVAL).grid(row=5, column=0, sticky="w")
-        ttk.Spinbox(main, from_=5, to=3600, textvariable=self.heartbeat_interval_var, width=8).grid(row=5, column=1, sticky="w")
-        ttk.Label(main, text=LABEL_SECONDS).grid(row=5, column=1, sticky="w", padx=(80, 0))
+        self._label(main, LABEL_HEARTBEAT_INTERVAL).grid(row=5, column=0, sticky="w", pady=4)
+        tk.Spinbox(main, from_=5, to=3600, textvariable=self.heartbeat_interval_var, width=8).grid(row=5, column=1, sticky="w", pady=4)
+        self._label(main, LABEL_SECONDS).grid(row=5, column=1, sticky="w", padx=(80, 0), pady=4)
 
-        ttk.Checkbutton(main, text=LABEL_START_ON_LAUNCH, variable=self.start_polling_var).grid(row=6, column=1, sticky="w", pady=(8, 0))
-        ttk.Checkbutton(main, text=LABEL_START_AT_LOGIN, variable=self.start_at_login_var).grid(row=7, column=1, sticky="w")
+        tk.Checkbutton(main, text=LABEL_START_ON_LAUNCH, variable=self.start_polling_var, bg="#ffffff").grid(row=6, column=1, sticky="w", pady=(8, 0))
+        tk.Checkbutton(main, text=LABEL_START_AT_LOGIN, variable=self.start_at_login_var, bg="#ffffff").grid(row=7, column=1, sticky="w")
 
-        ttk.Label(main, text=LABEL_CONNECTION_STATUS).grid(row=8, column=0, sticky="w", pady=(14, 0))
-        ttk.Label(main, textvariable=self.connection_status_var).grid(row=8, column=1, sticky="w", pady=(14, 0))
-        ttk.Label(main, text=LABEL_HEARTBEAT_STATUS).grid(row=9, column=0, sticky="w")
-        ttk.Label(main, textvariable=self.heartbeat_status_var).grid(row=9, column=1, sticky="w")
+        self._label(main, LABEL_CONNECTION_STATUS).grid(row=8, column=0, sticky="w", pady=(14, 0))
+        self._value(main, self.connection_status_var).grid(row=8, column=1, sticky="w", pady=(14, 0))
+        self._label(main, LABEL_HEARTBEAT_STATUS).grid(row=9, column=0, sticky="w", pady=4)
+        self._value(main, self.heartbeat_status_var).grid(row=9, column=1, sticky="w", pady=4)
 
-        actions = ttk.Frame(main)
+        actions = tk.Frame(main, bg="#ffffff")
         actions.grid(row=10, column=0, columnspan=4, sticky="ew", pady=(16, 0))
-        ttk.Button(actions, text=ACTION_SAVE, command=self.save_settings).pack(side="left")
-        ttk.Button(actions, text=ACTION_START, command=self.start_worker).pack(side="left", padx=(8, 0))
-        ttk.Button(actions, text=ACTION_STOP, command=self.stop_worker).pack(side="left", padx=(8, 0))
-        ttk.Button(actions, text=ACTION_QUIT, command=self.quit_application).pack(side="right")
+        self._button(actions, ACTION_SAVE, self.save_settings).pack(side="left")
+        self._button(actions, ACTION_START, self.start_worker).pack(side="left", padx=(8, 0))
+        self._button(actions, ACTION_STOP, self.stop_worker).pack(side="left", padx=(8, 0))
+        self._button(actions, ACTION_QUIT, self.quit_application).pack(side="right")
 
-        lower = ttk.Frame(container)
+        lower = tk.Frame(container, bg="#f4f6f8")
         lower.pack(fill="both", expand=True, pady=(16, 0))
         lower.columnconfigure(0, weight=1)
         lower.rowconfigure(0, weight=1)
         lower.rowconfigure(1, weight=2)
 
-        jobs_frame = ttk.LabelFrame(lower, text=LABEL_RECENT_JOBS, padding=8)
+        jobs_frame = tk.LabelFrame(lower, text=LABEL_RECENT_JOBS, bg="#ffffff", padx=8, pady=8, bd=1, relief="solid")
         jobs_frame.grid(row=0, column=0, sticky="nsew")
         jobs_frame.rowconfigure(0, weight=1)
         jobs_frame.columnconfigure(0, weight=1)
-        self.jobs = ttk.Treeview(jobs_frame, columns=("status", "detail"), show="headings", height=6)
-        self.jobs.heading("status", text="Status")
-        self.jobs.heading("detail", text="Detail")
-        self.jobs.column("status", width=140, stretch=False)
-        self.jobs.column("detail", width=640)
+        self.jobs = tk.Listbox(jobs_frame, height=6)
+        self.jobs.insert("end", "No jobs yet")
         self.jobs.grid(row=0, column=0, sticky="nsew")
 
-        logs_frame = ttk.LabelFrame(lower, text=LABEL_LOGS, padding=8)
+        logs_frame = tk.LabelFrame(lower, text=LABEL_LOGS, bg="#ffffff", padx=8, pady=8, bd=1, relief="solid")
         logs_frame.grid(row=1, column=0, sticky="nsew", pady=(12, 0))
         logs_frame.rowconfigure(0, weight=1)
         logs_frame.columnconfigure(0, weight=1)
         self.logs = tk.Text(logs_frame, height=12, state="disabled", wrap="word")
         self.logs.grid(row=0, column=0, sticky="nsew")
+        self._append_log("PrintBridge Endpoint GUI loaded")
 
     def refresh_printers(self) -> None:
         try:
@@ -188,7 +206,10 @@ class EndpointGui:
             self.printers = []
 
         names = [printer.name for printer in self.printers]
-        self.printer_combo["values"] = names
+        menu = self.printer_menu["menu"]
+        menu.delete(0, "end")
+        for name in names:
+            menu.add_command(label=name, command=lambda value=name: self.printer_var.set(value))
         if names and self.printer_var.get() not in names:
             default = next((printer.name for printer in self.printers if printer.is_default), names[0])
             self.printer_var.set(default)
@@ -241,7 +262,7 @@ class EndpointGui:
         self.root.withdraw()
 
     def show_window(self) -> None:
-        self.root.after(0, self._show_window_on_main_thread)
+        self.events.put(("show", None))
 
     def _show_window_on_main_thread(self) -> None:
         self.root.deiconify()
@@ -257,7 +278,7 @@ class EndpointGui:
         self.root.destroy()
 
     def _start_tray(self) -> None:
-        self.tray = TrayController(on_show=self.show_window, on_quit=lambda: self.root.after(0, self.quit_application))
+        self.tray = TrayController(on_show=self.show_window, on_quit=lambda: self.events.put(("quit", None)))
         try:
             self.tray.start()
         except TrayUnavailableError as exc:
@@ -300,8 +321,14 @@ class EndpointGui:
                 self.connection_status_var.set(str(payload))
                 if "Heartbeat" in str(payload):
                     self.heartbeat_status_var.set(str(payload))
+            elif event == "show":
+                self._show_window_on_main_thread()
+            elif event == "quit":
+                self.quit_application()
             elif event == "job" and isinstance(payload, JobHistoryEntry):
-                self.jobs.insert("", 0, values=(payload.status, f"{payload.job_id} {payload.detail}".strip()))
+                if self.jobs.size() == 1 and self.jobs.get(0) == "No jobs yet":
+                    self.jobs.delete(0)
+                self.jobs.insert(0, f"{payload.status}: {payload.job_id} {payload.detail}".strip())
             elif event == "config" and isinstance(payload, EndpointConfig):
                 self.polling_interval_var.set(payload.polling_interval_seconds)
                 self.heartbeat_interval_var.set(payload.heartbeat_interval_seconds)
@@ -314,6 +341,18 @@ class EndpointGui:
         self.logs.insert("end", f"{line}\n")
         self.logs.see("end")
         self.logs.configure(state="disabled")
+
+    def _label(self, parent: tk.Misc, text: str) -> tk.Label:
+        return tk.Label(parent, text=text, bg="#ffffff", fg="#374151", anchor="w")
+
+    def _hint(self, parent: tk.Misc, text: str) -> tk.Label:
+        return tk.Label(parent, text=text, bg="#ffffff", fg="#6b7280", anchor="w")
+
+    def _value(self, parent: tk.Misc, variable: tk.StringVar) -> tk.Label:
+        return tk.Label(parent, textvariable=variable, bg="#ffffff", fg="#111827", anchor="w")
+
+    def _button(self, parent: tk.Misc, text: str, command: object) -> tk.Button:
+        return tk.Button(parent, text=text, command=command, padx=12, pady=5)
 
 
 def run_gui() -> None:
