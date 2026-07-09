@@ -42,19 +42,35 @@ python3 -m printbridge_endpoint --version
 
 When running from a source checkout without installing, set `PYTHONPATH=src`.
 
+## Connect to Servers
+
+Use the settings window to connect the endpoint to one or more PrintBridge Server instances:
+
+1. Enter a server name, server URL, and client token.
+2. Leave `Enabled` checked if this server should poll for jobs.
+3. Set the polling and heartbeat intervals, or let the server override them in heartbeat/reserve responses.
+4. Click `Add Server`.
+5. Repeat for every server this office computer should serve.
+6. Select the local printer under `Global Settings`.
+7. Click `Start`.
+
+The endpoint starts one background polling worker for each enabled server profile. All enabled servers can send jobs to the same selected local printer unless a reserved job response includes a specific `printer_name`.
+
+Stored tokens are hidden. To replace a token, select the server profile, enter the new token, and click `Update Server`.
+
 ## Configuration
 
 The settings window stores:
 
-- server URL
+- server profiles
 - selected printer
-- polling interval
-- heartbeat interval
+- polling interval per server
+- heartbeat interval per server
 - start polling on launch
 - start at login
 - logging preferences
 
-The client token is stored separately through the operating system credential store when `keyring` is available. Stored tokens are not shown in the GUI. Enter a token only when setting or replacing it.
+Client tokens are stored separately per server through the operating system credential store when `keyring` is available. Stored tokens are not shown in the GUI. Enter a token only when setting or replacing it.
 
 Configuration locations:
 
