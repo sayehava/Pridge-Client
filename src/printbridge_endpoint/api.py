@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
 
 
 logger = logging.getLogger(__name__)
@@ -53,15 +53,17 @@ class PrintBridgeClient:
             raise AuthenticationError("Client token is not configured.")
 
         response = self.session.post(
-            self._url("/api/endpoint/auth"),
-            json={"client_token": self.client_token},
+            self._url("/api/client/auth"),
+            json={"token": self.client_token},
             timeout=self.timeout_seconds,
         )
         if response.status_code != 200:
             raise AuthenticationError(f"Authentication failed with HTTP {response.status_code}.")
 
         body = _json_object(response)
-        session_token = body.get("session_token")
+        session_token = body.get("token")
+        if session_token is None:
+            session_token = body.get("session_token")
         if not isinstance(session_token, str) or not session_token.strip():
             raise AuthenticationError("Authentication response did not include a session token.")
 
@@ -72,7 +74,7 @@ class PrintBridgeClient:
         payload: dict[str, Any] = {}
         if printer_name:
             payload["printer_name"] = printer_name
-        response = self._request("POST", "/api/endpoint/heartbeat", json=payload)
+        response = self._request("POST", "/api/client/heartbeat", json=payload)
         self._update_instructions_from_response(response)
         logger.debug("Heartbeat sent")
 
@@ -80,7 +82,7 @@ class PrintBridgeClient:
         payload: dict[str, Any] = {}
         if printer_name:
             payload["printer_name"] = printer_name
-        response = self._request("POST", "/api/endpoint/jobs/reserve", json=payload)
+        response = self._request("POST", "/api/client/jobs/reserve", json=payload)
         if response.status_code == 204:
             return None
 
@@ -106,10 +108,11 @@ class PrintBridgeClient:
     def report_job_status(self, job_id: str, status: str, message: str | None = None) -> None:
         if status not in {"printing", "printed", "failed"}:
             raise ValueError(f"Unsupported job status: {status}")
-        payload: dict[str, Any] = {"status": status}
-        if message:
-            payload["message"] = message
-        self._request("POST", f"/api/endpoint/jobs/{job_id}/status", json=payload)
+        safe_job_id = quote(str(job_id), safe="")
+        payload: dict[str, Any] = {}
+        if status == "failed" and message:
+            payload["error"] = message
+        self._request("POST", f"/api/client/jobs/{safe_job_id}/{status}", json=payload)
         logger.info("Reported job %s as %s", job_id, status)
 
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
@@ -173,7 +176,7 @@ def _parse_reserved_job(raw: dict[str, Any]) -> ReservedJob:
     job_id = raw.get("id")
     payload_base64 = raw.get("payload_base64")
     content_type = raw.get("content_type", "application/octet-stream")
-    if not isinstance(job_id, str) or not job_id:
+    if not isinstance(job_id, (str, int)) or isinstance(job_id, bool) or str(job_id).strip() == "":
         raise ApiError("Reserved job is missing an id.")
     if not isinstance(payload_base64, str) or not payload_base64:
         raise ApiError("Reserved job is missing a Base64 payload.")
@@ -188,7 +191,7 @@ def _parse_reserved_job(raw: dict[str, Any]) -> ReservedJob:
         copies = 1
 
     return ReservedJob(
-        job_id=job_id,
+        job_id=str(job_id),
         payload_base64=payload_base64,
         content_type=content_type,
         printer_name=printer_name if isinstance(printer_name, str) else None,

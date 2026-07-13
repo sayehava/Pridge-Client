@@ -84,7 +84,7 @@ The endpoint authenticates with the client token issued by PrintBridge Server. A
 
 ```json
 {
-  "session_token": "temporary-session-token"
+  "token": "temporary-session-token"
 }
 ```
 
@@ -100,10 +100,12 @@ If a request returns HTTP 401, the endpoint clears the session token, authentica
 
 The current endpoint client expects these language-neutral JSON endpoints:
 
-- `POST /api/endpoint/auth`
-- `POST /api/endpoint/heartbeat`
-- `POST /api/endpoint/jobs/reserve`
-- `POST /api/endpoint/jobs/{job_id}/status`
+- `POST /api/client/auth`
+- `POST /api/client/heartbeat`
+- `POST /api/client/jobs/reserve`
+- `POST /api/client/jobs/{job_id}/printing`
+- `POST /api/client/jobs/{job_id}/printed`
+- `POST /api/client/jobs/{job_id}/failed`
 
 Job reservation can return HTTP 204 when no job is available, or JSON:
 
