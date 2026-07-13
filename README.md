@@ -46,17 +46,19 @@ When running from a source checkout without installing, set `PYTHONPATH=src`.
 
 Use the settings window to connect the endpoint to one or more PrintBridge Server instances:
 
-1. Enter a server name, server URL, and client token.
-2. Leave `Enabled` checked if this server should poll for jobs.
-3. Set the polling and heartbeat intervals, or let the server override them in heartbeat/reserve responses.
-4. Click `Add Server`.
-5. Repeat for every server this office computer should serve.
-6. Select the local printer under `Global Settings`.
-7. Click `Start`.
+1. Click `Add Server` in the `Server Connections` list.
+2. Enter a server name, server URL, and client token in the separate server settings window.
+3. Leave `Enabled` checked if this server should poll for jobs.
+4. Set the polling and heartbeat intervals.
+5. Click `Test Connection` to verify the URL and token.
+6. Click `Add Server` to save the connection.
+7. Repeat for every server this office computer should serve.
+8. Select the local printer in the main window.
+9. Click `Start`.
 
 The endpoint starts one background polling worker for each enabled server profile. All enabled servers can send jobs to the same selected local printer unless a reserved job response includes a specific `printer_name`.
 
-Stored tokens are hidden. To replace a token, select the server profile, enter the new token, and click `Update Server`.
+The main window lists every configured server with its enabled state, token state, polling interval, heartbeat interval, and current worker status. Click `Edit` to open that server in a separate settings window. Stored tokens are hidden; enter a new token only when replacing the existing token.
 
 ## Configuration
 
@@ -81,6 +83,19 @@ Configuration locations:
 ## Authentication
 
 The endpoint authenticates with the client token issued by PrintBridge Server. A successful authentication response must include:
+
+```http
+POST /api/client/auth
+Content-Type: application/json
+```
+
+```json
+{
+  "token": "client-token"
+}
+```
+
+The server returns:
 
 ```json
 {
