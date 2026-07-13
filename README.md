@@ -256,3 +256,17 @@ Then validate the source:
 PYTHONPATH=src python3 -m unittest discover -s tests
 PYTHONPYCACHEPREFIX=/tmp/printbridge_pycache python3 -m compileall src tests
 ```
+---
+
+### ❤️ Support Development
+
+☕ **Buy Me a Coffee**  
+https://buymeacoffee.com/sayehava
+
+💜 **Ko-fi**  
+https://ko-fi.com/sayehava
+
+> [!TIP]
+> Even a small donation helps fund future modules, maintenance, bug fixes, and new features.
+
+---
