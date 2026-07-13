@@ -66,7 +66,6 @@
                         <span>${server.polling_interval_seconds}s ${S.polling_short}</span>
                         <span>${server.heartbeat_interval_seconds}s ${S.heartbeat_short}</span>
                         <span>${server.printer_mappings.length} ${S.mappings_short}</span>
-                        ${server.default_printer ? html`<span>${S.fallback_short}: ${server.default_printer}</span>` : null}
                       </div>
                     </div>
                     <div class="server-actions">
