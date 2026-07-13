@@ -151,7 +151,9 @@ function Build-Native {
         "--include-data-files=$(Join-Path $Repository 'ADDITIONAL_TERMS.md')=ADDITIONAL_TERMS.md",
         "--include-data-files=$($Context.metadata)=printbridge_client/_build.json",
         "--include-package-data=webview",
-        "--include-package=pystray", "--include-package=keyring",
+        "--include-module=pystray._win32", "--include-package=keyring",
+        "--nofollow-import-to=PIL.ImageTk", "--nofollow-import-to=PIL._tkinter_finder",
+        "--nofollow-import-to=tkinter", "--nofollow-import-to=_tkinter",
         "--include-package=clr_loader", "--include-module=clr", "--include-package=win32com",
         "--report=$(Join-Path $OutputDir 'native-windows-compilation-report.xml')",
         (Join-Path $Repository "src\printbridge_client\__main__.py")

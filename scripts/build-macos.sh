@@ -224,8 +224,12 @@ build_native() {
         --include-data-files="$REPOSITORY/ADDITIONAL_TERMS.md=ADDITIONAL_TERMS.md" \
         --include-data-files="$(context_value "$context" metadata)=printbridge_client/_build.json" \
         --include-package-data=webview \
-        --include-package=pystray \
+        --include-module=pystray._darwin \
         --include-package=keyring \
+        --nofollow-import-to=PIL.ImageTk \
+        --nofollow-import-to=PIL._tkinter_finder \
+        --nofollow-import-to=tkinter \
+        --nofollow-import-to=_tkinter \
         --report="$OUTPUT_DIR/native-macos-$ARCH-compilation-report.xml" \
         "$REPOSITORY/src/printbridge_client/__main__.py"
     local app

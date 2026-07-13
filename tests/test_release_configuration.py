@@ -37,6 +37,8 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn('"--windows-console-mode=disable"', text)
         self.assertNotIn('"--include-package=webview"', text)
         self.assertNotIn('"--include-package=PIL"', text)
+        self.assertIn('"--include-module=pystray._win32"', text)
+        self.assertIn('"--nofollow-import-to=tkinter"', text)
         self.assertNotIn('"--onefile"', text)
 
     def test_macos_build_creates_native_app_bundles_and_dmgs(self):
@@ -51,6 +53,8 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("notarytool submit", text)
         self.assertNotIn("--include-package=webview", text)
         self.assertNotIn("--include-package=PIL", text)
+        self.assertIn("--include-module=pystray._darwin", text)
+        self.assertIn("--nofollow-import-to=tkinter", text)
         self.assertNotIn("--onefile", text)
 
     def test_tag_workflow_publishes_all_expected_packages(self):
