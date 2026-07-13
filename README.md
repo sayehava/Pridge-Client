@@ -184,7 +184,7 @@ Each server runs in its own worker and has independent polling and heartbeat int
 
 ## Desktop Interface
 
-The GUI uses a bundled pywebview interface with translucent glass-style panels. Native transparency is enabled on supported macOS and Linux webview backends, with macOS vibrancy when available. Windows uses the same layered gradient design over an opaque native window because pywebview does not currently support native transparent windows there.
+The GUI uses a bundled pywebview interface with translucent glass-style panels. Native transparency is enabled on supported macOS and Linux webview backends, with macOS vibrancy and a clear WKWebView under-page background. Windows uses the layered gradient design over an opaque native window and does not show transparency controls.
 
 ## Auto-Start
 
