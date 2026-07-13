@@ -131,9 +131,43 @@ class EndpointApiTests(unittest.TestCase):
         self.assertIn("server.html?", create_window.call_args.kwargs["url"])
         self.assertEqual(len(self.api.server_windows), 1)
 
+    @patch("printbridge_endpoint.gui.webview.create_window")
+    def test_opens_settings_in_one_separate_window(self, create_window):
+        create_window.return_value = Mock()
+
+        first = self.api.open_settings_window()
+        second = self.api.open_settings_window()
+
+        self.assertTrue(first["ok"])
+        self.assertTrue(second["ok"])
+        create_window.assert_called_once()
+        self.assertIn("settings.html", create_window.call_args.kwargs["url"])
+        create_window.return_value.show.assert_called_once()
+
+    @patch("printbridge_endpoint.gui.set_start_at_login")
+    def test_updates_application_appearance_settings(self, set_start_at_login):
+        result = self.api.update_application_settings(
+            {
+                "start_polling_on_launch": True,
+                "start_at_login": True,
+                "transparency_enabled": False,
+                "glass_opacity_percent": 42,
+            }
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["restart_required"])
+        self.assertEqual(result["state"]["appearance"]["glass_opacity_percent"], 42)
+        self.assertFalse(self.api.config.appearance.transparency_enabled)
+        set_start_at_login.assert_called_once_with(True)
+
     @patch("printbridge_endpoint.gui.platform.system", return_value="Windows")
     def test_disables_native_transparency_on_windows(self, _system):
         self.assertEqual(_window_effects(), {"transparent": False, "vibrancy": False})
+
+    @patch("printbridge_endpoint.gui.platform.system", return_value="Darwin")
+    def test_respects_disabled_transparency_setting(self, _system):
+        self.assertEqual(_window_effects(False), {"transparent": False, "vibrancy": False})
 
 
 if __name__ == "__main__":

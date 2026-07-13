@@ -30,7 +30,9 @@ from printbridge_endpoint.strings import (
     STATUS_RUNNING,
     STATUS_STOPPED,
     WINDOW_ADD_SERVER,
+    WINDOW_ABOUT,
     WINDOW_EDIT_SERVER,
+    WINDOW_SETTINGS,
     WINDOW_TITLE,
 )
 from printbridge_endpoint.tray import TrayController, TrayUnavailableError
@@ -72,6 +74,7 @@ class EndpointApi:
         self.config = self.config_store.load()
         self.workers: dict[str, PollingWorker] = {}
         self.server_windows: dict[str, webview.Window] = {}
+        self.utility_windows: dict[str, webview.Window] = {}
         self.tray: TrayController | None = None
         self.window: webview.Window | None = None
         self.events: queue.Queue[tuple[str, object]] = queue.Queue()
@@ -181,13 +184,39 @@ class EndpointApi:
             height=820,
             min_size=(580, 700),
             background_color="#111827",
-            **_window_effects(),
+            **_window_effects(self.config.appearance.transparency_enabled),
         )
         self.server_windows[window_key] = window
         return self._ok()
 
     def close_server_window(self, window_key: str) -> dict:
         window = self.server_windows.pop(window_key, None)
+        if window is not None:
+            window.destroy()
+        return self._ok()
+
+    def open_settings_window(self) -> dict:
+        return self._open_utility_window(
+            key="settings",
+            title=WINDOW_SETTINGS,
+            page="settings.html",
+            width=620,
+            height=700,
+            min_size=(540, 620),
+        )
+
+    def open_about_window(self) -> dict:
+        return self._open_utility_window(
+            key="about",
+            title=WINDOW_ABOUT,
+            page="about.html",
+            width=600,
+            height=690,
+            min_size=(520, 600),
+        )
+
+    def close_utility_window(self, key: str) -> dict:
+        window = self.utility_windows.pop(str(key), None)
         if window is not None:
             window.destroy()
         return self._ok()
@@ -279,6 +308,34 @@ class EndpointApi:
             logger.warning("Could not update auto-start setting: %s", exc)
         logger.info(MESSAGE_SETTINGS_SAVED)
         return self._ok()
+
+    def update_application_settings(self, fields: dict) -> dict:
+        previous_transparency = self.config.appearance.transparency_enabled
+        self.start_polling_on_launch = bool(fields.get("start_polling_on_launch", self.start_polling_on_launch))
+        self.start_at_login = bool(fields.get("start_at_login", self.start_at_login))
+        self.config.appearance.transparency_enabled = bool(
+            fields.get("transparency_enabled", self.config.appearance.transparency_enabled)
+        )
+        self.config.appearance.glass_opacity_percent = self._safe_int(
+            fields.get("glass_opacity_percent"),
+            self.config.appearance.glass_opacity_percent,
+            minimum=25,
+            maximum=95,
+        )
+        self.config = self._current_config()
+        self.config_store.save(self.config)
+        try:
+            set_start_at_login(self.config.start_at_login)
+        except AutoStartError as exc:
+            logger.warning("Could not update auto-start setting: %s", exc)
+        logger.info(MESSAGE_SETTINGS_SAVED)
+        return {
+            "ok": True,
+            "error": None,
+            "message": MESSAGE_SETTINGS_SAVED,
+            "restart_required": previous_transparency != self.config.appearance.transparency_enabled,
+            "state": self._build_state(),
+        }
 
     def start_workers(self) -> dict:
         self.save_settings()
@@ -398,6 +455,10 @@ class EndpointApi:
             "selected_printer": self.selected_printer,
             "start_polling_on_launch": self.start_polling_on_launch,
             "start_at_login": self.start_at_login,
+            "appearance": {
+                "transparency_enabled": self.config.appearance.transparency_enabled,
+                "glass_opacity_percent": self.config.appearance.glass_opacity_percent,
+            },
             "recent_jobs": list(self.recent_jobs),
             "logs": list(self.logs),
         }
@@ -435,6 +496,7 @@ class EndpointApi:
             start_polling_on_launch=self.start_polling_on_launch,
             start_at_login=self.start_at_login,
             logging=self.config.logging,
+            appearance=self.config.appearance,
         )
 
     def _runtime_config(self, server: ServerConfig) -> EndpointConfig:
@@ -447,13 +509,44 @@ class EndpointApi:
             start_polling_on_launch=self.start_polling_on_launch,
             start_at_login=self.start_at_login,
             logging=self.config.logging,
+            appearance=self.config.appearance,
         )
 
-    def _safe_int(self, value: object, default: int, minimum: int) -> int:
+    def _safe_int(self, value: object, default: int, minimum: int, maximum: int | None = None) -> int:
         try:
-            return max(int(value), minimum)  # type: ignore[arg-type]
+            parsed = max(int(value), minimum)  # type: ignore[arg-type]
         except (TypeError, ValueError):
-            return max(default, minimum)
+            parsed = max(default, minimum)
+        return min(parsed, maximum) if maximum is not None else parsed
+
+    def _open_utility_window(
+        self,
+        key: str,
+        title: str,
+        page: str,
+        width: int,
+        height: int,
+        min_size: tuple[int, int],
+    ) -> dict:
+        existing = self.utility_windows.get(key)
+        if existing is not None:
+            try:
+                existing.show()
+                return self._ok()
+            except Exception:
+                self.utility_windows.pop(key, None)
+        window = webview.create_window(
+            title,
+            url=str(WEBUI_DIR / page),
+            js_api=self,
+            width=width,
+            height=height,
+            min_size=min_size,
+            background_color="#111827",
+            **_window_effects(self.config.appearance.transparency_enabled),
+        )
+        self.utility_windows[key] = window
+        return self._ok()
 
     def _printer_mappings(self, value: object) -> list[PrinterMapping]:
         if not isinstance(value, list):
@@ -539,7 +632,7 @@ def run_gui() -> None:
         height=760,
         min_size=(980, 640),
         background_color="#111827",
-        **_window_effects(),
+        **_window_effects(api.config.appearance.transparency_enabled),
     )
     api.window = window
     window.events.closing += api.on_closing
@@ -551,11 +644,11 @@ def run_gui() -> None:
     webview.start(debug=False, icon=str(APP_ICON_PATH))
 
 
-def _window_effects() -> dict[str, bool]:
+def _window_effects(enabled: bool = True) -> dict[str, bool]:
     system = platform.system()
     return {
-        "transparent": system != "Windows",
-        "vibrancy": system == "Darwin",
+        "transparent": enabled and system != "Windows",
+        "vibrancy": enabled and system == "Darwin",
     }
 
 
