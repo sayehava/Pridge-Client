@@ -91,6 +91,20 @@ class EndpointApiTests(unittest.TestCase):
         start_worker.assert_called_once_with(self.api.config.servers[0])
         stop_worker.assert_called_once_with(server_id)
 
+    def test_disabling_running_server_stops_without_restart(self):
+        result = self.api.add_server({"name": "Office", "server_url": "https://office.example.test"})
+        server_id = result["state"]["servers"][0]["id"]
+        self.api.workers[server_id] = Mock(state=Mock(running=True))
+
+        with patch.object(self.api, "stop_worker") as stop_worker, patch.object(self.api, "start_worker") as start_worker:
+            self.api.update_server(
+                server_id,
+                {"name": "Office", "server_url": "https://office.example.test", "enabled": False},
+            )
+
+        stop_worker.assert_called_once_with(server_id)
+        start_worker.assert_not_called()
+
     @patch("printbridge_endpoint.gui.PrintBridgeClient")
     def test_discovers_remote_printers_for_mapping(self, client_class):
         client_class.return_value.list_remote_printers.return_value = [RemotePrinter("12", "Receipts")]

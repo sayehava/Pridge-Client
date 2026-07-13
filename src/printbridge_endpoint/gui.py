@@ -144,7 +144,7 @@ class EndpointApi:
         if token:
             self.token_store.set(token, server.id)
         self.config_store.save(self._current_config())
-        if was_running:
+        if was_running and server.enabled:
             self.start_worker(server)
         return self._ok()
 
