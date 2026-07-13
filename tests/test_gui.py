@@ -253,6 +253,12 @@ class ClientApiTests(unittest.TestCase):
         utility_window.destroy.assert_called_once()
         main_window.destroy.assert_called_once()
 
+    def test_exposes_build_diagnostics(self):
+        state = self.api.get_state()["state"]
+
+        self.assertIn(state["build_variant"], {"Development", "Native", "PyInstaller"})
+        self.assertIn(state["build_system"], {"Python", "Nuitka", "PyInstaller"})
+
     @patch("printbridge_client.gui.set_start_at_login")
     def test_updates_application_darkness_setting(self, set_start_at_login):
         self.api.window = Mock()

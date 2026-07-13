@@ -103,6 +103,8 @@ window.PrintBridgeStrings = Object.freeze({
   about_description: "A secure desktop bridge that connects PrintBridge servers to local printers, receives print jobs, and sends their original data safely to the selected printer.",
   original_author: "Original author",
   version: "Version",
+  build_variant: "Build variant",
+  build_system: "Build system",
   copyright: "Copyright",
   copyright_value: "© 2026 Sayeh Ava Pazouki",
   license: "License",

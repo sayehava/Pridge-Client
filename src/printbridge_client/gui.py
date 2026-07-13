@@ -16,6 +16,7 @@ import webview
 
 from printbridge_client.api import ApiError, PrintBridgeClient
 from printbridge_client.autostart import AutoStartError, set_start_at_login
+from printbridge_client.build_info import BUILD_SYSTEM, BUILD_VARIANT
 from printbridge_client.config import (
     DARKNESS_GRADES,
     ClientTokenStore,
@@ -478,6 +479,8 @@ class ClientApi:
             "app_name": APP_NAME,
             "window_title": WINDOW_TITLE,
             "version": __version__,
+            "build_variant": BUILD_VARIANT,
+            "build_system": BUILD_SYSTEM,
             "ready_status": self.ready_status,
             "connection_status": self.connection_status,
             "heartbeat_status": self.heartbeat_status,

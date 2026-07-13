@@ -42,6 +42,8 @@
         <p class="about-description">${S.about_description}</p>
         <div class="about-details">
           <div class="about-detail"><span>${S.version}</span><strong>${state.version}</strong></div>
+          <div class="about-detail"><span>${S.build_variant}</span><strong>${state.build_variant}</strong></div>
+          <div class="about-detail"><span>${S.build_system}</span><strong>${state.build_system}</strong></div>
           <div class="about-detail"><span>${S.original_author}</span><strong>Sayeh Ava Pazouki</strong></div>
           <div class="about-detail"><span>${S.copyright}</span><strong>${S.copyright_value}</strong></div>
           <div class="about-detail"><span>${S.license}</span><strong>${S.license_value}</strong></div>
