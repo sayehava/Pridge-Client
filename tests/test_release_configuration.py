@@ -77,6 +77,12 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn('tags:\n      - "v*"', text)
         self.assertIn("${{ github.workspace }}/build", text)
 
+    def test_macos_workflow_checks_variant_runtime_layout(self):
+        text = (ROOT / ".github" / "workflows" / "build-macos.yml").read_text(encoding="utf-8")
+
+        self.assertIn('runtime_root="$app/Contents/MacOS"', text)
+        self.assertIn('runtime_root="$app/Contents/Resources"', text)
+
 
 if __name__ == "__main__":
     unittest.main()

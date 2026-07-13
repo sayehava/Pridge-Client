@@ -122,7 +122,12 @@ jobs:
           app="$mountpoint/PrintBridge Client.app"
           test -f "$app/Contents/Resources/Legal/LICENSE"
           test -f "$app/Contents/Resources/Legal/ADDITIONAL_TERMS.md"
-          test -f "$app/Contents/Resources/printbridge_client/webui/index.html"
+          if [[ "${{ matrix.variant }}" = "Native" ]]; then
+            runtime_root="$app/Contents/MacOS"
+          else
+            runtime_root="$app/Contents/Resources"
+          fi
+          test -f "$runtime_root/printbridge_client/webui/index.html"
           test "$(/usr/libexec/PlistBuddy -c 'Print :PrintBridgeBuildVariant' "$app/Contents/Info.plist")" = "${{ matrix.variant }}"
           executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
           lipo -archs "$app/Contents/MacOS/$executable" | grep -qw "${{ matrix.arch }}"
