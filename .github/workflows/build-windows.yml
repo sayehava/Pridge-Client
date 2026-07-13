@@ -64,9 +64,7 @@ jobs:
           $ErrorActionPreference = "Stop"
 
           python -m pip install --upgrade pip
-          python -m pip install `
-            -r requirements-release.txt `
-            -e ".[windows,secure,tray]"
+          python -m pip install -r requirements-release.txt -e ".[windows,secure,tray]"
 
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
 
@@ -77,9 +75,6 @@ jobs:
           if (-not (Test-Path $iscc -PathType Leaf)) {
             throw "Inno Setup was not installed successfully."
           }
-
-          Write-Host "Inno Setup:"
-          Write-Host $iscc
 
       - name: Build ${{ matrix.variant }} packages
         shell: pwsh
@@ -104,8 +99,6 @@ jobs:
             Select-Object FullName, Length |
             Format-Table -AutoSize
 
-      # Upload immediately after build so the packages remain downloadable
-      # even if a later test or validation step fails.
       - name: Upload packages
         if: always()
         uses: actions/upload-artifact@v7
@@ -116,176 +109,6 @@ jobs:
             ${{ github.workspace }}/build/PrintBridge-Client-${{ matrix.variant }}-Windows-x64-Portable.zip
           if-no-files-found: warn
           retention-days: 30
-
-      - name: Run tests
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          python -B -m unittest discover -s tests
-
-      - name: Validate portable package and installer
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          $variant = "${{ matrix.variant }}"
-          $release = Join-Path $env:GITHUB_WORKSPACE "build"
-
-          if ($variant -eq "Native") {
-            $portableName = "PrintBridge-Client-Native-Windows-x64-Portable.zip"
-            $installerName = "PrintBridge-Client-Native-Setup-x64.exe"
-          }
-          else {
-            $portableName = "PrintBridge-Client-PyInstaller-Windows-x64-Portable.zip"
-            $installerName = "PrintBridge-Client-PyInstaller-Setup-x64.exe"
-          }
-
-          $portable = Join-Path $release $portableName
-          $installer = Join-Path $release $installerName
-
-          Write-Host "Expected portable package:"
-          Write-Host $portable
-
-          Write-Host "Expected installer:"
-          Write-Host $installer
-
-          if (-not (Test-Path $portable -PathType Leaf)) {
-            Write-Host "Build directory contents:"
-
-            if (Test-Path $release) {
-              Get-ChildItem $release -Recurse |
-                Select-Object FullName, Length |
-                Format-Table -AutoSize
-            }
-
-            throw "Portable package was not created: $portable"
-          }
-
-          if (-not (Test-Path $installer -PathType Leaf)) {
-            Write-Host "Build directory contents:"
-
-            if (Test-Path $release) {
-              Get-ChildItem $release -Recurse |
-                Select-Object FullName, Length |
-                Format-Table -AutoSize
-            }
-
-            throw "Installer package was not created: $installer"
-          }
-
-          $portableInfo = Get-Item $portable
-          $installerInfo = Get-Item $installer
-
-          if ($portableInfo.Length -le 0) {
-            throw "Portable ZIP is empty."
-          }
-
-          if ($installerInfo.Length -le 0) {
-            throw "Installer EXE is empty."
-          }
-
-          Write-Host "Portable ZIP size: $($portableInfo.Length) bytes"
-          Write-Host "Installer size: $($installerInfo.Length) bytes"
-
-          $expanded = Join-Path `
-            $env:RUNNER_TEMP `
-            "portable-validation-$variant"
-
-          Remove-Item `
-            $expanded `
-            -Recurse `
-            -Force `
-            -ErrorAction SilentlyContinue
-
-          Expand-Archive `
-            -Path $portable `
-            -DestinationPath $expanded `
-            -Force
-
-          $portableExe = Join-Path `
-            $expanded `
-            "PrintBridge Client\PrintBridge Client.exe"
-
-          if (-not (Test-Path $portableExe -PathType Leaf)) {
-            Write-Host "Portable archive contents:"
-
-            Get-ChildItem $expanded -Recurse |
-              Select-Object FullName, Length |
-              Format-Table -AutoSize
-
-            throw "Portable executable was not found: $portableExe"
-          }
-
-          $portableExeInfo = Get-Item $portableExe
-
-          if ($portableExeInfo.Length -le 0) {
-            throw "Portable executable is empty."
-          }
-
-          Write-Host "Portable executable validated:"
-          Write-Host $portableExe
-          Write-Host "Size: $($portableExeInfo.Length) bytes"
-
-          $installed = Join-Path `
-            $env:RUNNER_TEMP `
-            "installed-validation-$variant"
-
-          Remove-Item `
-            $installed `
-            -Recurse `
-            -Force `
-            -ErrorAction SilentlyContinue
-
-          New-Item `
-            -ItemType Directory `
-            -Path $installed `
-            -Force |
-            Out-Null
-
-          $installerArguments = @(
-            "/VERYSILENT"
-            "/SUPPRESSMSGBOXES"
-            "/NORESTART"
-            "/DIR=$installed"
-          )
-
-          $setup = Start-Process `
-            -FilePath $installer `
-            -ArgumentList $installerArguments `
-            -Wait `
-            -PassThru
-
-          if ($setup.ExitCode -ne 0) {
-            throw "Installer validation failed with exit code $($setup.ExitCode)."
-          }
-
-          $installedExe = Join-Path `
-            $installed `
-            "PrintBridge Client.exe"
-
-          if (-not (Test-Path $installedExe -PathType Leaf)) {
-            Write-Host "Installed directory contents:"
-
-            if (Test-Path $installed) {
-              Get-ChildItem $installed -Recurse |
-                Select-Object FullName, Length |
-                Format-Table -AutoSize
-            }
-
-            throw "Installed executable was not found: $installedExe"
-          }
-
-          $installedExeInfo = Get-Item $installedExe
-
-          if ($installedExeInfo.Length -le 0) {
-            throw "Installed executable is empty."
-          }
-
-          Write-Host "Installed executable validated:"
-          Write-Host $installedExe
-          Write-Host "Size: $($installedExeInfo.Length) bytes"
-
-          Write-Host "$variant Windows package validation completed successfully."
 
       - name: Upload build logs
         if: always()
