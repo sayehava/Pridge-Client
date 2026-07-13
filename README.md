@@ -49,23 +49,25 @@ Use the settings window to connect the endpoint to one or more PrintBridge Serve
 1. Click `Add Server` in the `Server Connections` list.
 2. Enter a server name, server URL, and client token in the separate server settings window.
 3. Leave `Enabled` checked if this server should poll for jobs.
-4. Set the polling and heartbeat intervals.
+4. Set that server's polling and heartbeat intervals.
 5. Click `Test Connection` to verify the URL and token.
-6. Click `Add Server` to save the connection.
-7. Repeat for every server this office computer should serve.
-8. Select the local printer in the main window.
-9. Click `Start`.
+6. Under `Remote Printer Mappings`, discover remote queues or enter their endpoint IDs manually.
+7. Map each remote queue to a printer installed on this computer and optionally select a fallback printer.
+8. Click `Add Server` to save the connection.
+9. Repeat for every server this office computer should serve.
+10. Use the Start and Stop buttons on each server card to control servers independently.
 
-The endpoint starts one background polling worker for each enabled server profile. All enabled servers can send jobs to the same selected local printer unless a reserved job response includes a specific `printer_name`.
+The endpoint starts one background polling worker for each enabled server profile. Printer mappings are independent per server, so different remote queues can target different local printers while still sharing the same endpoint application.
 
-The main window lists every configured server with its enabled state, token state, polling interval, heartbeat interval, and current worker status. Click `Edit` to open that server in a separate settings window. Stored tokens are hidden; enter a new token only when replacing the existing token.
+The main window lists every configured server with its enabled state, token state, polling interval, heartbeat interval, printer-mapping count, fallback printer, and current worker status. Each server has independent Start and Stop controls. Click `Edit` to open that server in a separate settings window. Stored tokens are hidden; enter a new token only when replacing the existing token.
 
 ## Configuration
 
 The settings window stores:
 
 - server profiles
-- selected printer
+- remote-to-local printer mappings per server
+- fallback local printer per server
 - polling interval per server
 - heartbeat interval per server
 - start polling on launch
@@ -116,6 +118,7 @@ If a request returns HTTP 401, the endpoint clears the session token, authentica
 The current endpoint client expects these language-neutral JSON endpoints:
 
 - `POST /api/client/auth`
+- `GET /api/client/jobs`
 - `POST /api/client/heartbeat`
 - `POST /api/client/jobs/reserve`
 - `POST /api/client/jobs/{job_id}/printing`
@@ -144,7 +147,7 @@ Supported reported states are:
 
 The server remains responsible for requeueing jobs that were reserved but never completed because the endpoint crashed or disconnected.
 
-## Printer Selection
+## Printer Mapping
 
 Printer discovery is platform-specific behind a shared interface:
 
@@ -152,7 +155,11 @@ Printer discovery is platform-specific behind a shared interface:
 - Linux: `pycups` when installed, otherwise `lpstat`
 - macOS: `lpstat`
 
-Printing sends raw bytes to the selected printer:
+Each server profile maps remote PrintBridge endpoint IDs to local printer names. The endpoint reads `endpoint_id` from a reserved job and routes the raw payload through that server's mapping. If no explicit mapping exists, the server profile's fallback printer is used. If neither exists, the job is reported as failed instead of being sent to an arbitrary printer.
+
+The `Discover Remote Printers` action uses the authenticated job list to find known endpoint IDs and names. A remote endpoint with no current job may not appear in discovery, so its stable endpoint ID can also be entered manually.
+
+Printing sends raw bytes to the resolved local printer:
 
 - Windows: `StartDocPrinter` with `RAW`
 - Linux/macOS: `lp -o raw`
@@ -171,6 +178,12 @@ The worker processes one job at a time:
 6. report `printed` or `failed`
 
 Temporary network, server, authentication, and printer errors are retried with bounded backoff.
+
+Each server runs in its own worker and has independent polling and heartbeat intervals. Editing a running server restarts only that server so URL, token, timing, and printer-mapping changes take effect immediately.
+
+## Desktop Interface
+
+The GUI uses a bundled pywebview interface with translucent glass-style panels. Native transparency is enabled on supported macOS and Linux webview backends, with macOS vibrancy when available. Windows uses the same layered gradient design over an opaque native window because pywebview does not currently support native transparent windows there.
 
 ## Auto-Start
 
