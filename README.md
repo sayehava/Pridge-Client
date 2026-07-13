@@ -61,6 +61,8 @@ The endpoint starts one background polling worker for each enabled server profil
 
 The main window lists every configured server with its enabled state, token state, polling interval, heartbeat interval, printer-mapping count, and current worker status. Each server has independent Start and Stop controls. Click `Edit` to open that server in a separate settings window. Stored tokens are hidden; enter a new token only when replacing the existing token.
 
+Server cards are shown four at a time with animated pagination, so large installations remain responsive. The server editor keeps its main form fixed and scrolls only the remote-printer mapping panel.
+
 ## Configuration
 
 The settings window stores:
@@ -71,6 +73,7 @@ The settings window stores:
 - heartbeat interval per server
 - start polling on launch
 - start at login
+- window darkness grade
 - logging preferences
 
 Client tokens are stored separately per server through the operating system credential store when `keyring` is available. Stored tokens are not shown in the GUI. Enter a token only when setting or replacing it.
@@ -184,7 +187,7 @@ Each server runs in its own worker and has independent polling and heartbeat int
 
 ## Desktop Interface
 
-The GUI uses a bundled pywebview interface with translucent glass-style panels. Native transparency is enabled on supported macOS and Linux webview backends, with macOS vibrancy and a clear WKWebView under-page background. Windows uses the layered gradient design over an opaque native window and does not show transparency controls.
+The GUI uses a bundled pywebview interface with glossy layered panels over an opaque native window on every platform. Appearance settings offer six named darkness grades—Quartz, Moonstone, Labradorite, Onyx, Obsidian, and Jet—instead of platform-dependent transparency controls.
 
 ## Auto-Start
 
