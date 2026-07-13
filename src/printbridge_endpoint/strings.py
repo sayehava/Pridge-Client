@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Sayeh Ava Pazouki
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileComment: Additional terms apply; see ADDITIONAL_TERMS.md.
+
 APP_NAME = "PrintBridge Client Agent"
 WINDOW_TITLE = "PrintBridge Client Agent"
 WINDOW_ADD_SERVER = "Add Server"
