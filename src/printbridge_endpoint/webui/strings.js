@@ -44,6 +44,7 @@ window.PrintBridgeStrings = Object.freeze({
   no_logs: "No log output yet",
   loading: "Loading PrintBridge Endpoint…",
   confirm_remove: "Remove {name}? This also removes its stored client token.",
+  remove_server_title: "Remove server?",
   server_name: "Server Name",
   server_url: "Server URL",
   client_token: "Client Token",

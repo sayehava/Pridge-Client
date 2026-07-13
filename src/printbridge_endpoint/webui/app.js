@@ -32,6 +32,36 @@
     return html`<span class=${active ? "badge badge-active" : "badge"}>${text}</span>`;
   }
 
+  function ConfirmDialog({ server, onCancel, onConfirm }) {
+    useEffect(() => {
+      const closeOnEscape = (event) => {
+        if (event.key === "Escape") onCancel();
+      };
+      window.addEventListener("keydown", closeOnEscape);
+      return () => window.removeEventListener("keydown", closeOnEscape);
+    }, [onCancel]);
+
+    if (!server) return null;
+
+    return html`
+      <div class="modal-backdrop" role="presentation" onMouseDown=${(event) => {
+        if (event.target === event.currentTarget) onCancel();
+      }}>
+        <div class="confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+          <img class="confirm-app-icon" src="assets/Icon.png" alt="" />
+          <div class="confirm-copy">
+            <h2 id="confirm-title">${S.remove_server_title}</h2>
+            <p id="confirm-message">${S.confirm_remove.replace("{name}", server.name)}</p>
+          </div>
+          <div class="confirm-actions">
+            <button autoFocus=${true} onClick=${onCancel}>${S.cancel}</button>
+            <button class="danger" onClick=${onConfirm}>${S.remove}</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function Sidebar({ state, onSettings, onAbout, onQuit }) {
     return html`
       <div class="sidebar">
@@ -210,6 +240,7 @@
   function App() {
     const [state, setState] = useState(null);
     const [error, setError] = useState(null);
+    const [serverToRemove, setServerToRemove] = useState(null);
     const stateSignature = useRef("");
 
     const applyResult = useCallback((result) => {
@@ -247,10 +278,11 @@
     document.title = state.window_title;
     const onAdd = () => callApi("open_server_window", "").then(applyResult);
     const onEdit = (serverId) => callApi("open_server_window", serverId).then(applyResult);
-    const onRemove = (server) => {
-      if (window.confirm(S.confirm_remove.replace("{name}", server.name))) {
-        callApi("remove_server", server.id).then(applyResult);
-      }
+    const onRemove = (server) => setServerToRemove(server);
+    const confirmRemove = () => {
+      if (!serverToRemove) return;
+      callApi("remove_server", serverToRemove.id).then(applyResult);
+      setServerToRemove(null);
     };
     return html`
       <div class="app">
@@ -277,6 +309,11 @@
           <${JobsCard} jobs=${state.recent_jobs} />
           <${LogsCard} logs=${state.logs} />
         </div>
+        <${ConfirmDialog}
+          server=${serverToRemove}
+          onCancel=${() => setServerToRemove(null)}
+          onConfirm=${confirmRemove}
+        />
         ${error ? html`<div class="toast">${error}</div>` : null}
       </div>
     `;
