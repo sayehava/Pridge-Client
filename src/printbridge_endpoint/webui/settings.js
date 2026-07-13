@@ -19,7 +19,9 @@
   }
 
   function setPreview(form) {
-    const opacity = form.transparency_enabled ? Number(form.glass_opacity_percent) / 100 : 0.97;
+    const opacity = form.transparency_supported && form.transparency_enabled
+      ? Number(form.glass_opacity_percent) / 100
+      : 0.97;
     document.documentElement.style.setProperty("--window-opacity", String(opacity));
   }
 
@@ -34,6 +36,7 @@
         const initial = {
           start_polling_on_launch: result.state.start_polling_on_launch,
           start_at_login: result.state.start_at_login,
+          transparency_supported: result.state.appearance.transparency_supported,
           transparency_enabled: result.state.appearance.transparency_enabled,
           glass_opacity_percent: result.state.appearance.glass_opacity_percent,
         };
@@ -61,21 +64,23 @@
           <img src="assets/Hero.png" alt="" />
           <div class="utility-hero-copy"><h1>${S.settings}</h1><p>${S.about_title}</p></div>
         </div>
-        <section class="settings-section">
-          <h2>${S.appearance}</h2>
-          <p>${S.appearance_hint}</p>
-          <div class="setting-row">
-            <div class="setting-copy"><strong>${S.native_transparency}</strong><small>${S.native_transparency_hint}</small></div>
-            <input class="setting-check" type="checkbox" checked=${form.transparency_enabled} onChange=${(event) => change("transparency_enabled", event.target.checked)} />
-          </div>
-          <div class="setting-row">
-            <div class="setting-copy"><strong>${S.glass_opacity}</strong><small>${S.glass_opacity_hint}</small></div>
-            <div class="opacity-control">
-              <input type="range" min="25" max="95" value=${form.glass_opacity_percent} onInput=${(event) => change("glass_opacity_percent", event.target.value)} />
-              <span class="opacity-value">${form.glass_opacity_percent}%</span>
-            </div>
-          </div>
-        </section>
+        ${form.transparency_supported
+          ? html`<section class="settings-section">
+              <h2>${S.appearance}</h2>
+              <p>${S.appearance_hint}</p>
+              <div class="setting-row">
+                <div class="setting-copy"><strong>${S.native_transparency}</strong><small>${S.native_transparency_hint}</small></div>
+                <input class="setting-check" type="checkbox" checked=${form.transparency_enabled} onChange=${(event) => change("transparency_enabled", event.target.checked)} />
+              </div>
+              <div class="setting-row">
+                <div class="setting-copy"><strong>${S.glass_opacity}</strong><small>${S.glass_opacity_hint}</small></div>
+                <div class="opacity-control">
+                  <input type="range" min="25" max="95" value=${form.glass_opacity_percent} onInput=${(event) => change("glass_opacity_percent", event.target.value)} />
+                  <span class="opacity-value">${form.glass_opacity_percent}%</span>
+                </div>
+              </div>
+            </section>`
+          : null}
         <section class="settings-section">
           <h2>${S.startup}</h2>
           <div class="setting-row">

@@ -201,6 +201,9 @@ class EndpointApiTests(unittest.TestCase):
     @patch("printbridge_endpoint.gui.platform.system", return_value="Windows")
     def test_disables_native_transparency_on_windows(self, _system):
         self.assertEqual(_window_effects(), {"transparent": False, "vibrancy": False})
+        state = self.api.get_state()["state"]
+        self.assertFalse(state["appearance"]["transparency_supported"])
+        self.assertFalse(state["appearance"]["transparency_enabled"])
 
     @patch("printbridge_endpoint.gui.platform.system", return_value="Darwin")
     def test_respects_disabled_transparency_setting(self, _system):

@@ -197,6 +197,7 @@ class EndpointApi:
             background_color="#111827",
             **_window_effects(self.config.appearance.transparency_enabled),
         )
+        _install_native_transparency(window, self.config.appearance.transparency_enabled)
         self.server_windows[window_key] = window
         return self._ok()
 
@@ -322,18 +323,22 @@ class EndpointApi:
         return self._ok()
 
     def update_application_settings(self, fields: dict) -> dict:
-        previous_transparency = self.config.appearance.transparency_enabled
+        transparency_supported = _transparency_supported()
+        previous_transparency = transparency_supported and self.config.appearance.transparency_enabled
         self.start_polling_on_launch = bool(fields.get("start_polling_on_launch", self.start_polling_on_launch))
         self.start_at_login = bool(fields.get("start_at_login", self.start_at_login))
-        self.config.appearance.transparency_enabled = bool(
-            fields.get("transparency_enabled", self.config.appearance.transparency_enabled)
-        )
-        self.config.appearance.glass_opacity_percent = self._safe_int(
-            fields.get("glass_opacity_percent"),
-            self.config.appearance.glass_opacity_percent,
-            minimum=25,
-            maximum=95,
-        )
+        if transparency_supported:
+            self.config.appearance.transparency_enabled = bool(
+                fields.get("transparency_enabled", self.config.appearance.transparency_enabled)
+            )
+            self.config.appearance.glass_opacity_percent = self._safe_int(
+                fields.get("glass_opacity_percent"),
+                self.config.appearance.glass_opacity_percent,
+                minimum=25,
+                maximum=95,
+            )
+        else:
+            self.config.appearance.transparency_enabled = False
         self.config = self._current_config()
         self.config_store.save(self.config)
         try:
@@ -345,7 +350,8 @@ class EndpointApi:
             "ok": True,
             "error": None,
             "message": MESSAGE_SETTINGS_SAVED,
-            "restart_required": previous_transparency != self.config.appearance.transparency_enabled,
+            "restart_required": transparency_supported
+            and previous_transparency != self.config.appearance.transparency_enabled,
             "state": self._build_state(),
         }
 
@@ -468,7 +474,9 @@ class EndpointApi:
             "start_polling_on_launch": self.start_polling_on_launch,
             "start_at_login": self.start_at_login,
             "appearance": {
-                "transparency_enabled": self.config.appearance.transparency_enabled,
+                "transparency_supported": _transparency_supported(),
+                "transparency_enabled": _transparency_supported()
+                and self.config.appearance.transparency_enabled,
                 "glass_opacity_percent": self.config.appearance.glass_opacity_percent,
             },
             "recent_jobs": list(self.recent_jobs),
@@ -557,6 +565,7 @@ class EndpointApi:
             background_color="#111827",
             **_window_effects(self.config.appearance.transparency_enabled),
         )
+        _install_native_transparency(window, self.config.appearance.transparency_enabled)
         self.utility_windows[key] = window
         return self._ok()
 
@@ -663,6 +672,7 @@ def run_gui() -> None:
         background_color="#111827",
         **_window_effects(api.config.appearance.transparency_enabled),
     )
+    _install_native_transparency(window, api.config.appearance.transparency_enabled)
     api.window = window
     window.events.closing += api.on_closing
     api.start_tray()
@@ -676,9 +686,39 @@ def run_gui() -> None:
 def _window_effects(enabled: bool = True) -> dict[str, bool]:
     system = platform.system()
     return {
-        "transparent": enabled and system != "Windows",
+        "transparent": enabled and _transparency_supported(),
         "vibrancy": enabled and system == "Darwin",
     }
+
+
+def _transparency_supported() -> bool:
+    return platform.system() != "Windows"
+
+
+def _install_native_transparency(window: webview.Window, enabled: bool) -> None:
+    if not enabled or platform.system() != "Darwin":
+        return
+
+    def apply_clear_background() -> None:
+        try:
+            import AppKit
+            from webview.platforms.cocoa import BrowserView
+
+            native = BrowserView.instances.get(window.uid)
+            if native is None:
+                return
+            clear = AppKit.NSColor.clearColor()
+            native.window.setOpaque_(False)
+            native.window.setBackgroundColor_(clear)
+            if native.webview.respondsToSelector_("setUnderPageBackgroundColor:"):
+                native.webview.setUnderPageBackgroundColor_(clear)
+        except Exception as exc:
+            logger.debug("Could not apply native transparent background: %s", exc)
+
+    try:
+        window.events.loaded += apply_clear_background
+    except Exception as exc:
+        logger.debug("Could not register native transparency handler: %s", exc)
 
 
 if __name__ == "__main__":
