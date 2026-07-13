@@ -43,7 +43,8 @@ class EndpointApiTests(unittest.TestCase):
         logging.getLogger().handlers = self.previous_handlers
         self.temporary_directory.cleanup()
 
-    def test_adds_multiple_server_profiles(self):
+    @patch("printbridge_endpoint.gui.PrintBridgeClient")
+    def test_adds_multiple_server_profiles(self, _client_class):
         first = self.api.add_server(
             {"name": "Office", "server_url": "https://office.example.test", "token": "office-token"}
         )
@@ -117,8 +118,44 @@ class EndpointApiTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(
             result["remote_printers"],
-            [{"remote_printer_id": "12", "remote_printer_name": "Receipts", "enabled": True}],
+            [
+                {
+                    "remote_printer_id": "12",
+                    "remote_printer_name": "Receipts",
+                    "enabled": True,
+                    "assigned": False,
+                }
+            ],
         )
+
+    @patch("printbridge_endpoint.gui.PrintBridgeClient")
+    def test_syncs_selected_endpoints_when_updating_server(self, client_class):
+        created = self.api.add_server({"name": "Office", "server_url": "https://office.example.test"})
+        server_id = created["state"]["servers"][0]["id"]
+        self.api.token_store.set("client-token", server_id)
+
+        result = self.api.update_server(
+            server_id,
+            {
+                "name": "Office",
+                "server_url": "https://office.example.test",
+                "printer_mappings": [
+                    {
+                        "remote_printer_id": "12",
+                        "remote_printer_name": "Receipts",
+                        "local_printer_name": "Office Printer",
+                    },
+                    {
+                        "remote_printer_id": "20",
+                        "remote_printer_name": "Labels",
+                        "local_printer_name": "",
+                    },
+                ],
+            },
+        )
+
+        self.assertTrue(result["ok"])
+        client_class.return_value.sync_remote_printers.assert_called_once_with(["12"])
 
     @patch("printbridge_endpoint.gui.webview.create_window")
     def test_opens_add_server_in_separate_window(self, create_window):

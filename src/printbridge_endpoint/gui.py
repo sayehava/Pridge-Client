@@ -106,6 +106,12 @@ class EndpointApi:
         server_url = str(server.get("server_url", "")).strip()
         if not name or not server_url:
             return self._error(MESSAGE_SERVER_REQUIRED)
+        mappings = self._printer_mappings(server.get("printer_mappings", []))
+        token = str(server.get("token", "")).strip()
+        if token:
+            sync_error = self._sync_server_endpoints(server_url, token, mappings)
+            if sync_error is not None:
+                return self._error(sync_error)
         new_server = ServerConfig(
             id=uuid.uuid4().hex,
             name=name,
@@ -114,10 +120,9 @@ class EndpointApi:
             polling_interval_seconds=self._safe_int(server.get("polling_interval_seconds"), 5, minimum=1),
             heartbeat_interval_seconds=self._safe_int(server.get("heartbeat_interval_seconds"), 30, minimum=5),
             default_printer=str(server.get("default_printer", "")).strip(),
-            printer_mappings=self._printer_mappings(server.get("printer_mappings", [])),
+            printer_mappings=mappings,
         )
         self.config.servers.append(new_server)
-        token = str(server.get("token", "")).strip()
         if token:
             self.token_store.set(token, new_server.id)
         self.config_store.save(self._current_config())
@@ -132,6 +137,13 @@ class EndpointApi:
         server_url = str(fields.get("server_url", "")).strip()
         if not name or not server_url:
             return self._error(MESSAGE_SERVER_REQUIRED)
+        mappings = self._printer_mappings(fields.get("printer_mappings", []))
+        replacement_token = str(fields.get("token", "")).strip()
+        token = replacement_token or self.token_store.get(server.id)
+        if token:
+            sync_error = self._sync_server_endpoints(server_url, token, mappings)
+            if sync_error is not None:
+                return self._error(sync_error)
         was_running = bool(self.workers.get(server_id) and self.workers[server_id].state.running)
         if was_running:
             self.stop_worker(server_id)
@@ -145,10 +157,9 @@ class EndpointApi:
             fields.get("heartbeat_interval_seconds"), server.heartbeat_interval_seconds, minimum=5
         )
         server.default_printer = str(fields.get("default_printer", server.default_printer)).strip()
-        server.printer_mappings = self._printer_mappings(fields.get("printer_mappings", []))
-        token = str(fields.get("token", "")).strip()
-        if token:
-            self.token_store.set(token, server.id)
+        server.printer_mappings = mappings
+        if replacement_token:
+            self.token_store.set(replacement_token, server.id)
         self.config_store.save(self._current_config())
         if was_running and server.enabled:
             self.start_worker(server)
@@ -266,6 +277,7 @@ class EndpointApi:
                     "remote_printer_id": printer.printer_id,
                     "remote_printer_name": printer.name,
                     "enabled": printer.enabled,
+                    "assigned": printer.assigned,
                 }
                 for printer in printers
             ],
@@ -572,6 +584,23 @@ class EndpointApi:
 
     def _server_by_id(self, server_id: str) -> ServerConfig | None:
         return next((server for server in self.config.servers if server.id == server_id), None)
+
+    def _sync_server_endpoints(
+        self,
+        server_url: str,
+        token: str,
+        mappings: list[PrinterMapping],
+    ) -> str | None:
+        try:
+            PrintBridgeClient(server_url, token).sync_remote_printers(
+                [mapping.remote_printer_id for mapping in mappings]
+            )
+        except ApiError as exc:
+            return str(exc)
+        except Exception as exc:
+            logger.warning("Endpoint assignment failed: %s", exc)
+            return MESSAGE_CONNECTION_FAILED
+        return None
 
     def _install_log_handler(self) -> None:
         handler = QueueLogHandler(self.events)

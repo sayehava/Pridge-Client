@@ -39,6 +39,7 @@ class RemotePrinter:
     printer_id: str
     name: str
     enabled: bool = True
+    assigned: bool = False
 
 
 class PrintBridgeClient:
@@ -133,9 +134,21 @@ class PrintBridgeClient:
                     printer_id=printer_id,
                     name=name or f"Remote printer {printer_id}",
                     enabled=bool(endpoint.get("enabled", True)),
+                    assigned=bool(endpoint.get("assigned", False)),
                 )
             )
         return sorted(printers, key=lambda printer: (printer.name.casefold(), printer.printer_id))
+
+    def sync_remote_printers(self, printer_ids: list[str]) -> None:
+        endpoint_ids = []
+        for printer_id in printer_ids:
+            value = str(printer_id).strip()
+            if value and value not in endpoint_ids:
+                endpoint_ids.append(value)
+        response = self._request("PUT", "/api/client/endpoints", json={"endpoint_ids": endpoint_ids})
+        body = _json_object(response)
+        if not isinstance(body.get("endpoints"), list):
+            raise ApiError("Endpoint assignment response contains an invalid endpoints array.")
 
     def _list_remote_printers_from_jobs(self) -> list[RemotePrinter]:
         response = self._request("GET", "/api/client/jobs")

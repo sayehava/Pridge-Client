@@ -89,15 +89,15 @@ class PrintBridgeClientTests(unittest.TestCase):
         self.assertEqual(session.calls[2][1], "https://example.test/printbridge/api/client/jobs/123/failed")
         self.assertEqual(session.calls[2][2]["json"], {"error": "Printer is offline"})
 
-    def test_lists_all_assigned_remote_printers(self):
+    def test_lists_all_server_endpoints(self):
         client, session = self.client_with_responses(
             FakeResponse(200, {"token": "session-secret"}),
             FakeResponse(
                 200,
                 {
                     "endpoints": [
-                        {"id": 12, "name": "Receipts", "enabled": True},
-                        {"id": 20, "name": "Labels", "enabled": False},
+                        {"id": 12, "name": "Receipts", "enabled": True, "assigned": True},
+                        {"id": 20, "name": "Labels", "enabled": False, "assigned": False},
                     ]
                 },
             ),
@@ -111,6 +111,18 @@ class PrintBridgeClientTests(unittest.TestCase):
         )
         self.assertEqual(session.calls[1][0], "GET")
         self.assertEqual(session.calls[1][1], "https://example.test/printbridge/api/client/endpoints")
+
+    def test_syncs_selected_server_endpoints(self):
+        client, session = self.client_with_responses(
+            FakeResponse(200, {"token": "session-secret"}),
+            FakeResponse(200, {"endpoints": []}),
+        )
+
+        client.sync_remote_printers(["12", "20", "12"])
+
+        self.assertEqual(session.calls[1][0], "PUT")
+        self.assertEqual(session.calls[1][1], "https://example.test/printbridge/api/client/endpoints")
+        self.assertEqual(session.calls[1][2]["json"], {"endpoint_ids": ["12", "20"]})
 
     def test_falls_back_to_job_discovery_for_older_servers(self):
         client, session = self.client_with_responses(
