@@ -44,7 +44,7 @@ class TrayController:
         self.icon = pystray.Icon(
             "printbridge-endpoint",
             image,
-            "PrintBridge Endpoint",
+            "PrintBridge Client Agent",
             menu=pystray.Menu(
                 pystray.MenuItem("Open", self._show),
                 pystray.MenuItem("Quit", self._quit),

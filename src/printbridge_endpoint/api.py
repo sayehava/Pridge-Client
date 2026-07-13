@@ -78,7 +78,7 @@ class PrintBridgeClient:
             raise AuthenticationError("Authentication response did not include a session token.")
 
         self.session_token = session_token.strip()
-        logger.info("Endpoint authenticated successfully")
+        logger.info("Client authenticated successfully")
 
     def heartbeat(self, printer_name: str | None = None) -> None:
         payload: dict[str, Any] = {}

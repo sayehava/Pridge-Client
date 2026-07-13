@@ -71,7 +71,7 @@ def _set_linux_desktop_entry(enabled: bool) -> None:
             [
                 "[Desktop Entry]",
                 "Type=Application",
-                "Name=PrintBridge Endpoint Agent",
+                "Name=PrintBridge Client Agent",
                 f"Exec={exec_line}",
                 "X-GNOME-Autostart-enabled=true",
                 "",
@@ -88,7 +88,8 @@ def _set_windows_run_key(enabled: bool) -> None:
         raise AutoStartError("Windows auto-start requires winreg.") from exc
 
     key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
-    value_name = "PrintBridge Endpoint Agent"
+    value_name = "PrintBridge Client Agent"
+    legacy_value_name = "PrintBridge Endpoint Agent"
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
         if enabled:
             value = " ".join(f'"{part}"' if " " in part else part for part in command())
@@ -98,6 +99,10 @@ def _set_windows_run_key(enabled: bool) -> None:
                 winreg.DeleteValue(key, value_name)
             except FileNotFoundError:
                 pass
+        try:
+            winreg.DeleteValue(key, legacy_value_name)
+        except FileNotFoundError:
+            pass
 
 
 def _unlink_if_exists(path: Path) -> None:

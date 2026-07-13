@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "printbridge-endpoint"
-version = "0.1.0"
-description = "Endpoint-side desktop agent for PrintBridge"
+name = "printbridge-client-agent"
+version = "1.0.0"
+description = "Client-side desktop printing agent for PrintBridge"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
@@ -29,6 +29,7 @@ windows = ["pywin32>=306; platform_system == 'Windows'"]
 linux = ["pycups>=2.0; platform_system == 'Linux'"]
 
 [project.scripts]
+printbridge-client = "printbridge_endpoint.__main__:main"
 printbridge-endpoint = "printbridge_endpoint.__main__:main"
 
 [tool.setuptools.packages.find]

@@ -1,4 +1,4 @@
-"""PrintBridge Endpoint Agent."""
+"""PrintBridge Client Agent."""
 
 from printbridge_endpoint.version import __version__
 
