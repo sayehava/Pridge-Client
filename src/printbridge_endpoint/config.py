@@ -16,6 +16,13 @@ KEYRING_USERNAME = "client-token"
 
 
 @dataclass
+class PrinterMapping:
+    remote_printer_id: str
+    local_printer_name: str
+    remote_printer_name: str = ""
+
+
+@dataclass
 class ServerConfig:
     id: str
     name: str = "Server"
@@ -23,6 +30,8 @@ class ServerConfig:
     enabled: bool = True
     polling_interval_seconds: int = 5
     heartbeat_interval_seconds: int = 30
+    default_printer: str = ""
+    printer_mappings: list[PrinterMapping] = field(default_factory=list)
 
 
 @dataclass
@@ -177,9 +186,10 @@ def _positive_int(value: Any, default: int) -> int:
 
 
 def _parse_servers(raw: dict[str, Any]) -> list[ServerConfig]:
+    legacy_printer = str(raw.get("selected_printer", "")).strip()
     raw_servers = raw.get("servers", [])
     if isinstance(raw_servers, list):
-        servers = [_parse_server(item) for item in raw_servers if isinstance(item, dict)]
+        servers = [_parse_server(item, legacy_printer) for item in raw_servers if isinstance(item, dict)]
         servers = [server for server in servers if server.server_url]
         if servers:
             return servers
@@ -195,11 +205,12 @@ def _parse_servers(raw: dict[str, Any]) -> list[ServerConfig]:
             enabled=True,
             polling_interval_seconds=_positive_int(raw.get("polling_interval_seconds", 5), 5),
             heartbeat_interval_seconds=_positive_int(raw.get("heartbeat_interval_seconds", 30), 30),
+            default_printer=legacy_printer,
         )
     ]
 
 
-def _parse_server(raw: dict[str, Any]) -> ServerConfig:
+def _parse_server(raw: dict[str, Any], legacy_printer: str = "") -> ServerConfig:
     server_id = str(raw.get("id", "")).strip() or _safe_id(str(raw.get("name", "server")))
     return ServerConfig(
         id=server_id,
@@ -208,7 +219,31 @@ def _parse_server(raw: dict[str, Any]) -> ServerConfig:
         enabled=bool(raw.get("enabled", True)),
         polling_interval_seconds=_positive_int(raw.get("polling_interval_seconds", 5), 5),
         heartbeat_interval_seconds=_positive_int(raw.get("heartbeat_interval_seconds", 30), 30),
+        default_printer=str(raw.get("default_printer", legacy_printer)).strip(),
+        printer_mappings=_parse_printer_mappings(raw.get("printer_mappings", [])),
     )
+
+
+def _parse_printer_mappings(raw: Any) -> list[PrinterMapping]:
+    if not isinstance(raw, list):
+        return []
+
+    mappings: list[PrinterMapping] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        remote_printer_id = str(item.get("remote_printer_id", "")).strip()
+        local_printer_name = str(item.get("local_printer_name", "")).strip()
+        if not remote_printer_id or not local_printer_name:
+            continue
+        mappings.append(
+            PrinterMapping(
+                remote_printer_id=remote_printer_id,
+                remote_printer_name=str(item.get("remote_printer_name", "")).strip(),
+                local_printer_name=local_printer_name,
+            )
+        )
+    return mappings
 
 
 def _token_username(server_id: str) -> str:
