@@ -166,6 +166,7 @@ class EndpointApi:
         if server_id and self._server_by_id(server_id) is None:
             return self._error(MESSAGE_SERVER_NOT_FOUND)
 
+        self.refresh_printers()
         window_key = uuid.uuid4().hex
         query = urlencode({"server_id": server_id, "window_key": window_key})
         title = WINDOW_EDIT_SERVER if server_id else WINDOW_ADD_SERVER
@@ -229,7 +230,11 @@ class EndpointApi:
             "ok": True,
             "error": None,
             "remote_printers": [
-                {"remote_printer_id": printer.printer_id, "remote_printer_name": printer.name}
+                {
+                    "remote_printer_id": printer.printer_id,
+                    "remote_printer_name": printer.name,
+                    "enabled": printer.enabled,
+                }
                 for printer in printers
             ],
             "state": self._build_state(),

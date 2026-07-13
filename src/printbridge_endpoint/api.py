@@ -38,6 +38,7 @@ class ServerInstructions:
 class RemotePrinter:
     printer_id: str
     name: str
+    enabled: bool = True
 
 
 class PrintBridgeClient:
@@ -104,6 +105,39 @@ class PrintBridgeClient:
         return _parse_reserved_job(body["job"])
 
     def list_remote_printers(self) -> list[RemotePrinter]:
+        try:
+            response = self._request("GET", "/api/client/endpoints")
+        except ApiError as exc:
+            if "HTTP 404" not in str(exc):
+                raise
+            return self._list_remote_printers_from_jobs()
+        body = _json_object(response)
+        endpoints = body.get("endpoints", [])
+        if not isinstance(endpoints, list):
+            raise ApiError("Endpoint list response contains an invalid endpoints array.")
+
+        printers: list[RemotePrinter] = []
+        for endpoint in endpoints:
+            if not isinstance(endpoint, dict):
+                continue
+            endpoint_id = endpoint.get("id")
+            if not isinstance(endpoint_id, (str, int)) or isinstance(endpoint_id, bool):
+                continue
+            printer_id = str(endpoint_id).strip()
+            if not printer_id:
+                continue
+            endpoint_name = endpoint.get("name")
+            name = endpoint_name.strip() if isinstance(endpoint_name, str) else ""
+            printers.append(
+                RemotePrinter(
+                    printer_id=printer_id,
+                    name=name or f"Remote printer {printer_id}",
+                    enabled=bool(endpoint.get("enabled", True)),
+                )
+            )
+        return sorted(printers, key=lambda printer: (printer.name.casefold(), printer.printer_id))
+
+    def _list_remote_printers_from_jobs(self) -> list[RemotePrinter]:
         response = self._request("GET", "/api/client/jobs")
         body = _json_object(response)
         jobs = body.get("jobs", [])

@@ -89,16 +89,15 @@ class PrintBridgeClientTests(unittest.TestCase):
         self.assertEqual(session.calls[2][1], "https://example.test/printbridge/api/client/jobs/123/failed")
         self.assertEqual(session.calls[2][2]["json"], {"error": "Printer is offline"})
 
-    def test_lists_remote_printers_from_assigned_jobs(self):
+    def test_lists_all_assigned_remote_printers(self):
         client, session = self.client_with_responses(
             FakeResponse(200, {"token": "session-secret"}),
             FakeResponse(
                 200,
                 {
-                    "jobs": [
-                        {"id": 1, "endpoint_id": 12, "endpoint_name": "Receipts"},
-                        {"id": 2, "endpoint_id": 12, "endpoint_name": "Receipts"},
-                        {"id": 3, "endpoint_id": 20, "endpoint_name": "Labels"},
+                    "endpoints": [
+                        {"id": 12, "name": "Receipts", "enabled": True},
+                        {"id": 20, "name": "Labels", "enabled": False},
                     ]
                 },
             ),
@@ -106,9 +105,27 @@ class PrintBridgeClientTests(unittest.TestCase):
 
         printers = client.list_remote_printers()
 
-        self.assertEqual([(printer.printer_id, printer.name) for printer in printers], [("20", "Labels"), ("12", "Receipts")])
+        self.assertEqual(
+            [(printer.printer_id, printer.name, printer.enabled) for printer in printers],
+            [("20", "Labels", False), ("12", "Receipts", True)],
+        )
         self.assertEqual(session.calls[1][0], "GET")
-        self.assertEqual(session.calls[1][1], "https://example.test/printbridge/api/client/jobs")
+        self.assertEqual(session.calls[1][1], "https://example.test/printbridge/api/client/endpoints")
+
+    def test_falls_back_to_job_discovery_for_older_servers(self):
+        client, session = self.client_with_responses(
+            FakeResponse(200, {"token": "session-secret"}),
+            FakeResponse(404, {"error": "Not found"}),
+            FakeResponse(
+                200,
+                {"jobs": [{"id": 1, "endpoint_id": 12, "endpoint_name": "Receipts"}]},
+            ),
+        )
+
+        printers = client.list_remote_printers()
+
+        self.assertEqual([(printer.printer_id, printer.name) for printer in printers], [("12", "Receipts")])
+        self.assertEqual(session.calls[2][1], "https://example.test/printbridge/api/client/jobs")
 
 
 if __name__ == "__main__":

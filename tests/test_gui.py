@@ -117,7 +117,7 @@ class EndpointApiTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(
             result["remote_printers"],
-            [{"remote_printer_id": "12", "remote_printer_name": "Receipts"}],
+            [{"remote_printer_id": "12", "remote_printer_name": "Receipts", "enabled": True}],
         )
 
     @patch("printbridge_endpoint.gui.webview.create_window")
