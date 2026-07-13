@@ -1,0 +1,6 @@
+# Build-only dependencies. Runtime dependencies are declared in pyproject.toml.
+Nuitka>=2.8,<3
+PyInstaller>=6.17,<7
+ordered-set>=4.1,<5
+zstandard>=0.23,<1
+Pillow>=10,<13
