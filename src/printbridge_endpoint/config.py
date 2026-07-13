@@ -41,6 +41,12 @@ class LoggingConfig:
 
 
 @dataclass
+class AppearanceConfig:
+    transparency_enabled: bool = True
+    glass_opacity_percent: int = 56
+
+
+@dataclass
 class EndpointConfig:
     server_url: str = ""
     servers: list[ServerConfig] = field(default_factory=list)
@@ -50,6 +56,7 @@ class EndpointConfig:
     start_polling_on_launch: bool = False
     start_at_login: bool = False
     logging: LoggingConfig = field(default_factory=LoggingConfig)
+    appearance: AppearanceConfig = field(default_factory=AppearanceConfig)
 
 
 class ConfigError(ValueError):
@@ -73,6 +80,9 @@ class ConfigStore:
         logging_raw = raw.get("logging", {})
         if not isinstance(logging_raw, dict):
             logging_raw = {}
+        appearance_raw = raw.get("appearance", {})
+        if not isinstance(appearance_raw, dict):
+            appearance_raw = {}
 
         servers = _parse_servers(raw)
         return EndpointConfig(
@@ -86,6 +96,15 @@ class ConfigStore:
             logging=LoggingConfig(
                 level=str(logging_raw.get("level", "INFO")),
                 file_enabled=bool(logging_raw.get("file_enabled", True)),
+            ),
+            appearance=AppearanceConfig(
+                transparency_enabled=bool(appearance_raw.get("transparency_enabled", True)),
+                glass_opacity_percent=_bounded_int(
+                    appearance_raw.get("glass_opacity_percent", 56),
+                    default=56,
+                    minimum=25,
+                    maximum=95,
+                ),
             ),
         )
 
@@ -183,6 +202,14 @@ def _positive_int(value: Any, default: int) -> int:
     except (TypeError, ValueError):
         return default
     return parsed if parsed > 0 else default
+
+
+def _bounded_int(value: Any, default: int, minimum: int, maximum: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return min(max(parsed, minimum), maximum)
 
 
 def _parse_servers(raw: dict[str, Any]) -> list[ServerConfig]:
