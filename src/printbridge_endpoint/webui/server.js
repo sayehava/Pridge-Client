@@ -54,18 +54,27 @@
           setLoaded(true);
           return;
         }
-        setForm({
+        const serverForm = {
           name: server.name,
           server_url: server.server_url,
           enabled: server.enabled,
           polling_interval_seconds: server.polling_interval_seconds,
           heartbeat_interval_seconds: server.heartbeat_interval_seconds,
-          default_printer: server.default_printer || "",
+          default_printer: "",
           printer_mappings: server.printer_mappings || [],
           token: "",
-        });
+        };
+        setForm(serverForm);
+        setRemotePrinters(
+          (server.printer_mappings || []).map((mapping) => ({
+            remote_printer_id: mapping.remote_printer_id,
+            remote_printer_name: mapping.remote_printer_name,
+            enabled: true,
+          }))
+        );
         setHasToken(server.has_token);
         setLoaded(true);
+        discoverRemotePrinters(serverForm);
       });
       if (window.pywebview && window.pywebview.api) boot();
       else window.addEventListener("pywebviewready", boot, { once: true });
@@ -83,10 +92,6 @@
       setMessage("");
       if (!form.name.trim() || !form.server_url.trim()) {
         setError(S.server_required);
-        return;
-      }
-      if (form.printer_mappings.some((mapping) => !mapping.remote_printer_id.trim() || !mapping.local_printer_name.trim())) {
-        setError(S.mapping_required);
         return;
       }
       setBusy(true);
@@ -111,16 +116,17 @@
       callApi("test_server_connection", serverId, form).then((result) => {
         setBusy(false);
         if (!result) return;
-        if (result.ok) setMessage(result.message || S.connection_success);
-        else setError(result.error || S.connection_failed);
+        if (result.ok) {
+          setMessage(result.message || S.connection_success);
+          discoverRemotePrinters(form);
+        } else setError(result.error || S.connection_failed);
       });
     };
 
-    const discoverRemotePrinters = () => {
+    const discoverRemotePrinters = (settings = form) => {
       setDiscovering(true);
       setError("");
-      setMessage("");
-      callApi("discover_remote_printers", serverId, form).then((result) => {
+      callApi("discover_remote_printers", serverId, settings).then((result) => {
         setDiscovering(false);
         if (!result) return;
         if (!result.ok) {
@@ -129,52 +135,37 @@
         }
         const discovered = result.remote_printers || [];
         setRemotePrinters(discovered);
-        setMessage(
-          discovered.length
-            ? S.remote_printers_found.replace("{count}", discovered.length)
-            : S.no_remote_printers
-        );
+        setForm((current) => ({
+          ...current,
+          default_printer: "",
+          printer_mappings: discovered.map((printer) => {
+            const existing = current.printer_mappings.find(
+              (mapping) => mapping.remote_printer_id === printer.remote_printer_id
+            );
+            return {
+              remote_printer_id: printer.remote_printer_id,
+              remote_printer_name: printer.remote_printer_name,
+              local_printer_name: existing ? existing.local_printer_name : "",
+            };
+          }),
+        }));
+        setMessage(discovered.length ? S.remote_printers_found.replace("{count}", discovered.length) : S.no_remote_printers);
       });
     };
 
-    const updateMapping = (index, fields) => {
+    const mapEndpoint = (remotePrinterId, localPrinterName) => {
       setForm((current) => ({
         ...current,
-        printer_mappings: current.printer_mappings.map((mapping, mappingIndex) =>
-          mappingIndex === index ? { ...mapping, ...fields } : mapping
+        printer_mappings: current.printer_mappings.map((mapping) =>
+          mapping.remote_printer_id === remotePrinterId ? { ...mapping, local_printer_name: localPrinterName } : mapping
         ),
       }));
     };
 
-    const selectRemotePrinter = (index, remotePrinterId) => {
-      const discovered = remotePrinters.find((printer) => printer.remote_printer_id === remotePrinterId);
-      updateMapping(index, {
-        remote_printer_id: remotePrinterId,
-        remote_printer_name: discovered ? discovered.remote_printer_name : "",
-      });
-    };
-
-    const addMapping = () => {
-      const usedIds = new Set(form.printer_mappings.map((mapping) => mapping.remote_printer_id));
-      const remote = remotePrinters.find((printer) => !usedIds.has(printer.remote_printer_id));
-      setForm((current) => ({
-        ...current,
-        printer_mappings: [
-          ...current.printer_mappings,
-          {
-            remote_printer_id: remote ? remote.remote_printer_id : "",
-            remote_printer_name: remote ? remote.remote_printer_name : "",
-            local_printer_name: current.default_printer || printers[0] || "",
-          },
-        ],
-      }));
-    };
-
-    const removeMapping = (index) => {
-      setForm((current) => ({
-        ...current,
-        printer_mappings: current.printer_mappings.filter((_mapping, mappingIndex) => mappingIndex !== index),
-      }));
+    const dropPrinter = (event, remotePrinterId) => {
+      event.preventDefault();
+      const printerName = event.dataTransfer.getData("text/plain");
+      if (printerName) mapEndpoint(remotePrinterId, printerName);
     };
 
     if (!loaded) return html`<div class="loading">${S.loading}</div>`;
@@ -238,69 +229,69 @@
               <p>${S.printer_mappings_hint}</p>
             </div>
             <div class="button-row section-actions">
-              <button type="button" class="ghost" onClick=${discoverRemotePrinters} disabled=${discovering || busy}>
-                ${discovering ? S.discovering : S.discover_remote}
+              <button type="button" class="ghost" onClick=${() => discoverRemotePrinters(form)} disabled=${discovering || busy}>
+                ${discovering ? S.discovering : S.refresh_endpoints}
               </button>
-              <button type="button" class="primary" onClick=${addMapping}>${S.add_mapping}</button>
             </div>
           </div>
 
-          <div class="field">
-            <label class="field-label">${S.default_printer}</label>
-            <select value=${form.default_printer} onChange=${setField("default_printer")}>
-              <option value="">${S.no_default_printer}</option>
-              ${printers.map((name) => html`<option value=${name} key=${name}>${name}</option>`)}
-            </select>
-            <div class="field-hint normal-hint">${S.default_printer_hint}</div>
+          <div class="local-printer-pool">
+            <div class="pool-heading">
+              <span>${S.local_printers}</span>
+              <small>${S.drag_printer_hint}</small>
+            </div>
+            <div class="printer-chips">
+              ${printers.length === 0
+                ? html`<span class="printer-pool-empty">${S.no_printers}</span>`
+                : printers.map(
+                    (name) => html`<button
+                      type="button"
+                      class="printer-chip"
+                      draggable="true"
+                      onDragStart=${(event) => event.dataTransfer.setData("text/plain", name)}
+                      key=${name}
+                    >${name}</button>`
+                  )}
+            </div>
           </div>
 
-          <datalist id="remote-printer-options">
-            ${remotePrinters.map(
-              (printer) => html`<option value=${printer.remote_printer_id} key=${printer.remote_printer_id}>${printer.remote_printer_name}</option>`
-            )}
-          </datalist>
-
-          ${form.printer_mappings.length === 0
+          ${discovering && form.printer_mappings.length === 0
+            ? html`<div class="mapping-empty">${S.discovering}</div>`
+            : form.printer_mappings.length === 0
             ? html`<div class="mapping-empty">${S.no_mappings}</div>`
             : html`<div class="mapping-list">
                 ${form.printer_mappings.map(
-                  (mapping, index) => html`
-                    <div class="mapping-row" key=${index}>
-                      <div class="mapping-remote-id">
-                        <label class="field-label">${S.remote_printer_id}</label>
-                        <input
-                          type="text"
-                          list="remote-printer-options"
-                          value=${mapping.remote_printer_id}
-                          onChange=${(event) => selectRemotePrinter(index, event.target.value)}
-                        />
-                      </div>
-                      <div class="mapping-remote-name">
-                        <label class="field-label">${S.remote_printer_name}</label>
-                        <input
-                          type="text"
-                          value=${mapping.remote_printer_name}
-                          onChange=${(event) => updateMapping(index, { remote_printer_name: event.target.value })}
-                        />
+                  (mapping) => {
+                    const remote = remotePrinters.find(
+                      (printer) => printer.remote_printer_id === mapping.remote_printer_id
+                    );
+                    return html`
+                    <div
+                      class=${mapping.local_printer_name ? "mapping-row mapping-active" : "mapping-row"}
+                      key=${mapping.remote_printer_id}
+                      onDragOver=${(event) => event.preventDefault()}
+                      onDrop=${(event) => dropPrinter(event, mapping.remote_printer_id)}
+                    >
+                      <div class="mapping-endpoint">
+                        <div class="mapping-endpoint-name">${mapping.remote_printer_name}</div>
+                        <div class="mapping-endpoint-meta">
+                          <span>ID ${mapping.remote_printer_id}</span>
+                          ${remote && !remote.enabled ? html`<span class="remote-disabled">${S.server_endpoint_disabled}</span>` : null}
+                        </div>
                       </div>
                       <div class="mapping-local">
                         <label class="field-label">${S.local_printer}</label>
                         <select
                           value=${mapping.local_printer_name}
-                          onChange=${(event) => updateMapping(index, { local_printer_name: event.target.value })}
+                          onChange=${(event) => mapEndpoint(mapping.remote_printer_id, event.target.value)}
                         >
-                          <option value="">${S.select_local_printer}</option>
+                          <option value="">${S.mapping_disabled}</option>
                           ${printers.map((name) => html`<option value=${name} key=${name}>${name}</option>`)}
                         </select>
                       </div>
-                      <button
-                        type="button"
-                        class="mapping-remove"
-                        title=${S.remove_mapping}
-                        onClick=${() => removeMapping(index)}
-                      >×</button>
                     </div>
-                  `
+                  `;
+                  }
                 )}
               </div>`}
         </div>
