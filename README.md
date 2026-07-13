@@ -4,6 +4,8 @@ PrintBridge Client is the local desktop application that connects an office comp
 
 This repository contains the first Python implementation. The server protocol is intentionally simple and language-neutral so future clients written in C++, Rust, C#, Go, or another language can reuse the same API.
 
+Self-contained Native (Nuitka) and PyInstaller release builds for Windows and macOS are documented in [BUILDING.md](BUILDING.md).
+
 ## Installation
 
 Use Python 3.9 or newer.
