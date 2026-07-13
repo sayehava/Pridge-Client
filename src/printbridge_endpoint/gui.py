@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import platform
 import queue
 import uuid
 from logging import Handler, LogRecord
@@ -11,7 +12,7 @@ import webview
 
 from printbridge_endpoint.api import ApiError, PrintBridgeClient
 from printbridge_endpoint.autostart import AutoStartError, set_start_at_login
-from printbridge_endpoint.config import ClientTokenStore, ConfigStore, EndpointConfig, ServerConfig
+from printbridge_endpoint.config import ClientTokenStore, ConfigStore, EndpointConfig, PrinterMapping, ServerConfig
 from printbridge_endpoint.models import JobHistoryEntry
 from printbridge_endpoint.printers import Printer, PrinterError, PrinterManager
 from printbridge_endpoint.strings import (
@@ -106,6 +107,8 @@ class EndpointApi:
             enabled=bool(server.get("enabled", True)),
             polling_interval_seconds=self._safe_int(server.get("polling_interval_seconds"), 5, minimum=1),
             heartbeat_interval_seconds=self._safe_int(server.get("heartbeat_interval_seconds"), 30, minimum=5),
+            default_printer=str(server.get("default_printer", "")).strip(),
+            printer_mappings=self._printer_mappings(server.get("printer_mappings", [])),
         )
         self.config.servers.append(new_server)
         token = str(server.get("token", "")).strip()
@@ -123,6 +126,9 @@ class EndpointApi:
         server_url = str(fields.get("server_url", "")).strip()
         if not name or not server_url:
             return self._error(MESSAGE_SERVER_REQUIRED)
+        was_running = bool(self.workers.get(server_id) and self.workers[server_id].state.running)
+        if was_running:
+            self.stop_worker(server_id)
         server.name = name
         server.server_url = server_url
         server.enabled = bool(fields.get("enabled", server.enabled))
@@ -132,10 +138,14 @@ class EndpointApi:
         server.heartbeat_interval_seconds = self._safe_int(
             fields.get("heartbeat_interval_seconds"), server.heartbeat_interval_seconds, minimum=5
         )
+        server.default_printer = str(fields.get("default_printer", server.default_printer)).strip()
+        server.printer_mappings = self._printer_mappings(fields.get("printer_mappings", []))
         token = str(fields.get("token", "")).strip()
         if token:
             self.token_store.set(token, server.id)
         self.config_store.save(self._current_config())
+        if was_running:
+            self.start_worker(server)
         return self._ok()
 
     def remove_server(self, server_id: str) -> dict:
@@ -163,10 +173,11 @@ class EndpointApi:
             title,
             url=f"{WEBUI_DIR / 'server.html'}?{query}",
             js_api=self,
-            width=520,
-            height=680,
-            min_size=(460, 620),
-            background_color="#15171c",
+            width=680,
+            height=820,
+            min_size=(580, 700),
+            background_color="#111827",
+            **_window_effects(),
         )
         self.server_windows[window_key] = window
         return self._ok()
@@ -195,6 +206,34 @@ class EndpointApi:
             logger.warning("Server connection test failed: %s", exc)
             return self._error(MESSAGE_CONNECTION_FAILED)
         return {"ok": True, "error": None, "message": MESSAGE_CONNECTION_SUCCESS, "state": self._build_state()}
+
+    def discover_remote_printers(self, server_id: str, fields: dict) -> dict:
+        server_url = str(fields.get("server_url", "")).strip()
+        token = str(fields.get("token", "")).strip()
+        if not token and server_id:
+            token = self.token_store.get(server_id)
+        if not server_url:
+            return self._error(MESSAGE_SERVER_REQUIRED)
+        if not token:
+            return self._error(MESSAGE_TOKEN_REQUIRED)
+
+        try:
+            client = PrintBridgeClient(server_url, token)
+            printers = client.list_remote_printers()
+        except ApiError as exc:
+            return self._error(str(exc))
+        except Exception as exc:
+            logger.warning("Remote printer discovery failed: %s", exc)
+            return self._error(MESSAGE_CONNECTION_FAILED)
+        return {
+            "ok": True,
+            "error": None,
+            "remote_printers": [
+                {"remote_printer_id": printer.printer_id, "remote_printer_name": printer.name}
+                for printer in printers
+            ],
+            "state": self._build_state(),
+        }
 
     def refresh_printers(self) -> dict:
         try:
@@ -238,6 +277,21 @@ class EndpointApi:
         for server in self.config.servers:
             if server.enabled:
                 self.start_worker(server)
+        self._update_running_status()
+        return self._ok()
+
+    def start_server(self, server_id: str) -> dict:
+        server = self._server_by_id(server_id)
+        if server is None:
+            return self._error(MESSAGE_SERVER_NOT_FOUND)
+        self.start_worker(server)
+        self._update_running_status()
+        return self._ok()
+
+    def stop_server(self, server_id: str) -> dict:
+        if self._server_by_id(server_id) is None:
+            return self._error(MESSAGE_SERVER_NOT_FOUND)
+        self.stop_worker(server_id)
         self._update_running_status()
         return self._ok()
 
@@ -345,6 +399,15 @@ class EndpointApi:
             "enabled": server.enabled,
             "polling_interval_seconds": server.polling_interval_seconds,
             "heartbeat_interval_seconds": server.heartbeat_interval_seconds,
+            "default_printer": server.default_printer,
+            "printer_mappings": [
+                {
+                    "remote_printer_id": mapping.remote_printer_id,
+                    "remote_printer_name": mapping.remote_printer_name,
+                    "local_printer_name": mapping.local_printer_name,
+                }
+                for mapping in server.printer_mappings
+            ],
             "has_token": bool(self.token_store.get(server.id)),
             "running": bool(worker and worker.state.running),
             "status": worker.state.status if worker else STATUS_STOPPED,
@@ -366,7 +429,7 @@ class EndpointApi:
         return EndpointConfig(
             server_url=server.server_url,
             servers=[server],
-            selected_printer=self.selected_printer,
+            selected_printer=server.default_printer or self.selected_printer,
             polling_interval_seconds=server.polling_interval_seconds,
             heartbeat_interval_seconds=server.heartbeat_interval_seconds,
             start_polling_on_launch=self.start_polling_on_launch,
@@ -379,6 +442,28 @@ class EndpointApi:
             return max(int(value), minimum)  # type: ignore[arg-type]
         except (TypeError, ValueError):
             return max(default, minimum)
+
+    def _printer_mappings(self, value: object) -> list[PrinterMapping]:
+        if not isinstance(value, list):
+            return []
+        mappings: list[PrinterMapping] = []
+        seen: set[str] = set()
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            remote_printer_id = str(item.get("remote_printer_id", "")).strip()
+            local_printer_name = str(item.get("local_printer_name", "")).strip()
+            if not remote_printer_id or not local_printer_name or remote_printer_id in seen:
+                continue
+            mappings.append(
+                PrinterMapping(
+                    remote_printer_id=remote_printer_id,
+                    remote_printer_name=str(item.get("remote_printer_name", "")).strip(),
+                    local_printer_name=local_printer_name,
+                )
+            )
+            seen.add(remote_printer_id)
+        return mappings
 
     def _server_by_id(self, server_id: str) -> ServerConfig | None:
         return next((server for server in self.config.servers if server.id == server_id), None)
@@ -441,7 +526,8 @@ def run_gui() -> None:
         width=1120,
         height=760,
         min_size=(980, 640),
-        background_color="#15171c",
+        background_color="#111827",
+        **_window_effects(),
     )
     api.window = window
     window.events.closing += api.on_closing
@@ -451,6 +537,14 @@ def run_gui() -> None:
         api.start_workers()
 
     webview.start(debug=False)
+
+
+def _window_effects() -> dict[str, bool]:
+    system = platform.system()
+    return {
+        "transparent": system != "Windows",
+        "vibrancy": system == "Darwin",
+    }
 
 
 if __name__ == "__main__":

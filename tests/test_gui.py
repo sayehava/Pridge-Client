@@ -4,8 +4,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+from printbridge_endpoint.api import RemotePrinter
 from printbridge_endpoint.config import ConfigStore
-from printbridge_endpoint.gui import EndpointApi
+from printbridge_endpoint.gui import EndpointApi, _window_effects
 
 
 class MemoryTokenStore:
@@ -54,6 +55,57 @@ class EndpointApiTests(unittest.TestCase):
         self.assertTrue(second["ok"])
         self.assertEqual([server["name"] for server in second["state"]["servers"]], ["Office", "Warehouse"])
 
+    def test_stores_per_server_mapping_and_timing(self):
+        result = self.api.add_server(
+            {
+                "name": "Office",
+                "server_url": "https://office.example.test",
+                "polling_interval_seconds": 9,
+                "heartbeat_interval_seconds": 41,
+                "default_printer": "Backup Printer",
+                "printer_mappings": [
+                    {
+                        "remote_printer_id": "12",
+                        "remote_printer_name": "Receipts",
+                        "local_printer_name": "EPSON TM-T88",
+                    }
+                ],
+            }
+        )
+
+        server = result["state"]["servers"][0]
+        self.assertEqual(server["polling_interval_seconds"], 9)
+        self.assertEqual(server["heartbeat_interval_seconds"], 41)
+        self.assertEqual(server["default_printer"], "Backup Printer")
+        self.assertEqual(server["printer_mappings"][0]["local_printer_name"], "EPSON TM-T88")
+
+    def test_starts_and_stops_one_server(self):
+        result = self.api.add_server({"name": "Office", "server_url": "https://office.example.test"})
+        server_id = result["state"]["servers"][0]["id"]
+
+        with patch.object(self.api, "start_worker") as start_worker:
+            self.api.start_server(server_id)
+        with patch.object(self.api, "stop_worker") as stop_worker:
+            self.api.stop_server(server_id)
+
+        start_worker.assert_called_once_with(self.api.config.servers[0])
+        stop_worker.assert_called_once_with(server_id)
+
+    @patch("printbridge_endpoint.gui.PrintBridgeClient")
+    def test_discovers_remote_printers_for_mapping(self, client_class):
+        client_class.return_value.list_remote_printers.return_value = [RemotePrinter("12", "Receipts")]
+
+        result = self.api.discover_remote_printers(
+            "",
+            {"server_url": "https://office.example.test", "token": "client-token"},
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(
+            result["remote_printers"],
+            [{"remote_printer_id": "12", "remote_printer_name": "Receipts"}],
+        )
+
     @patch("printbridge_endpoint.gui.webview.create_window")
     def test_opens_add_server_in_separate_window(self, create_window):
         create_window.return_value = Mock()
@@ -64,6 +116,10 @@ class EndpointApiTests(unittest.TestCase):
         self.assertEqual(create_window.call_args.args[0], "Add Server")
         self.assertIn("server.html?", create_window.call_args.kwargs["url"])
         self.assertEqual(len(self.api.server_windows), 1)
+
+    @patch("printbridge_endpoint.gui.platform.system", return_value="Windows")
+    def test_disables_native_transparency_on_windows(self, _system):
+        self.assertEqual(_window_effects(), {"transparent": False, "vibrancy": False})
 
 
 if __name__ == "__main__":

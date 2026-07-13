@@ -34,7 +34,7 @@
     `;
   }
 
-  function ServerConnections({ servers, onAdd, onEdit, onRemove }) {
+  function ServerConnections({ servers, onAdd, onEdit, onRemove, onStart, onStop }) {
     return html`
       <div class="card area-server">
         <div class="card-heading-row">
@@ -65,37 +65,21 @@
                         <span>${server.has_token ? S.token_saved : S.token_missing}</span>
                         <span>${server.polling_interval_seconds}s ${S.polling_short}</span>
                         <span>${server.heartbeat_interval_seconds}s ${S.heartbeat_short}</span>
+                        <span>${server.printer_mappings.length} ${S.mappings_short}</span>
+                        ${server.default_printer ? html`<span>${S.fallback_short}: ${server.default_printer}</span>` : null}
                       </div>
                     </div>
                     <div class="server-actions">
+                      ${server.running
+                        ? html`<button class="danger" onClick=${() => onStop(server.id)}>${S.stop}</button>`
+                        : html`<button class="success" onClick=${() => onStart(server.id)}>${S.start}</button>`}
                       <button class="ghost" onClick=${() => onEdit(server.id)}>${S.edit}</button>
-                      <button class="danger" onClick=${() => onRemove(server)}>${S.remove}</button>
+                      <button class="ghost danger-text" onClick=${() => onRemove(server)}>${S.remove}</button>
                     </div>
                   </div>
                 `
               )}
             </div>`}
-      </div>
-    `;
-  }
-
-  function PrinterCard({ state, onSelectPrinter, onRefresh }) {
-    return html`
-      <div class="card area-printer">
-        <h3 class="card-title">${S.printer_selection}</h3>
-        <div class="field">
-          <label class="field-label">${S.printer}</label>
-          <div class="field-row">
-            <div class="select-wrap">
-              <select value=${state.selected_printer} onChange=${(event) => onSelectPrinter(event.target.value)}>
-                ${state.printers.length === 0
-                  ? html`<option value="">${S.no_printers}</option>`
-                  : state.printers.map((name) => html`<option value=${name} key=${name}>${name}</option>`)}
-              </select>
-            </div>
-            <button onClick=${onRefresh}>${S.refresh}</button>
-          </div>
-        </div>
       </div>
     `;
   }
@@ -130,8 +114,8 @@
         </div>
         <div class="button-row controls-actions">
           <button class="primary" onClick=${onSave}>${S.save}</button>
-          <button class="success" onClick=${onStart}>${S.start}</button>
-          <button class="danger" onClick=${onStop}>${S.stop}</button>
+          <button class="success" onClick=${onStart}>${S.start_all}</button>
+          <button class="danger" onClick=${onStop}>${S.stop_all}</button>
         </div>
       </div>
     `;
@@ -215,11 +199,13 @@
       <div class="app">
         <${Sidebar} state=${state} onQuit=${() => callApi("quit_application")} />
         <div class="content">
-          <${ServerConnections} servers=${state.servers} onAdd=${onAdd} onEdit=${onEdit} onRemove=${onRemove} />
-          <${PrinterCard}
-            state=${state}
-            onSelectPrinter=${(name) => callApi("select_printer", name).then(applyResult)}
-            onRefresh=${() => callApi("refresh_printers").then(applyResult)}
+          <${ServerConnections}
+            servers=${state.servers}
+            onAdd=${onAdd}
+            onEdit=${onEdit}
+            onRemove=${onRemove}
+            onStart=${(serverId) => callApi("start_server", serverId).then(applyResult)}
+            onStop=${(serverId) => callApi("stop_server", serverId).then(applyResult)}
           />
           <${ControlsCard}
             state=${state}
