@@ -64,23 +64,22 @@ jobs:
           $ErrorActionPreference = "Stop"
 
           python -m pip install --upgrade pip
-          python -m pip install -r requirements-release.txt -e ".[windows,secure,tray]"
+          python -m pip install `
+            -r requirements-release.txt `
+            -e ".[windows,secure,tray]"
 
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
 
-          if (-not (Test-Path $iscc)) {
+          if (-not (Test-Path $iscc -PathType Leaf)) {
             choco install innosetup --no-progress --yes
           }
 
-          if (-not (Test-Path $iscc)) {
+          if (-not (Test-Path $iscc -PathType Leaf)) {
             throw "Inno Setup was not installed successfully."
           }
 
-      - name: Run tests
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          python -B -m unittest discover -s tests
+          Write-Host "Inno Setup:"
+          Write-Host $iscc
 
       - name: Build ${{ matrix.variant }} packages
         shell: pwsh
@@ -89,9 +88,40 @@ jobs:
 
           $release = Join-Path $env:GITHUB_WORKSPACE "build"
 
+          New-Item `
+            -ItemType Directory `
+            -Path $release `
+            -Force |
+            Out-Null
+
           ./scripts/build-windows.ps1 `
             -Variant "${{ matrix.variant }}" `
             -OutputDir $release
+
+          Write-Host "Build directory contents:"
+
+          Get-ChildItem $release -Recurse |
+            Select-Object FullName, Length |
+            Format-Table -AutoSize
+
+      # Upload immediately after build so the packages remain downloadable
+      # even if a later test or validation step fails.
+      - name: Upload packages
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: printbridge-windows-${{ matrix.variant }}
+          path: |
+            ${{ github.workspace }}/build/PrintBridge-Client-${{ matrix.variant }}-Setup-x64.exe
+            ${{ github.workspace }}/build/PrintBridge-Client-${{ matrix.variant }}-Windows-x64-Portable.zip
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Run tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -B -m unittest discover -s tests
 
       - name: Validate portable package and installer
         shell: pwsh
@@ -206,13 +236,22 @@ jobs:
             -Force `
             -ErrorAction SilentlyContinue
 
+          New-Item `
+            -ItemType Directory `
+            -Path $installed `
+            -Force |
+            Out-Null
+
+          $installerArguments = @(
+            "/VERYSILENT"
+            "/SUPPRESSMSGBOXES"
+            "/NORESTART"
+            "/DIR=$installed"
+          )
+
           $setup = Start-Process `
             -FilePath $installer `
-            -ArgumentList `
-              "/VERYSILENT", `
-              "/SUPPRESSMSGBOXES", `
-              "/NORESTART", `
-              "/DIR=$installed" `
+            -ArgumentList $installerArguments `
             -Wait `
             -PassThru
 
@@ -247,17 +286,6 @@ jobs:
           Write-Host "Size: $($installedExeInfo.Length) bytes"
 
           Write-Host "$variant Windows package validation completed successfully."
-
-      - name: Upload packages
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: printbridge-windows-${{ matrix.variant }}
-          path: |
-            ${{ github.workspace }}/build/PrintBridge-Client-${{ matrix.variant }}-Setup-x64.exe
-            ${{ github.workspace }}/build/PrintBridge-Client-${{ matrix.variant }}-Windows-x64-Portable.zip
-          if-no-files-found: warn
-          retention-days: 30
 
       - name: Upload build logs
         if: always()
