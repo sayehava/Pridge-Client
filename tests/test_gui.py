@@ -32,6 +32,27 @@ class NoPrinters:
         return []
 
 
+class FakeWindowEvent:
+    def __init__(self):
+        self.handlers = []
+
+    def __iadd__(self, handler):
+        self.handlers.append(handler)
+        return self
+
+    def emit(self, window):
+        for handler in self.handlers:
+            handler(window)
+
+
+class FakeWindow:
+    def __init__(self):
+        self.events = Mock()
+        self.events.closed = FakeWindowEvent()
+        self.show = Mock()
+        self.destroy = Mock()
+
+
 class EndpointApiTests(unittest.TestCase):
     def setUp(self):
         self.previous_handlers = list(logging.getLogger().handlers)
@@ -174,7 +195,7 @@ class EndpointApiTests(unittest.TestCase):
 
     @patch("printbridge_endpoint.gui.webview.create_window")
     def test_opens_settings_in_one_separate_window(self, create_window):
-        create_window.return_value = Mock()
+        create_window.return_value = FakeWindow()
 
         first = self.api.open_settings_window()
         second = self.api.open_settings_window()
@@ -183,7 +204,32 @@ class EndpointApiTests(unittest.TestCase):
         self.assertTrue(second["ok"])
         create_window.assert_called_once()
         self.assertIn("settings.html", create_window.call_args.kwargs["url"])
+        self.assertFalse(create_window.call_args.kwargs["resizable"])
         create_window.return_value.show.assert_called_once()
+
+    @patch("printbridge_endpoint.gui.webview.create_window")
+    def test_reopens_settings_after_native_window_close(self, create_window):
+        first_window = FakeWindow()
+        second_window = FakeWindow()
+        create_window.side_effect = [first_window, second_window]
+
+        self.api.open_settings_window()
+        first_window.events.closed.emit(first_window)
+        reopened = self.api.open_settings_window()
+
+        self.assertTrue(reopened["ok"])
+        self.assertEqual(create_window.call_count, 2)
+        self.assertIs(self.api.utility_windows["settings"], second_window)
+
+    @patch("printbridge_endpoint.gui.webview.create_window")
+    def test_opens_about_window_at_fixed_size(self, create_window):
+        create_window.return_value = FakeWindow()
+
+        result = self.api.open_about_window()
+
+        self.assertTrue(result["ok"])
+        self.assertIn("about.html", create_window.call_args.kwargs["url"])
+        self.assertFalse(create_window.call_args.kwargs["resizable"])
 
     @patch("printbridge_endpoint.gui.set_start_at_login")
     def test_updates_application_darkness_setting(self, set_start_at_login):

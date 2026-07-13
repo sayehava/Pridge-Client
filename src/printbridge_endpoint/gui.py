@@ -223,7 +223,6 @@ class EndpointApi:
             page="settings.html",
             width=620,
             height=700,
-            min_size=(540, 620),
         )
 
     def open_about_window(self) -> dict:
@@ -233,7 +232,6 @@ class EndpointApi:
             page="about.html",
             width=600,
             height=690,
-            min_size=(520, 600),
         )
 
     def close_utility_window(self, key: str) -> dict:
@@ -540,7 +538,6 @@ class EndpointApi:
         page: str,
         width: int,
         height: int,
-        min_size: tuple[int, int],
     ) -> dict:
         existing = self.utility_windows.get(key)
         if existing is not None:
@@ -555,12 +552,17 @@ class EndpointApi:
             js_api=self,
             width=width,
             height=height,
-            min_size=min_size,
+            resizable=False,
             background_color="#111827",
             **_window_effects(),
         )
         self.utility_windows[key] = window
+        window.events.closed += lambda window: self._forget_utility_window(key, window)
         return self._ok()
+
+    def _forget_utility_window(self, key: str, window: webview.Window) -> None:
+        if self.utility_windows.get(key) is window:
+            self.utility_windows.pop(key, None)
 
     def _printer_mappings(self, value: object) -> list[PrinterMapping]:
         if not isinstance(value, list):
