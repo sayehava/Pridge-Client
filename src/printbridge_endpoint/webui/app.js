@@ -5,7 +5,6 @@
   const html = htm.bind(React.createElement);
   const S = window.PrintBridgeStrings;
   const POLL_MS = 2000;
-  const SERVER_PAGE_SIZE = 4;
 
   function callApi(name, ...args) {
     if (!window.pywebview || !window.pywebview.api || !window.pywebview.api[name]) {
@@ -55,20 +54,28 @@
   function ServerConnections({ servers, onAdd, onEdit, onRemove, onStart, onStop }) {
     const [page, setPage] = useState(0);
     const [direction, setDirection] = useState("forward");
-    const pageCount = Math.max(1, Math.ceil(servers.length / SERVER_PAGE_SIZE));
+    const previousServerCount = useRef(servers.length);
+    const pageCount = Math.max(1, servers.length);
+    const currentPage = Math.min(page, pageCount - 1);
 
     useEffect(() => {
-      if (page >= pageCount) setPage(pageCount - 1);
-    }, [page, pageCount]);
+      if (servers.length > previousServerCount.current) {
+        setDirection("forward");
+        setPage(servers.length - 1);
+      } else {
+        setPage((current) => Math.min(current, pageCount - 1));
+      }
+      previousServerCount.current = servers.length;
+    }, [servers.length, pageCount]);
 
     const goToPage = (nextPage) => {
       const bounded = Math.min(Math.max(nextPage, 0), pageCount - 1);
-      if (bounded === page) return;
-      setDirection(bounded > page ? "forward" : "backward");
+      if (bounded === currentPage) return;
+      setDirection(bounded > currentPage ? "forward" : "backward");
       setPage(bounded);
     };
-    const pageServers = servers.slice(page * SERVER_PAGE_SIZE, (page + 1) * SERVER_PAGE_SIZE);
-    const visiblePages = Array.from(new Set([0, page - 1, page, page + 1, pageCount - 1]))
+    const pageServers = servers.length > 0 ? [servers[currentPage]] : [];
+    const visiblePages = Array.from(new Set([0, currentPage - 1, currentPage, currentPage + 1, pageCount - 1]))
       .filter((item) => item >= 0 && item < pageCount)
       .sort((a, b) => a - b);
     const paginationItems = [];
@@ -93,7 +100,7 @@
               <div class="server-empty-copy">${S.no_servers_hint}</div>
             </div>`
           : html`<div class="server-list">
-              <div class=${`server-page page-slide-${direction}`} key=${page}>
+              <div class=${`server-page page-slide-${direction}`} key=${currentPage}>
               ${pageServers.map(
                 (server) => html`
                   <div class="server-item" key=${server.id}>
@@ -125,22 +132,22 @@
             </div>`}
         ${servers.length > 0 && pageCount > 1
           ? html`<nav class="server-pagination" aria-label=${S.server_pages}>
-              <button class="page-arrow" aria-label=${S.previous_page} disabled=${page === 0} onClick=${() => goToPage(page - 1)}>‹</button>
+              <button class="page-arrow" aria-label=${S.previous_page} disabled=${currentPage === 0} onClick=${() => goToPage(currentPage - 1)}>‹</button>
               <div class="page-numbers">
                 ${paginationItems.map((item) =>
                   typeof item === "string"
                     ? html`<span class="page-gap" key=${item}>…</span>`
                     : html`<button
-                        class=${item === page ? "page-number active" : "page-number"}
+                        class=${item === currentPage ? "page-number active" : "page-number"}
                         aria-label=${S.page_number.replace("{page}", item + 1)}
-                        aria-current=${item === page ? "page" : null}
+                        aria-current=${item === currentPage ? "page" : null}
                         onClick=${() => goToPage(item)}
                         key=${item}
                       >${item + 1}</button>`
                 )}
               </div>
-              <span class="page-summary">${S.page_summary.replace("{page}", page + 1).replace("{pages}", pageCount)}</span>
-              <button class="page-arrow" aria-label=${S.next_page} disabled=${page === pageCount - 1} onClick=${() => goToPage(page + 1)}>›</button>
+              <span class="page-summary">${S.page_summary.replace("{page}", currentPage + 1).replace("{pages}", pageCount)}</span>
+              <button class="page-arrow" aria-label=${S.next_page} disabled=${currentPage === pageCount - 1} onClick=${() => goToPage(currentPage + 1)}>›</button>
             </nav>`
           : null}
       </div>
