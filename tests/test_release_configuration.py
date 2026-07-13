@@ -31,6 +31,8 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("[IO.Path]::GetTempPath()", text)
         self.assertIn("PRINTBRIDGE_RELEASE_DIR", text)
         self.assertIn('Join-Path $Repository "build"', text)
+        self.assertIn("[switch]$SelectOutputDir", text)
+        self.assertIn("System.Windows.Forms.FolderBrowserDialog", text)
         self.assertIn('"--standalone"', text)
         self.assertIn('"--windows-console-mode=disable"', text)
         self.assertNotIn('"--onefile"', text)
@@ -39,6 +41,8 @@ class ReleaseConfigurationTests(unittest.TestCase):
         text = (ROOT / "scripts" / "build-macos.sh").read_text(encoding="utf-8")
 
         self.assertIn("${PRINTBRIDGE_RELEASE_DIR:-$REPOSITORY/build}", text)
+        self.assertIn("--select-output-dir", text)
+        self.assertIn("choose folder", text)
         self.assertIn("--macos-create-app-bundle", text)
         self.assertIn("hdiutil create", text)
         self.assertIn("PRINTBRIDGE_MACOS_SIGNING_IDENTITY", text)

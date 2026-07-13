@@ -8,6 +8,8 @@ set -euo pipefail
 REPOSITORY="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 VARIANT="all"
 OUTPUT_DIR="${PRINTBRIDGE_RELEASE_DIR:-$REPOSITORY/build}"
+OUTPUT_DIR_ARGUMENT_SET=0
+SELECT_OUTPUT_DIR=0
 
 if [[ $# -gt 0 && "$1" != --* ]]; then
     case "$1" in
@@ -21,11 +23,21 @@ fi
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --output-dir)
+            if [[ $# -lt 2 ]]; then
+                echo "--output-dir requires a path." >&2
+                exit 2
+            fi
             OUTPUT_DIR="$2"
+            OUTPUT_DIR_ARGUMENT_SET=1
             shift 2
             ;;
         --output-dir=*)
             OUTPUT_DIR="${1#*=}"
+            OUTPUT_DIR_ARGUMENT_SET=1
+            shift
+            ;;
+        --select-output-dir)
+            SELECT_OUTPUT_DIR=1
             shift
             ;;
         *)
@@ -37,6 +49,20 @@ done
 if [[ "$VARIANT" != "native" && "$VARIANT" != "pyinstaller" && "$VARIANT" != "all" ]]; then
     echo "Variant must be native, pyinstaller, or all." >&2
     exit 2
+fi
+if [[ "$SELECT_OUTPUT_DIR" -eq 1 && "$OUTPUT_DIR_ARGUMENT_SET" -eq 1 ]]; then
+    echo "Use either --output-dir or --select-output-dir, not both." >&2
+    exit 2
+fi
+if [[ "$SELECT_OUTPUT_DIR" -eq 1 ]]; then
+    if [[ "$(uname -s)" != "Darwin" ]]; then
+        echo "The output folder selector is available only on macOS." >&2
+        exit 2
+    fi
+    if ! OUTPUT_DIR="$(osascript -e 'POSIX path of (choose folder with prompt "Choose where PrintBridge Client release packages will be saved.")')"; then
+        echo "Output directory selection was cancelled." >&2
+        exit 2
+    fi
 fi
 
 mkdir -p "$OUTPUT_DIR"

@@ -25,7 +25,21 @@ Build system: PyInstaller
 
 Local builds write final packages, checksums, release notes, compiler reports, and logs to the repository's `build` directory by default on Windows and macOS. The directory is present in a fresh checkout and is created automatically if it is missing. Generated files inside it are ignored by Git; [build/README.md](build/README.md) remains tracked to explain its purpose.
 
-Set `PRINTBRIDGE_RELEASE_DIR` or pass the platform script's output argument to use another location.
+To choose another location interactively, use the platform folder selector:
+
+Windows PowerShell:
+
+```powershell
+./scripts/build-windows.ps1 -Variant All -SelectOutputDir
+```
+
+macOS:
+
+```bash
+bash scripts/build-macos.sh All --select-output-dir
+```
+
+The selector opens before compilation begins. Cancelling it stops the build without producing packages. For automated or repeatable builds, set `PRINTBRIDGE_RELEASE_DIR` or pass an explicit output path instead.
 
 Windows PowerShell:
 
@@ -100,7 +114,7 @@ This command uses the reusable [PrintBridge-Client.spec](packaging/pyinstaller/P
 ./scripts/build-windows.ps1 -Variant All
 ```
 
-To override the output directory for one command:
+To provide an explicit output directory for one command:
 
 ```powershell
 ./scripts/build-windows.ps1 -Variant All -OutputDir "D:\PrintBridge Builds"
@@ -161,7 +175,7 @@ This command uses the reusable PyInstaller spec to create a windowed onedir `.ap
 bash scripts/build-macos.sh All
 ```
 
-To override the output directory for one command:
+To provide an explicit output directory for one command:
 
 ```bash
 bash scripts/build-macos.sh All --output-dir "$HOME/PrintBridge Builds"

@@ -6,14 +6,31 @@
 param(
     [ValidateSet("Native", "PyInstaller", "All")]
     [string]$Variant = "All",
-    [string]$OutputDir = ""
+    [string]$OutputDir = "",
+    [switch]$SelectOutputDir
 )
 
 $ErrorActionPreference = "Stop"
 $Repository = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $InitialGitStatus = (& git -C $Repository status --porcelain --untracked-files=all) -join "`n"
 
-if (-not $OutputDir) {
+if ($SelectOutputDir -and $OutputDir) {
+    throw "Use either -OutputDir or -SelectOutputDir, not both."
+}
+if ($SelectOutputDir) {
+    Add-Type -AssemblyName System.Windows.Forms
+    $FolderDialog = New-Object System.Windows.Forms.FolderBrowserDialog
+    $FolderDialog.Description = "Choose where PrintBridge Client release packages will be saved."
+    $FolderDialog.SelectedPath = Join-Path $Repository "build"
+    try {
+        if ($FolderDialog.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) {
+            throw "Output directory selection was cancelled."
+        }
+        $OutputDir = $FolderDialog.SelectedPath
+    } finally {
+        $FolderDialog.Dispose()
+    }
+} elseif (-not $OutputDir) {
     $OutputDir = $env:PRINTBRIDGE_RELEASE_DIR
 }
 if (-not $OutputDir) {
