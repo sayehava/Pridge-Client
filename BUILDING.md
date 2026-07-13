@@ -72,7 +72,7 @@ py -3.12 -m venv "$env:TEMP\printbridge-release-venv"
 & "$env:TEMP\printbridge-release-venv\Scripts\Activate.ps1"
 python -m pip install --upgrade pip
 python -m pip install -r requirements-release.txt -e ".[windows,secure,tray]"
-python -m unittest discover -s tests
+python -B -m unittest discover -s tests
 ```
 
 ### Windows Native build
@@ -133,7 +133,7 @@ python3.12 -m venv /tmp/printbridge-release-venv
 source /tmp/printbridge-release-venv/bin/activate
 python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements-release.txt -e ".[secure,tray]"
-python3 -m unittest discover -s tests
+python3 -B -m unittest discover -s tests
 ```
 
 ### macOS Native build
@@ -255,8 +255,8 @@ Platform builds create `SHA256SUMS.txt` for every final package currently presen
 Manual commands:
 
 ```bash
-python3 scripts/generate_release_notes.py --tag v1.0.0
-python3 scripts/generate_checksums.py
+python3 -B scripts/generate_release_notes.py --tag v1.0.0
+python3 -B scripts/generate_checksums.py
 ```
 
 Both commands honor `PRINTBRIDGE_RELEASE_DIR` and reject output inside the repository.

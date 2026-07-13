@@ -27,6 +27,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       PRINTBRIDGE_VERSION: ${{ github.ref_name }}
+      PYTHONDONTWRITEBYTECODE: "1"
 
     steps:
       - name: Check out complete history
