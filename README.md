@@ -1,8 +1,8 @@
-# PrintBridge Client Agent
+# PrintBridge Client
 
-PrintBridge Client Agent is the local desktop application that connects an office computer to PrintBridge Server, receives print jobs, and sends raw payloads to local printers.
+PrintBridge Client is the local desktop application that connects an office computer to PrintBridge Server, receives print jobs, and sends raw payloads to local printers.
 
-This repository contains the first Python implementation. The server protocol is intentionally simple and language-neutral so future agents written in C++, Rust, C#, Go, or another language can reuse the same API.
+This repository contains the first Python implementation. The server protocol is intentionally simple and language-neutral so future clients written in C++, Rust, C#, Go, or another language can reuse the same API.
 
 ## Installation
 
@@ -44,7 +44,7 @@ When running from a source checkout without installing, set `PYTHONPATH=src`.
 
 ## Connect to Servers
 
-Use the settings window to connect the client agent to one or more PrintBridge Server instances:
+Use the settings window to connect the client to one or more PrintBridge Server instances:
 
 1. Click `Add Server` in the `Server Connections` list.
 2. Enter a server name, server URL, and client token in the separate server settings window.
@@ -57,7 +57,7 @@ Use the settings window to connect the client agent to one or more PrintBridge S
 9. Repeat for every server this office computer should serve.
 10. Use the Start and Stop buttons on each server card to control servers independently.
 
-The client agent starts one background polling worker for each enabled server profile. Printer mappings are independent per server, so different remote queues can target different local printers while still sharing the same client application.
+The client starts one background polling worker for each enabled server profile. Printer mappings are independent per server, so different remote queues can target different local printers while still sharing the same client application.
 
 The main window lists every configured server with its enabled state, token state, polling interval, heartbeat interval, printer-mapping count, and current worker status. Each server has independent Start and Stop controls. Click `Edit` to open that server in a separate settings window. Stored tokens are hidden; enter a new token only when replacing the existing token.
 
@@ -84,11 +84,11 @@ Configuration locations:
 - macOS: `~/Library/Application Support/PrintBridge Endpoint/config.json`
 - Linux: `${XDG_CONFIG_HOME:-~/.config}/printbridge-endpoint/config.json`
 
-Version 1.0 retains the legacy storage directory names so existing server profiles and credentials remain available after the Client Agent rename.
+Version 1.0 retains the legacy storage directory names so existing server profiles and credentials remain available after the Client rename.
 
 ## Authentication
 
-The client agent authenticates with the client token issued by PrintBridge Server. A successful authentication response must include:
+The client authenticates with the client token issued by PrintBridge Server. A successful authentication response must include:
 
 ```http
 POST /api/client/auth
@@ -115,7 +115,7 @@ Future requests use:
 Authorization: Bearer SESSION_TOKEN
 ```
 
-If a request returns HTTP 401, the client agent clears the session token, authenticates again, and retries the request once.
+If a request returns HTTP 401, the client clears the session token, authenticates again, and retries the request once.
 
 ## Server API
 
@@ -151,7 +151,7 @@ Supported reported states are:
 - `printed`
 - `failed`
 
-The server remains responsible for requeueing jobs that were reserved but never completed because the client agent crashed or disconnected.
+The server remains responsible for requeueing jobs that were reserved but never completed because the client crashed or disconnected.
 
 ## Printer Mapping
 
@@ -161,7 +161,7 @@ Printer discovery is platform-specific behind a shared interface:
 - Linux: `pycups` when installed, otherwise `lpstat`
 - macOS: `lpstat`
 
-Each server profile maps remote PrintBridge endpoint IDs to local printer names. The client agent reads `endpoint_id` from a reserved job and routes the raw payload through that server's mapping. A server endpoint whose selector is `Disabled` has no local mapping, so its job is reported as failed instead of being sent to an arbitrary printer.
+Each server profile maps remote PrintBridge endpoint IDs to local printer names. The client reads `endpoint_id` from a reserved job and routes the raw payload through that server's mapping. A server endpoint whose selector is `Disabled` has no local mapping, so its job is reported as failed instead of being sent to an arbitrary printer.
 
 The settings window loads all virtual printer endpoints from `GET /api/client/endpoints`. It also refreshes the operating system's local printer list whenever the server editor opens. Saving a server sends every non-disabled endpoint ID to `PUT /api/client/endpoints`, making the local printer dropdown the source of that client's server assignments. Older servers without the endpoint-list route fall back to discovering endpoints from their active job list.
 
@@ -170,7 +170,7 @@ Printing sends raw bytes to the resolved local printer:
 - Windows: `StartDocPrinter` with `RAW`
 - Linux/macOS: `lp -o raw`
 
-The client agent does not interpret or transform print payloads. Base64 is decoded to bytes and sent as received.
+The client does not interpret or transform print payloads. Base64 is decoded to bytes and sent as received.
 
 ## Background Operation
 
@@ -201,7 +201,7 @@ The settings window can enable login startup:
 - macOS: `~/Library/LaunchAgents/com.printbridge.endpoint.plist`
 - Linux: XDG autostart desktop entry
 
-Auto-start launches the client agent in `--headless` mode.
+Auto-start launches the client in `--headless` mode.
 
 ## Logging
 
@@ -233,7 +233,7 @@ The project exposes `printbridge-client` as its preferred console script and ret
 
 ## License
 
-PrintBridge Client Agent is free software licensed under GNU General Public License version 3 or, at your option, any later version (`GPL-3.0-or-later`). See [LICENSE](LICENSE) for the full license text.
+PrintBridge Client is free software licensed under GNU General Public License version 3 or, at your option, any later version (`GPL-3.0-or-later`). See [LICENSE](LICENSE) for the full license text.
 
 The project also carries an attribution requirement permitted by GNU GPLv3 Section 7(b). Modified or redistributed versions with an interactive user interface must keep this notice visible in their About or Legal Notices section:
 

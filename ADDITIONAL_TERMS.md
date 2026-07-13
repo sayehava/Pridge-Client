@@ -1,6 +1,6 @@
 # Additional Terms under GNU GPLv3 Section 7
 
-PrintBridge Client Agent is licensed under GNU General Public License version 3 or, at your option, any later version (`GPL-3.0-or-later`), subject to the following additional term.
+PrintBridge Client is licensed under GNU General Public License version 3 or, at your option, any later version (`GPL-3.0-or-later`), subject to the following additional term.
 
 ## Required attribution notice
 

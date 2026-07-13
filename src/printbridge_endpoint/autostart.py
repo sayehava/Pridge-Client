@@ -63,9 +63,12 @@ def _set_macos_launch_agent(enabled: bool) -> None:
 
 
 def _set_linux_desktop_entry(enabled: bool) -> None:
-    path = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "autostart" / "printbridge-endpoint.desktop"
+    autostart_directory = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "autostart"
+    path = autostart_directory / "printbridge-client.desktop"
+    legacy_path = autostart_directory / "printbridge-endpoint.desktop"
     if not enabled:
         _unlink_if_exists(path)
+        _unlink_if_exists(legacy_path)
         return
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -75,7 +78,7 @@ def _set_linux_desktop_entry(enabled: bool) -> None:
             [
                 "[Desktop Entry]",
                 "Type=Application",
-                "Name=PrintBridge Client Agent",
+                "Name=PrintBridge Client",
                 f"Exec={exec_line}",
                 "X-GNOME-Autostart-enabled=true",
                 "",
@@ -83,6 +86,7 @@ def _set_linux_desktop_entry(enabled: bool) -> None:
         ),
         encoding="utf-8",
     )
+    _unlink_if_exists(legacy_path)
 
 
 def _set_windows_run_key(enabled: bool) -> None:
@@ -92,8 +96,8 @@ def _set_windows_run_key(enabled: bool) -> None:
         raise AutoStartError("Windows auto-start requires winreg.") from exc
 
     key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
-    value_name = "PrintBridge Client Agent"
-    legacy_value_name = "PrintBridge Endpoint Agent"
+    value_name = "PrintBridge Client"
+    legacy_value_names = ("PrintBridge Client Agent", "PrintBridge Endpoint Agent")
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
         if enabled:
             value = " ".join(f'"{part}"' if " " in part else part for part in command())
@@ -103,10 +107,11 @@ def _set_windows_run_key(enabled: bool) -> None:
                 winreg.DeleteValue(key, value_name)
             except FileNotFoundError:
                 pass
-        try:
-            winreg.DeleteValue(key, legacy_value_name)
-        except FileNotFoundError:
-            pass
+        for legacy_value_name in legacy_value_names:
+            try:
+                winreg.DeleteValue(key, legacy_value_name)
+            except FileNotFoundError:
+                pass
 
 
 def _unlink_if_exists(path: Path) -> None:
