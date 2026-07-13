@@ -25,7 +25,7 @@ from printbridge_endpoint.config import (
     ServerConfig,
 )
 from printbridge_endpoint.models import JobHistoryEntry
-from printbridge_endpoint.platform_window import configure_utility_window
+from printbridge_endpoint.platform_window import configure_application_identity, configure_utility_window
 from printbridge_endpoint.printers import Printer, PrinterError, PrinterManager
 from printbridge_endpoint.strings import (
     APP_NAME,
@@ -678,6 +678,7 @@ class EndpointApi:
 
 
 def run_gui() -> None:
+    configure_application_identity(APP_NAME)
     api = EndpointApi()
     window = webview.create_window(
         WINDOW_TITLE,

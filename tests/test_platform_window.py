@@ -7,10 +7,33 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from printbridge_endpoint.platform_window import disable_minimize
+from printbridge_endpoint.platform_window import configure_application_identity, disable_minimize
 
 
 class PlatformWindowTests(unittest.TestCase):
+    @patch("printbridge_endpoint.platform_window.platform.system", return_value="Darwin")
+    def test_sets_macos_process_and_bundle_name(self, _system):
+        info = {}
+        bundle = Mock()
+        bundle.localizedInfoDictionary.return_value = info
+        process_info = Mock()
+        foundation = SimpleNamespace(
+            NSBundle=SimpleNamespace(mainBundle=lambda: bundle),
+            NSProcessInfo=SimpleNamespace(processInfo=lambda: process_info),
+        )
+
+        with patch.dict(sys.modules, {"Foundation": foundation}):
+            configure_application_identity("PrintBridge Client")
+
+        self.assertEqual(info["CFBundleName"], "PrintBridge Client")
+        self.assertEqual(info["CFBundleDisplayName"], "PrintBridge Client")
+        process_info.setProcessName_.assert_called_once_with("PrintBridge Client")
+
+    @patch("printbridge_endpoint.platform_window.platform.system", return_value="Linux")
+    def test_skips_application_identity_outside_macos(self, _system):
+        with patch.dict(sys.modules, {"Foundation": None}):
+            configure_application_identity("PrintBridge Client")
+
     @patch("printbridge_endpoint.platform_window.platform.system", return_value="Darwin")
     def test_hides_macos_minimize_button(self, _system):
         button = Mock()

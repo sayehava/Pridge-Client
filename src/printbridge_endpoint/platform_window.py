@@ -12,6 +12,25 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def configure_application_identity(name: str) -> None:
+    """Set the native process and bundle name used by the macOS menu bar."""
+    if platform.system() != "Darwin":
+        return
+
+    try:
+        import Foundation
+
+        bundle = Foundation.NSBundle.mainBundle()
+        info = bundle.localizedInfoDictionary()
+        if info is None:
+            info = bundle.infoDictionary()
+        info["CFBundleName"] = name
+        info["CFBundleDisplayName"] = name
+        Foundation.NSProcessInfo.processInfo().setProcessName_(name)
+    except Exception as exc:
+        logger.debug("Could not configure the native application identity: %s", exc)
+
+
 def configure_utility_window(window: Any) -> None:
     """Remove native minimize controls and reject minimize requests."""
     window.events.shown += disable_minimize
