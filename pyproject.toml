@@ -10,6 +10,13 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "requests>=2.31",
+    "pywebview>=5.0",
+    "pyobjc-core>=10.0; platform_system == 'Darwin'",
+    "pyobjc-framework-Cocoa>=10.0; platform_system == 'Darwin'",
+    "pyobjc-framework-Quartz>=10.0; platform_system == 'Darwin'",
+    "pyobjc-framework-WebKit>=10.0; platform_system == 'Darwin'",
+    "pyobjc-framework-security>=10.0; platform_system == 'Darwin'",
+    "pyobjc-framework-UniformTypeIdentifiers>=10.0; platform_system == 'Darwin'",
 ]
 
 [project.optional-dependencies]
@@ -17,9 +24,6 @@ secure = ["keyring>=24"]
 tray = [
     "pystray==0.19.5",
     "Pillow>=10",
-    "pyobjc-core==9.2; platform_system == 'Darwin'",
-    "pyobjc-framework-Cocoa==9.2; platform_system == 'Darwin'",
-    "pyobjc-framework-Quartz==9.2; platform_system == 'Darwin'",
 ]
 windows = ["pywin32>=306; platform_system == 'Windows'"]
 linux = ["pycups>=2.0; platform_system == 'Linux'"]
@@ -31,4 +35,4 @@ printbridge-endpoint = "printbridge_endpoint.__main__:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-printbridge_endpoint = ["py.typed"]
+printbridge_endpoint = ["py.typed", "webui/*.html", "webui/*.css", "webui/*.js", "webui/vendor/*.js"]
