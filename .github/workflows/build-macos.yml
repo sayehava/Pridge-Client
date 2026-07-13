@@ -106,12 +106,12 @@ jobs:
 
       - name: Build ${{ matrix.variant }} package
         run: |
-          release="$RUNNER_TEMP/release-${{ matrix.variant }}-${{ matrix.arch }}"
+          release="$GITHUB_WORKSPACE/build"
           bash scripts/build-macos.sh "${{ matrix.variant }}" --output-dir "$release"
 
       - name: Smoke-test mounted app bundle
         run: |
-          release="$RUNNER_TEMP/release-${{ matrix.variant }}-${{ matrix.arch }}"
+          release="$GITHUB_WORKSPACE/build"
           package="PrintBridge-Client-${{ matrix.variant }}-macOS-${{ matrix.arch }}.dmg"
           dmg="$release/$package"
           test -f "$dmg"
@@ -141,7 +141,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: printbridge-macos-${{ matrix.variant }}-${{ matrix.arch }}
-          path: ${{ runner.temp }}/release-${{ matrix.variant }}-${{ matrix.arch }}/PrintBridge-Client-${{ matrix.variant }}-macOS-${{ matrix.arch }}.dmg
+          path: ${{ github.workspace }}/build/PrintBridge-Client-${{ matrix.variant }}-macOS-${{ matrix.arch }}.dmg
           if-no-files-found: error
 
       - name: Upload build logs
@@ -150,8 +150,8 @@ jobs:
         with:
           name: build-logs-macos-${{ matrix.variant }}-${{ matrix.arch }}
           path: |
-            ${{ runner.temp }}/release-${{ matrix.variant }}-${{ matrix.arch }}/*.log
-            ${{ runner.temp }}/release-${{ matrix.variant }}-${{ matrix.arch }}/*.xml
+            ${{ github.workspace }}/build/*.log
+            ${{ github.workspace }}/build/*.xml
           if-no-files-found: warn
 
       - name: Delete temporary signing keychain

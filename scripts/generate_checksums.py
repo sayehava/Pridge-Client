@@ -22,7 +22,7 @@ def sha256(path: Path) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate release package SHA256 checksums.")
-    parser.add_argument("--output-dir", help="Release directory; defaults to PRINTBRIDGE_RELEASE_DIR or Desktop/Release.")
+    parser.add_argument("--output-dir", help="Build output directory; defaults to PRINTBRIDGE_RELEASE_DIR or project/build.")
     parser.add_argument("--require-all", action="store_true", help="Require all eight cross-platform packages.")
     args = parser.parse_args()
 

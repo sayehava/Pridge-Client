@@ -68,13 +68,13 @@ jobs:
       - name: Build ${{ matrix.variant }} packages
         shell: pwsh
         run: |
-          $release = Join-Path $env:RUNNER_TEMP "release-${{ matrix.variant }}"
+          $release = Join-Path $env:GITHUB_WORKSPACE "build"
           ./scripts/build-windows.ps1 -Variant "${{ matrix.variant }}" -OutputDir $release
 
       - name: Smoke-test portable GUI and installer
         shell: pwsh
         run: |
-          $release = Join-Path $env:RUNNER_TEMP "release-${{ matrix.variant }}"
+          $release = Join-Path $env:GITHUB_WORKSPACE "build"
           $portableName = if ("${{ matrix.variant }}" -eq "Native") {
             "PrintBridge-Client-Native-Windows-x64-Portable.zip"
           } else {
@@ -112,8 +112,8 @@ jobs:
         with:
           name: printbridge-windows-${{ matrix.variant }}
           path: |
-            ${{ runner.temp }}/release-${{ matrix.variant }}/*.exe
-            ${{ runner.temp }}/release-${{ matrix.variant }}/*-Portable.zip
+            ${{ github.workspace }}/build/*.exe
+            ${{ github.workspace }}/build/*-Portable.zip
           if-no-files-found: error
 
       - name: Upload build logs
@@ -122,6 +122,6 @@ jobs:
         with:
           name: build-logs-windows-${{ matrix.variant }}
           path: |
-            ${{ runner.temp }}/release-${{ matrix.variant }}/*.log
-            ${{ runner.temp }}/release-${{ matrix.variant }}/*.xml
+            ${{ github.workspace }}/build/*.log
+            ${{ github.workspace }}/build/*.xml
           if-no-files-found: warn

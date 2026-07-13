@@ -23,28 +23,25 @@ Build system: PyInstaller
 
 ## Output and temporary directories
 
-Local builds write final packages, checksums, release notes, compiler reports, and logs to the user's Desktop `Release` directory by default:
+Local builds write final packages, checksums, release notes, compiler reports, and logs to the repository's `build` directory by default on Windows and macOS. The directory is present in a fresh checkout and is created automatically if it is missing. Generated files inside it are ignored by Git; [build/README.md](build/README.md) remains tracked to explain its purpose.
 
-- Windows: `%USERPROFILE%\Desktop\Release`
-- macOS: `~/Desktop/Release`
-
-The directory is created automatically. Set `PRINTBRIDGE_RELEASE_DIR` or pass the platform script's output argument to use another location outside the repository.
+Set `PRINTBRIDGE_RELEASE_DIR` or pass the platform script's output argument to use another location.
 
 Windows PowerShell:
 
 ```powershell
-$env:PRINTBRIDGE_RELEASE_DIR = "D:\PrintBridge Releases"
+$env:PRINTBRIDGE_RELEASE_DIR = "D:\PrintBridge Builds"
 ```
 
 macOS:
 
 ```bash
-export PRINTBRIDGE_RELEASE_DIR="$HOME/PrintBridge Releases"
+export PRINTBRIDGE_RELEASE_DIR="$HOME/PrintBridge Builds"
 ```
 
-All compiler output, PyInstaller work/dist files, Nuitka output, Python bytecode, compiler caches, installer staging, signing credentials, and DMG staging use a unique operating-system temporary directory. The build scripts reject an output directory inside the source repository, delete their temporary directory on exit, and fail if `git status --porcelain` changes during a build. No `build`, `dist`, `output`, `release`, cache, or staging directory is created in the checkout.
+All intermediate compiler output, PyInstaller work/dist files, Nuitka output, Python bytecode, compiler caches, installer staging, signing credentials, and DMG staging use a unique operating-system temporary directory. The build scripts delete their temporary directory on exit and fail if tracked or non-ignored repository state changes during a build. Only final release files and build logs are copied into `build`.
 
-GitHub Actions uses `${{ runner.temp }}` for compilation, staging, and final-package collection. Only selected final packages and diagnostic logs are uploaded as workflow artifacts.
+GitHub Actions uses `${{ runner.temp }}` for compilation and staging, then collects final packages in `${{ github.workspace }}/build`. Only selected final packages and diagnostic logs are uploaded as workflow artifacts.
 
 ## Shared prerequisites
 
@@ -106,7 +103,7 @@ This command uses the reusable [PrintBridge-Client.spec](packaging/pyinstaller/P
 To override the output directory for one command:
 
 ```powershell
-./scripts/build-windows.ps1 -Variant All -OutputDir "D:\PrintBridge Releases"
+./scripts/build-windows.ps1 -Variant All -OutputDir "D:\PrintBridge Builds"
 ```
 
 Both setup packages use the shared Inno Setup definition at [PrintBridge-Client.iss](packaging/windows/PrintBridge-Client.iss). The installer checks Microsoft's WebView2 Runtime `pv` registry value for both per-machine and per-user installations. It runs the embedded official Evergreen bootstrapper with `/silent /install` only when a valid runtime is missing. The portable packages require the Microsoft WebView2 Runtime already provided by or installed on Windows; they never require Python.
@@ -167,7 +164,7 @@ bash scripts/build-macos.sh All
 To override the output directory for one command:
 
 ```bash
-bash scripts/build-macos.sh All --output-dir "$HOME/PrintBridge Releases"
+bash scripts/build-macos.sh All --output-dir "$HOME/PrintBridge Builds"
 ```
 
 The DMG contains the `.app`, an `/Applications` shortcut, the GPL license, and the additional attribution terms. A custom volume icon, application name, version, identifier, author, copyright, description, build variant, and build system are embedded during packaging.
@@ -259,7 +256,7 @@ python3 -B scripts/generate_release_notes.py --tag v1.0.0
 python3 -B scripts/generate_checksums.py
 ```
 
-Both commands honor `PRINTBRIDGE_RELEASE_DIR` and reject output inside the repository.
+Both commands honor `PRINTBRIDGE_RELEASE_DIR` and default to the repository's `build` directory.
 
 ## GitHub tag release process
 
@@ -282,7 +279,7 @@ git tag -a v1.0.0 -m "Release PrintBridge Client 1.0.0"
 git push origin v1.0.0
 ```
 
-The `Build and publish release` workflow calls both native platform workflows, embeds the tag version, builds six native runner jobs, verifies each package, collects all output in temporary runner storage, generates release notes and checksums, uploads the complete set as a GitHub Actions artifact, and creates the GitHub Release. The plain-text release notes are uploaded as a release asset, and the Markdown rendering of the same content becomes the release description.
+The `Build and publish release` workflow calls both native platform workflows, embeds the tag version, builds six native runner jobs, verifies each package, collects final output in the checked-out repository's ignored `build` directory, generates release notes and checksums, uploads the complete set as a GitHub Actions artifact, and creates the GitHub Release. The plain-text release notes are uploaded as a release asset, and the Markdown rendering of the same content becomes the release description.
 
 ## Expected final filenames
 

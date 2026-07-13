@@ -144,7 +144,7 @@ def render(tag: str, markdown: bool) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate release notes from Git history.")
-    parser.add_argument("--output-dir", help="Release directory; defaults to PRINTBRIDGE_RELEASE_DIR or Desktop/Release.")
+    parser.add_argument("--output-dir", help="Build output directory; defaults to PRINTBRIDGE_RELEASE_DIR or project/build.")
     parser.add_argument("--tag", default=os.environ.get("GITHUB_REF_NAME", ""), help="Release tag; defaults to GITHUB_REF_NAME.")
     parser.add_argument("--markdown-output", help="Optional path for the GitHub Release Markdown body.")
     args = parser.parse_args()

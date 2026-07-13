@@ -7,7 +7,7 @@ set -euo pipefail
 
 REPOSITORY="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 VARIANT="all"
-OUTPUT_DIR="${PRINTBRIDGE_RELEASE_DIR:-$HOME/Desktop/Release}"
+OUTPUT_DIR="${PRINTBRIDGE_RELEASE_DIR:-$REPOSITORY/build}"
 
 if [[ $# -gt 0 && "$1" != --* ]]; then
     case "$1" in
@@ -41,12 +41,6 @@ fi
 
 mkdir -p "$OUTPUT_DIR"
 OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd -P)"
-case "$OUTPUT_DIR/" in
-    "$REPOSITORY/"*)
-        echo "The release output directory must be outside the source repository." >&2
-        exit 2
-        ;;
-esac
 
 INITIAL_GIT_STATUS="$(git -C "$REPOSITORY" status --porcelain --untracked-files=all)"
 TEMP_BASE="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"

@@ -2,22 +2,25 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileComment: Additional terms apply; see ADDITIONAL_TERMS.md.
 
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from release_common import ROOT, ensure_release_dir, write_build_metadata  # noqa: E402
+from release_common import ROOT, default_release_dir, ensure_release_dir, write_build_metadata  # noqa: E402
 
 
 class ReleaseToolTests(unittest.TestCase):
-    def test_rejects_output_inside_repository(self):
-        with self.assertRaises(ValueError):
-            ensure_release_dir(ROOT / "Release")
+    def test_defaults_output_to_project_build_directory(self):
+        with patch.dict(os.environ, {"PRINTBRIDGE_RELEASE_DIR": ""}):
+            self.assertEqual(default_release_dir(), ROOT / "build")
+            self.assertEqual(ensure_release_dir(), (ROOT / "build").resolve())
 
     def test_writes_build_metadata_outside_repository(self):
         with tempfile.TemporaryDirectory() as directory:

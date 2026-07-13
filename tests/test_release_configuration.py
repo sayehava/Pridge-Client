@@ -30,6 +30,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
 
         self.assertIn("[IO.Path]::GetTempPath()", text)
         self.assertIn("PRINTBRIDGE_RELEASE_DIR", text)
+        self.assertIn('Join-Path $Repository "build"', text)
         self.assertIn('"--standalone"', text)
         self.assertIn('"--windows-console-mode=disable"', text)
         self.assertNotIn('"--onefile"', text)
@@ -37,6 +38,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
     def test_macos_build_creates_native_app_bundles_and_dmgs(self):
         text = (ROOT / "scripts" / "build-macos.sh").read_text(encoding="utf-8")
 
+        self.assertIn("${PRINTBRIDGE_RELEASE_DIR:-$REPOSITORY/build}", text)
         self.assertIn("--macos-create-app-bundle", text)
         self.assertIn("hdiutil create", text)
         self.assertIn("PRINTBRIDGE_MACOS_SIGNING_IDENTITY", text)
@@ -61,6 +63,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
         for filename in expected:
             self.assertIn(filename, text)
         self.assertIn('tags:\n      - "v*"', text)
+        self.assertIn("${{ github.workspace }}/build", text)
 
 
 if __name__ == "__main__":

@@ -17,13 +17,9 @@ if (-not $OutputDir) {
     $OutputDir = $env:PRINTBRIDGE_RELEASE_DIR
 }
 if (-not $OutputDir) {
-    $OutputDir = Join-Path $env:USERPROFILE "Desktop\Release"
+    $OutputDir = Join-Path $Repository "build"
 }
 $OutputDir = [IO.Path]::GetFullPath($OutputDir)
-$RepositoryPrefix = $Repository.TrimEnd('\') + '\'
-if ($OutputDir.Equals($Repository, [StringComparison]::OrdinalIgnoreCase) -or $OutputDir.StartsWith($RepositoryPrefix, [StringComparison]::OrdinalIgnoreCase)) {
-    throw "The release output directory must be outside the source repository."
-}
 New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
 
 $TemporaryBase = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }

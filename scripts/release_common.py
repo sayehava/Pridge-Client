@@ -10,7 +10,6 @@ import json
 import os
 import re
 import subprocess
-import sys
 from pathlib import Path
 from typing import Iterable
 
@@ -80,23 +79,12 @@ def default_release_dir() -> Path:
     configured = os.environ.get("PRINTBRIDGE_RELEASE_DIR", "").strip()
     if configured:
         return Path(configured).expanduser()
-    if sys.platform == "win32":
-        home = Path(os.environ.get("USERPROFILE", str(Path.home())))
-    else:
-        home = Path.home()
-    return home / "Desktop" / "Release"
+    return ROOT / "build"
 
 
 def ensure_release_dir(value: str | Path | None = None) -> Path:
     destination = Path(value).expanduser() if value else default_release_dir()
     destination = destination.resolve()
-    repository = ROOT.resolve()
-    try:
-        destination.relative_to(repository)
-    except ValueError:
-        pass
-    else:
-        raise ValueError("The release output directory must be outside the source repository")
     destination.mkdir(parents=True, exist_ok=True)
     return destination
 
