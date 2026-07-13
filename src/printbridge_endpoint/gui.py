@@ -41,6 +41,9 @@ from printbridge_endpoint.worker import PollingWorker
 logger = logging.getLogger(__name__)
 
 WEBUI_DIR = Path(__file__).resolve().parent / "webui"
+ASSET_DIR = WEBUI_DIR / "assets"
+APP_ICON_PATH = ASSET_DIR / "Icon.png"
+TRAY_ICON_PATH = ASSET_DIR / "IconTray.png"
 MAX_RECENT_JOBS = 50
 MAX_LOG_LINES = 300
 
@@ -319,7 +322,11 @@ class EndpointApi:
     # Window / tray lifecycle
     # ------------------------------------------------------------------
     def start_tray(self) -> None:
-        self.tray = TrayController(on_show=self.show_window, on_quit=self.quit_application)
+        self.tray = TrayController(
+            on_show=self.show_window,
+            on_quit=self.quit_application,
+            icon_path=TRAY_ICON_PATH,
+        )
         try:
             self.tray.start()
         except TrayUnavailableError as exc:
@@ -541,7 +548,7 @@ def run_gui() -> None:
     if api.config.start_polling_on_launch:
         api.start_workers()
 
-    webview.start(debug=False)
+    webview.start(debug=False, icon=str(APP_ICON_PATH))
 
 
 def _window_effects() -> dict[str, bool]:

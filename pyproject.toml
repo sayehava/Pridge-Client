@@ -35,4 +35,4 @@ printbridge-endpoint = "printbridge_endpoint.__main__:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-printbridge_endpoint = ["py.typed", "webui/*.html", "webui/*.css", "webui/*.js", "webui/vendor/*.js"]
+printbridge_endpoint = ["py.typed", "webui/*.html", "webui/*.css", "webui/*.js", "webui/vendor/*.js", "webui/assets/*.png"]
