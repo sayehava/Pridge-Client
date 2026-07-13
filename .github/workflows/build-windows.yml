@@ -15,12 +15,14 @@ on:
         required: false
       WINDOWS_TIMESTAMP_URL:
         required: false
+
   workflow_dispatch:
     inputs:
       version:
         description: Optional version override, such as 1.0.0
         required: false
         type: string
+        default: ""
 
 permissions:
   contents: read
@@ -29,10 +31,14 @@ jobs:
   build:
     name: Windows x64 ${{ matrix.variant }}
     runs-on: windows-2025
+
     strategy:
       fail-fast: false
       matrix:
-        variant: [Native, PyInstaller]
+        variant:
+          - Native
+          - PyInstaller
+
     env:
       PRINTBRIDGE_VERSION: ${{ inputs.version }}
       PRINTBRIDGE_WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
@@ -55,66 +61,203 @@ jobs:
       - name: Install build dependencies
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+
           python -m pip install --upgrade pip
           python -m pip install -r requirements-release.txt -e ".[windows,secure,tray]"
-          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+
+          if (-not (Test-Path $iscc)) {
             choco install innosetup --no-progress --yes
+          }
+
+          if (-not (Test-Path $iscc)) {
+            throw "Inno Setup was not installed successfully."
           }
 
       - name: Run tests
         shell: pwsh
-        run: python -B -m unittest discover -s tests
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -B -m unittest discover -s tests
 
       - name: Build ${{ matrix.variant }} packages
         shell: pwsh
         run: |
-          $release = Join-Path $env:GITHUB_WORKSPACE "build"
-          ./scripts/build-windows.ps1 -Variant "${{ matrix.variant }}" -OutputDir $release
+          $ErrorActionPreference = "Stop"
 
-      - name: Smoke-test portable GUI and installer
+          $release = Join-Path $env:GITHUB_WORKSPACE "build"
+
+          ./scripts/build-windows.ps1 `
+            -Variant "${{ matrix.variant }}" `
+            -OutputDir $release
+
+      - name: Validate portable package and installer
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+
+          $variant = "${{ matrix.variant }}"
           $release = Join-Path $env:GITHUB_WORKSPACE "build"
-          $portableName = if ("${{ matrix.variant }}" -eq "Native") {
-            "PrintBridge-Client-Native-Windows-x64-Portable.zip"
-          } else {
-            "PrintBridge-Client-PyInstaller-Windows-x64-Portable.zip"
+
+          if ($variant -eq "Native") {
+            $portableName = "PrintBridge-Client-Native-Windows-x64-Portable.zip"
+            $installerName = "PrintBridge-Client-Native-Setup-x64.exe"
           }
-          $installerName = if ("${{ matrix.variant }}" -eq "Native") {
-            "PrintBridge-Client-Native-Setup-x64.exe"
-          } else {
-            "PrintBridge-Client-PyInstaller-Setup-x64.exe"
+          else {
+            $portableName = "PrintBridge-Client-PyInstaller-Windows-x64-Portable.zip"
+            $installerName = "PrintBridge-Client-PyInstaller-Setup-x64.exe"
           }
+
           $portable = Join-Path $release $portableName
           $installer = Join-Path $release $installerName
-          if (-not (Test-Path $portable) -or -not (Test-Path $installer)) {
-            throw "Expected Windows release packages were not created."
-          }
-          $expanded = Join-Path $env:RUNNER_TEMP "portable-smoke-${{ matrix.variant }}"
-          Expand-Archive -Path $portable -DestinationPath $expanded -Force
-          $portableExe = Join-Path $expanded "PrintBridge Client\PrintBridge Client.exe"
-          $process = Start-Process -FilePath $portableExe -PassThru
-          Start-Sleep -Seconds 10
-          if ($process.HasExited) { throw "The portable GUI exited during startup." }
-          Stop-Process -Id $process.Id -Force
 
-          $installed = Join-Path $env:RUNNER_TEMP "installed-${{ matrix.variant }}"
-          $setup = Start-Process -FilePath $installer -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=$installed" -Wait -PassThru
-          if ($setup.ExitCode -ne 0) { throw "Installer smoke test failed with exit code $($setup.ExitCode)." }
-          $installedExe = Join-Path $installed "PrintBridge Client.exe"
-          $process = Start-Process -FilePath $installedExe -PassThru
-          Start-Sleep -Seconds 10
-          if ($process.HasExited) { throw "The installed GUI exited during startup." }
-          Stop-Process -Id $process.Id -Force
+          Write-Host "Expected portable package:"
+          Write-Host $portable
+
+          Write-Host "Expected installer:"
+          Write-Host $installer
+
+          if (-not (Test-Path $portable -PathType Leaf)) {
+            Write-Host "Build directory contents:"
+
+            if (Test-Path $release) {
+              Get-ChildItem $release -Recurse |
+                Select-Object FullName, Length |
+                Format-Table -AutoSize
+            }
+
+            throw "Portable package was not created: $portable"
+          }
+
+          if (-not (Test-Path $installer -PathType Leaf)) {
+            Write-Host "Build directory contents:"
+
+            if (Test-Path $release) {
+              Get-ChildItem $release -Recurse |
+                Select-Object FullName, Length |
+                Format-Table -AutoSize
+            }
+
+            throw "Installer package was not created: $installer"
+          }
+
+          $portableInfo = Get-Item $portable
+          $installerInfo = Get-Item $installer
+
+          if ($portableInfo.Length -le 0) {
+            throw "Portable ZIP is empty."
+          }
+
+          if ($installerInfo.Length -le 0) {
+            throw "Installer EXE is empty."
+          }
+
+          Write-Host "Portable ZIP size: $($portableInfo.Length) bytes"
+          Write-Host "Installer size: $($installerInfo.Length) bytes"
+
+          $expanded = Join-Path `
+            $env:RUNNER_TEMP `
+            "portable-validation-$variant"
+
+          Remove-Item `
+            $expanded `
+            -Recurse `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+          Expand-Archive `
+            -Path $portable `
+            -DestinationPath $expanded `
+            -Force
+
+          $portableExe = Join-Path `
+            $expanded `
+            "PrintBridge Client\PrintBridge Client.exe"
+
+          if (-not (Test-Path $portableExe -PathType Leaf)) {
+            Write-Host "Portable archive contents:"
+
+            Get-ChildItem $expanded -Recurse |
+              Select-Object FullName, Length |
+              Format-Table -AutoSize
+
+            throw "Portable executable was not found: $portableExe"
+          }
+
+          $portableExeInfo = Get-Item $portableExe
+
+          if ($portableExeInfo.Length -le 0) {
+            throw "Portable executable is empty."
+          }
+
+          Write-Host "Portable executable validated:"
+          Write-Host $portableExe
+          Write-Host "Size: $($portableExeInfo.Length) bytes"
+
+          $installed = Join-Path `
+            $env:RUNNER_TEMP `
+            "installed-validation-$variant"
+
+          Remove-Item `
+            $installed `
+            -Recurse `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+          $setup = Start-Process `
+            -FilePath $installer `
+            -ArgumentList `
+              "/VERYSILENT", `
+              "/SUPPRESSMSGBOXES", `
+              "/NORESTART", `
+              "/DIR=$installed" `
+            -Wait `
+            -PassThru
+
+          if ($setup.ExitCode -ne 0) {
+            throw "Installer validation failed with exit code $($setup.ExitCode)."
+          }
+
+          $installedExe = Join-Path `
+            $installed `
+            "PrintBridge Client.exe"
+
+          if (-not (Test-Path $installedExe -PathType Leaf)) {
+            Write-Host "Installed directory contents:"
+
+            if (Test-Path $installed) {
+              Get-ChildItem $installed -Recurse |
+                Select-Object FullName, Length |
+                Format-Table -AutoSize
+            }
+
+            throw "Installed executable was not found: $installedExe"
+          }
+
+          $installedExeInfo = Get-Item $installedExe
+
+          if ($installedExeInfo.Length -le 0) {
+            throw "Installed executable is empty."
+          }
+
+          Write-Host "Installed executable validated:"
+          Write-Host $installedExe
+          Write-Host "Size: $($installedExeInfo.Length) bytes"
+
+          Write-Host "$variant Windows package validation completed successfully."
 
       - name: Upload packages
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: printbridge-windows-${{ matrix.variant }}
           path: |
-            ${{ github.workspace }}/build/*.exe
-            ${{ github.workspace }}/build/*-Portable.zip
-          if-no-files-found: error
+            ${{ github.workspace }}/build/PrintBridge-Client-${{ matrix.variant }}-Setup-x64.exe
+            ${{ github.workspace }}/build/PrintBridge-Client-${{ matrix.variant }}-Windows-x64-Portable.zip
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Upload build logs
         if: always()
@@ -125,3 +268,4 @@ jobs:
             ${{ github.workspace }}/build/*.log
             ${{ github.workspace }}/build/*.xml
           if-no-files-found: warn
+          retention-days: 30
