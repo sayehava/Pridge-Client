@@ -264,8 +264,8 @@
                         </div>
                       </div>
                       <div class="mapping-local">
-                        <label class="field-label">${S.local_printer}</label>
                         <select
+                          aria-label=${S.local_printer}
                           value=${mapping.local_printer_name}
                           onChange=${(event) => mapEndpoint(mapping.remote_printer_id, event.target.value)}
                         >
