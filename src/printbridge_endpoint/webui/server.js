@@ -53,6 +53,11 @@
     useEffect(() => {
       const boot = () => callApi("get_state").then((result) => {
         if (!result) return;
+        if (result.state.appearance) {
+          const appearance = result.state.appearance;
+          const opacity = appearance.transparency_enabled ? appearance.glass_opacity_percent / 100 : 0.97;
+          document.documentElement.style.setProperty("--window-opacity", String(opacity));
+        }
         setPrinters(result.state.printers || []);
         if (!serverId) {
           setLoaded(true);

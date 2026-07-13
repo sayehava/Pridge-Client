@@ -23,11 +23,18 @@
     }
   }
 
+  function applyAppearance(state) {
+    if (!state || !state.appearance) return;
+    const appearance = state.appearance;
+    const opacity = appearance.transparency_enabled ? appearance.glass_opacity_percent / 100 : 0.97;
+    document.documentElement.style.setProperty("--window-opacity", String(opacity));
+  }
+
   function Badge({ text, active = false }) {
     return html`<span class=${active ? "badge badge-active" : "badge"}>${text}</span>`;
   }
 
-  function Sidebar({ state, onQuit }) {
+  function Sidebar({ state, onSettings, onAbout, onQuit }) {
     return html`
       <div class="sidebar">
         <div class="sidebar-title">${state.app_name}</div>
@@ -38,6 +45,8 @@
         </div>
         <div class="sidebar-spacer"></div>
         <div class="sidebar-footer">
+          <button class="sidebar-nav full-width" onClick=${onSettings}><span aria-hidden="true">⚙</span>${S.settings}</button>
+          <button class="sidebar-nav full-width" onClick=${onAbout}><span aria-hidden="true">ⓘ</span>${S.about}</button>
           <button class="danger full-width" onClick=${onQuit}>${S.quit}</button>
         </div>
       </div>
@@ -93,26 +102,11 @@
     `;
   }
 
-  function ControlsCard({ state, onChangeSetting, onSave, onStart, onStop }) {
+  function ControlsCard({ state, onStart, onStop }) {
     return html`
       <div class="card area-polling">
         <h3 class="card-title">${S.endpoint_controls}</h3>
-        <label class="checkbox-row">
-          <input
-            type="checkbox"
-            checked=${state.start_polling_on_launch}
-            onChange=${(event) => onChangeSetting("set_start_polling_on_launch", event.target.checked)}
-          />
-          ${S.start_polling_on_launch}
-        </label>
-        <label class="checkbox-row">
-          <input
-            type="checkbox"
-            checked=${state.start_at_login}
-            onChange=${(event) => onChangeSetting("set_start_at_login", event.target.checked)}
-          />
-          ${S.start_at_login}
-        </label>
+        <div class="card-subtitle controls-hint">${S.endpoint_controls_hint}</div>
         <div class="badge-row">
           <label class="field-label">${S.connection_status}</label>
           <${Badge} text=${state.connection_status} />
@@ -122,7 +116,6 @@
           <${Badge} text=${state.heartbeat_status} />
         </div>
         <div class="button-row controls-actions">
-          <button class="primary" onClick=${onSave}>${S.save}</button>
           <button class="success" onClick=${onStart}>${S.start_all}</button>
           <button class="danger" onClick=${onStop}>${S.stop_all}</button>
         </div>
@@ -169,6 +162,7 @@
     const applyResult = useCallback((result) => {
       if (!result) return;
       setState(result.state);
+      applyAppearance(result.state);
       if (!result.ok && result.error) {
         setError(result.error);
         window.setTimeout(() => setError(null), 4000);
@@ -201,11 +195,14 @@
         callApi("remove_server", server.id).then(applyResult);
       }
     };
-    const onChangeSetting = (method, value) => callApi(method, value).then(applyResult);
-
     return html`
       <div class="app">
-        <${Sidebar} state=${state} onQuit=${() => callApi("quit_application")} />
+        <${Sidebar}
+          state=${state}
+          onSettings=${() => callApi("open_settings_window").then(applyResult)}
+          onAbout=${() => callApi("open_about_window").then(applyResult)}
+          onQuit=${() => callApi("quit_application")}
+        />
         <div class="content">
           <${ServerConnections}
             servers=${state.servers}
@@ -217,8 +214,6 @@
           />
           <${ControlsCard}
             state=${state}
-            onChangeSetting=${onChangeSetting}
-            onSave=${() => callApi("save_settings").then(applyResult)}
             onStart=${() => callApi("start_workers").then(applyResult)}
             onStop=${() => callApi("stop_workers").then(applyResult)}
           />
