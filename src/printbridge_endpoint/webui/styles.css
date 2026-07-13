@@ -747,11 +747,13 @@ button.stone-option.selected {
 
 /* Server editor window */
 .editor-body {
-  overflow: auto;
+  overflow: hidden;
 }
 
 .server-editor {
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
   padding: 24px;
   display: flex;
   flex-direction: column;
@@ -827,8 +829,8 @@ button.stone-option.selected {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  margin-top: auto;
-  padding-top: 22px;
+  flex: 0 0 auto;
+  padding-top: 16px;
 }
 
 .editor-actions-right {
@@ -837,6 +839,11 @@ button.stone-option.selected {
 }
 
 .editor-section {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 150px;
+  overflow: hidden;
   margin-top: 14px;
   padding-top: 18px;
   border-top: 1px solid var(--border);
@@ -877,8 +884,13 @@ button.stone-option.selected {
 
 .mapping-list {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 8px 2px 2px;
 }
 
 .mapping-row {
@@ -927,6 +939,11 @@ button.stone-option.selected {
 }
 
 .mapping-empty {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 90px;
   padding: 20px;
   border: 1px dashed var(--border);
   border-radius: 10px;
@@ -948,11 +965,23 @@ button.stone-option.selected {
 
 .scrollbar-thin::-webkit-scrollbar,
 .content::-webkit-scrollbar,
-.scroll-panel::-webkit-scrollbar {
+.scroll-panel::-webkit-scrollbar,
+.mapping-list::-webkit-scrollbar {
   width: 8px;
 }
 .content::-webkit-scrollbar-thumb,
-.scroll-panel::-webkit-scrollbar-thumb {
+.scroll-panel::-webkit-scrollbar-thumb,
+.mapping-list::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 4px;
+}
+
+.mapping-list::-webkit-scrollbar-track {
+  background: rgba(8, 14, 27, 0.22);
+  border-radius: 4px;
+}
+
+.mapping-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(120, 154, 207, 0.48), rgba(68, 91, 129, 0.46));
+  border: 2px solid rgba(8, 14, 27, 0.22);
 }
