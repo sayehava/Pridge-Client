@@ -49,8 +49,12 @@ class FakeWindow:
     def __init__(self):
         self.events = Mock()
         self.events.closed = FakeWindowEvent()
+        self.events.shown = FakeWindowEvent()
+        self.events.minimized = FakeWindowEvent()
         self.show = Mock()
         self.destroy = Mock()
+        self.restore = Mock()
+        self.native = None
 
 
 class EndpointApiTests(unittest.TestCase):
@@ -230,6 +234,8 @@ class EndpointApiTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertIn("about.html", create_window.call_args.kwargs["url"])
         self.assertFalse(create_window.call_args.kwargs["resizable"])
+        create_window.return_value.events.minimized.emit(create_window.return_value)
+        create_window.return_value.restore.assert_called_once()
 
     @patch("printbridge_endpoint.gui.set_start_at_login")
     def test_updates_application_darkness_setting(self, set_start_at_login):

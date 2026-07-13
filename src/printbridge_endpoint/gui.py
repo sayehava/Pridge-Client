@@ -24,6 +24,7 @@ from printbridge_endpoint.config import (
     ServerConfig,
 )
 from printbridge_endpoint.models import JobHistoryEntry
+from printbridge_endpoint.platform_window import configure_utility_window
 from printbridge_endpoint.printers import Printer, PrinterError, PrinterManager
 from printbridge_endpoint.strings import (
     APP_NAME,
@@ -558,6 +559,7 @@ class EndpointApi:
         )
         self.utility_windows[key] = window
         window.events.closed += lambda window: self._forget_utility_window(key, window)
+        configure_utility_window(window)
         return self._ok()
 
     def _forget_utility_window(self, key: str, window: webview.Window) -> None:
