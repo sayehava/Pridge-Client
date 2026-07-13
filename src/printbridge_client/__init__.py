@@ -4,6 +4,6 @@
 
 """PrintBridge Client."""
 
-from printbridge_endpoint.version import __version__
+from printbridge_client.version import __version__
 
 __all__ = ["__version__"]

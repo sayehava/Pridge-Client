@@ -7,7 +7,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from printbridge_endpoint.platform_window import (
+from printbridge_client.platform_window import (
     configure_application_identity,
     create_application_menu,
     disable_minimize,
@@ -15,7 +15,7 @@ from printbridge_endpoint.platform_window import (
 
 
 class PlatformWindowTests(unittest.TestCase):
-    @patch("printbridge_endpoint.platform_window.platform.system", return_value="Darwin")
+    @patch("printbridge_client.platform_window.platform.system", return_value="Darwin")
     def test_sets_macos_process_and_bundle_name(self, _system):
         info = {}
         bundle = Mock()
@@ -33,12 +33,12 @@ class PlatformWindowTests(unittest.TestCase):
         self.assertEqual(info["CFBundleDisplayName"], "PrintBridge Client")
         process_info.setProcessName_.assert_called_once_with("PrintBridge Client")
 
-    @patch("printbridge_endpoint.platform_window.platform.system", return_value="Linux")
+    @patch("printbridge_client.platform_window.platform.system", return_value="Linux")
     def test_skips_application_identity_outside_macos(self, _system):
         with patch.dict(sys.modules, {"Foundation": None}):
             configure_application_identity("PrintBridge Client")
 
-    @patch("printbridge_endpoint.platform_window.platform.system", return_value="Darwin")
+    @patch("printbridge_client.platform_window.platform.system", return_value="Darwin")
     def test_creates_three_item_macos_application_menu(self, _system):
         actions = [("Settings", Mock()), ("About", Mock()), ("Quit", Mock())]
 
@@ -48,7 +48,7 @@ class PlatformWindowTests(unittest.TestCase):
         self.assertEqual(menu[0].title, "__app__")
         self.assertEqual([item.title for item in menu[0].items], ["Settings", "About", "Quit"])
 
-    @patch("printbridge_endpoint.platform_window.platform.system", return_value="Darwin")
+    @patch("printbridge_client.platform_window.platform.system", return_value="Darwin")
     def test_hides_macos_minimize_button(self, _system):
         button = Mock()
         native = Mock()
@@ -64,7 +64,7 @@ class PlatformWindowTests(unittest.TestCase):
         button.setHidden_.assert_called_once_with(True)
         native.setStyleMask_.assert_called_once_with(3)
 
-    @patch("printbridge_endpoint.platform_window.platform.system", return_value="Windows")
+    @patch("printbridge_client.platform_window.platform.system", return_value="Windows")
     def test_disables_windows_minimize_box(self, _system):
         native = SimpleNamespace(MinimizeBox=True, InvokeRequired=False)
 

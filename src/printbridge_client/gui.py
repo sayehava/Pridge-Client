@@ -14,25 +14,25 @@ from urllib.parse import urlencode
 
 import webview
 
-from printbridge_endpoint.api import ApiError, PrintBridgeClient
-from printbridge_endpoint.autostart import AutoStartError, set_start_at_login
-from printbridge_endpoint.config import (
+from printbridge_client.api import ApiError, PrintBridgeClient
+from printbridge_client.autostart import AutoStartError, set_start_at_login
+from printbridge_client.config import (
     DARKNESS_GRADES,
     ClientTokenStore,
     ConfigStore,
-    EndpointConfig,
+    ClientConfig,
     PrinterMapping,
     ServerConfig,
 )
-from printbridge_endpoint.models import JobHistoryEntry
-from printbridge_endpoint.platform_window import (
+from printbridge_client.models import JobHistoryEntry
+from printbridge_client.platform_window import (
     configure_application_identity,
     configure_application_menu,
     configure_utility_window,
     create_application_menu,
 )
-from printbridge_endpoint.printers import Printer, PrinterError, PrinterManager
-from printbridge_endpoint.strings import (
+from printbridge_client.printers import Printer, PrinterError, PrinterManager
+from printbridge_client.strings import (
     APP_NAME,
     MESSAGE_READY,
     MESSAGE_CONNECTION_FAILED,
@@ -55,9 +55,9 @@ from printbridge_endpoint.strings import (
     WINDOW_SETTINGS,
     WINDOW_TITLE,
 )
-from printbridge_endpoint.tray import TrayController, TrayUnavailableError
-from printbridge_endpoint.version import __version__
-from printbridge_endpoint.worker import PollingWorker
+from printbridge_client.tray import TrayController, TrayUnavailableError
+from printbridge_client.version import __version__
+from printbridge_client.worker import PollingWorker
 
 
 logger = logging.getLogger(__name__)
@@ -79,7 +79,7 @@ class QueueLogHandler(Handler):
         self.events.put(("log", self.format(record)))
 
 
-class EndpointApi:
+class ClientApi:
     """Backend controller exposed to the React frontend as ``pywebview.api``."""
 
     def __init__(
@@ -517,8 +517,8 @@ class EndpointApi:
             "status": worker.state.status if worker else STATUS_STOPPED,
         }
 
-    def _current_config(self) -> EndpointConfig:
-        return EndpointConfig(
+    def _current_config(self) -> ClientConfig:
+        return ClientConfig(
             server_url=self.config.servers[0].server_url if self.config.servers else "",
             servers=self.config.servers,
             selected_printer=self.selected_printer,
@@ -530,8 +530,8 @@ class EndpointApi:
             appearance=self.config.appearance,
         )
 
-    def _runtime_config(self, server: ServerConfig) -> EndpointConfig:
-        return EndpointConfig(
+    def _runtime_config(self, server: ServerConfig) -> ClientConfig:
+        return ClientConfig(
             server_url=server.server_url,
             servers=[server],
             selected_printer=server.default_printer or self.selected_printer,
@@ -675,7 +675,7 @@ class EndpointApi:
                 if len(self.logs) > MAX_LOG_LINES:
                     self.logs = self.logs[-MAX_LOG_LINES:]
 
-    def _apply_runtime_config(self, server_id: str, runtime_config: EndpointConfig) -> None:
+    def _apply_runtime_config(self, server_id: str, runtime_config: ClientConfig) -> None:
         server = self._server_by_id(server_id)
         if server is None:
             return
@@ -695,7 +695,7 @@ class EndpointApi:
 
 def run_gui() -> None:
     configure_application_identity(APP_NAME)
-    api = EndpointApi()
+    api = ClientApi()
     menu_actions = [
         (MENU_SETTINGS, api.open_settings_window),
         (MENU_ABOUT, api.open_about_window),

@@ -5,7 +5,7 @@
 import unittest
 from unittest.mock import patch
 
-from printbridge_endpoint.api import PrintBridgeClient
+from printbridge_client.api import PrintBridgeClient
 
 
 class FakeResponse:
@@ -44,7 +44,7 @@ class PrintBridgeClientTests(unittest.TestCase):
     def client_with_responses(self, *responses):
         session = FakeSession(responses)
         requests = FakeRequests(session)
-        with patch("printbridge_endpoint.api._load_requests", return_value=requests):
+        with patch("printbridge_client.api._load_requests", return_value=requests):
             client = PrintBridgeClient("https://example.test/printbridge", "client-secret")
         return client, session
 

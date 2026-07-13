@@ -9,7 +9,7 @@ import re
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from printbridge_endpoint.config import EndpointConfig, default_log_dir
+from printbridge_client.config import ClientConfig, default_log_dir
 
 
 TOKEN_PATTERN = re.compile(r"(Bearer\s+)[A-Za-z0-9._~+/=-]+|([A-Za-z0-9_-]{8})[A-Za-z0-9._~+/=-]{12,}")
@@ -23,7 +23,7 @@ class RedactingFilter(logging.Filter):
         return True
 
 
-def configure_logging(config: EndpointConfig, log_dir: Path | None = None) -> None:
+def configure_logging(config: ClientConfig, log_dir: Path | None = None) -> None:
     level = getattr(logging, config.logging.level.upper(), logging.INFO)
     root = logging.getLogger()
     root.handlers.clear()

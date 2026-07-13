@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from printbridge_endpoint.config import ConfigStore
+from printbridge_client.config import ConfigStore
 
 
 class ConfigStoreTests(unittest.TestCase):

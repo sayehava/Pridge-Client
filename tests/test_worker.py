@@ -4,9 +4,9 @@
 
 import unittest
 
-from printbridge_endpoint.api import ReservedJob, parse_server_instructions
-from printbridge_endpoint.config import PrinterMapping, ServerConfig
-from printbridge_endpoint.worker import decode_payload, resolve_printer_name
+from printbridge_client.api import ReservedJob, parse_server_instructions
+from printbridge_client.config import PrinterMapping, ServerConfig
+from printbridge_client.worker import decode_payload, resolve_printer_name
 
 
 class DecodePayloadTests(unittest.TestCase):

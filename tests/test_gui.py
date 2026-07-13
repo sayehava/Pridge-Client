@@ -8,9 +8,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from printbridge_endpoint.api import RemotePrinter
-from printbridge_endpoint.config import ConfigStore
-from printbridge_endpoint.gui import EndpointApi, _window_effects
+from printbridge_client.api import RemotePrinter
+from printbridge_client.config import ConfigStore
+from printbridge_client.gui import ClientApi, _window_effects
 
 
 class MemoryTokenStore:
@@ -57,12 +57,12 @@ class FakeWindow:
         self.native = None
 
 
-class EndpointApiTests(unittest.TestCase):
+class ClientApiTests(unittest.TestCase):
     def setUp(self):
         self.previous_handlers = list(logging.getLogger().handlers)
         self.temporary_directory = tempfile.TemporaryDirectory()
         config_path = Path(self.temporary_directory.name) / "config.json"
-        self.api = EndpointApi(
+        self.api = ClientApi(
             config_store=ConfigStore(config_path),
             token_store=MemoryTokenStore(),
             printer_manager=NoPrinters(),
@@ -72,7 +72,7 @@ class EndpointApiTests(unittest.TestCase):
         logging.getLogger().handlers = self.previous_handlers
         self.temporary_directory.cleanup()
 
-    @patch("printbridge_endpoint.gui.PrintBridgeClient")
+    @patch("printbridge_client.gui.PrintBridgeClient")
     def test_adds_multiple_server_profiles(self, _client_class):
         first = self.api.add_server(
             {"name": "Office", "server_url": "https://office.example.test", "token": "office-token"}
@@ -135,7 +135,7 @@ class EndpointApiTests(unittest.TestCase):
         stop_worker.assert_called_once_with(server_id)
         start_worker.assert_not_called()
 
-    @patch("printbridge_endpoint.gui.PrintBridgeClient")
+    @patch("printbridge_client.gui.PrintBridgeClient")
     def test_discovers_remote_printers_for_mapping(self, client_class):
         client_class.return_value.list_remote_printers.return_value = [RemotePrinter("12", "Receipts")]
 
@@ -157,7 +157,7 @@ class EndpointApiTests(unittest.TestCase):
             ],
         )
 
-    @patch("printbridge_endpoint.gui.PrintBridgeClient")
+    @patch("printbridge_client.gui.PrintBridgeClient")
     def test_syncs_selected_endpoints_when_updating_server(self, client_class):
         created = self.api.add_server({"name": "Office", "server_url": "https://office.example.test"})
         server_id = created["state"]["servers"][0]["id"]
@@ -186,7 +186,7 @@ class EndpointApiTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         client_class.return_value.sync_remote_printers.assert_called_once_with(["12"])
 
-    @patch("printbridge_endpoint.gui.webview.create_window")
+    @patch("printbridge_client.gui.webview.create_window")
     def test_opens_add_server_in_separate_window(self, create_window):
         create_window.return_value = Mock()
 
@@ -197,7 +197,7 @@ class EndpointApiTests(unittest.TestCase):
         self.assertIn("server.html?", create_window.call_args.kwargs["url"])
         self.assertEqual(len(self.api.server_windows), 1)
 
-    @patch("printbridge_endpoint.gui.webview.create_window")
+    @patch("printbridge_client.gui.webview.create_window")
     def test_opens_settings_in_one_separate_window(self, create_window):
         create_window.return_value = FakeWindow()
 
@@ -211,7 +211,7 @@ class EndpointApiTests(unittest.TestCase):
         self.assertFalse(create_window.call_args.kwargs["resizable"])
         create_window.return_value.show.assert_called_once()
 
-    @patch("printbridge_endpoint.gui.webview.create_window")
+    @patch("printbridge_client.gui.webview.create_window")
     def test_reopens_settings_after_native_window_close(self, create_window):
         first_window = FakeWindow()
         second_window = FakeWindow()
@@ -225,7 +225,7 @@ class EndpointApiTests(unittest.TestCase):
         self.assertEqual(create_window.call_count, 2)
         self.assertIs(self.api.utility_windows["settings"], second_window)
 
-    @patch("printbridge_endpoint.gui.webview.create_window")
+    @patch("printbridge_client.gui.webview.create_window")
     def test_opens_about_window_at_fixed_size(self, create_window):
         create_window.return_value = FakeWindow()
 
@@ -253,7 +253,7 @@ class EndpointApiTests(unittest.TestCase):
         utility_window.destroy.assert_called_once()
         main_window.destroy.assert_called_once()
 
-    @patch("printbridge_endpoint.gui.set_start_at_login")
+    @patch("printbridge_client.gui.set_start_at_login")
     def test_updates_application_darkness_setting(self, set_start_at_login):
         self.api.window = Mock()
         server_window = Mock()

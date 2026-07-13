@@ -25,19 +25,19 @@ The application can run without the optional secure storage package. If `keyring
 Open the settings window:
 
 ```bash
-python3 -m printbridge_endpoint
+python3 -m printbridge_client
 ```
 
 Run in background/headless mode:
 
 ```bash
-python3 -m printbridge_endpoint --headless
+python3 -m printbridge_client --headless
 ```
 
 Show the installed version:
 
 ```bash
-python3 -m printbridge_endpoint --version
+python3 -m printbridge_client --version
 ```
 
 When running from a source checkout without installing, set `PYTHONPATH=src`.
@@ -119,7 +119,7 @@ If a request returns HTTP 401, the client clears the session token, authenticate
 
 ## Server API
 
-The current endpoint client expects these language-neutral JSON endpoints:
+The current client expects these language-neutral JSON endpoints:
 
 - `POST /api/client/auth`
 - `GET /api/client/endpoints`
@@ -229,7 +229,7 @@ If authentication keeps failing, replace the token in the settings window. Store
 
 ## Packaging
 
-The project exposes `printbridge-client` as its preferred console script and retains `printbridge-endpoint` as a compatibility alias. A packaged desktop build can launch the GUI by default or use `--headless` for background operation.
+The project exposes `printbridge-client` as its console script. A packaged desktop build can launch the GUI by default or use `--headless` for background operation.
 
 ## License
 

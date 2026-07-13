@@ -7,11 +7,11 @@ import logging
 import signal
 import threading
 
-from printbridge_endpoint.config import ClientTokenStore, ConfigStore, EndpointConfig, ServerConfig
-from printbridge_endpoint.logging_setup import configure_logging
-from printbridge_endpoint.strings import APP_NAME
-from printbridge_endpoint.version import __version__
-from printbridge_endpoint.worker import PollingWorker
+from printbridge_client.config import ClientTokenStore, ConfigStore, ClientConfig, ServerConfig
+from printbridge_client.logging_setup import configure_logging
+from printbridge_client.strings import APP_NAME
+from printbridge_client.version import __version__
+from printbridge_client.worker import PollingWorker
 
 
 logger = logging.getLogger(__name__)
@@ -53,13 +53,13 @@ def main() -> None:
             worker.join(timeout=10)
         return
 
-    from printbridge_endpoint.gui import run_gui
+    from printbridge_client.gui import run_gui
 
     run_gui()
 
 
-def _runtime_config(config: EndpointConfig, server: ServerConfig) -> EndpointConfig:
-    return EndpointConfig(
+def _runtime_config(config: ClientConfig, server: ServerConfig) -> ClientConfig:
+    return ClientConfig(
         server_url=server.server_url,
         servers=[server],
         selected_printer=config.selected_printer,

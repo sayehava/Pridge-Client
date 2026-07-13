@@ -37,14 +37,13 @@ windows = ["pywin32>=306; platform_system == 'Windows'"]
 linux = ["pycups>=2.0; platform_system == 'Linux'"]
 
 [project.scripts]
-printbridge-client = "printbridge_endpoint.__main__:main"
-printbridge-endpoint = "printbridge_endpoint.__main__:main"
+printbridge-client = "printbridge_client.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-printbridge_endpoint = ["py.typed", "webui/*.html", "webui/*.css", "webui/*.js", "webui/vendor/*.js", "webui/assets/*.png"]
+printbridge_client = ["py.typed", "webui/*.html", "webui/*.css", "webui/*.js", "webui/vendor/*.js", "webui/assets/*.png"]
 
 [tool.setuptools]
 license-files = ["LICENSE", "ADDITIONAL_TERMS.md"]

@@ -12,10 +12,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from printbridge_endpoint.api import ApiError, PrintBridgeClient, ReservedJob
-from printbridge_endpoint.config import EndpointConfig, ServerConfig
-from printbridge_endpoint.models import JobHistoryEntry
-from printbridge_endpoint.printers import PrinterError, PrinterManager
+from printbridge_client.api import ApiError, PrintBridgeClient, ReservedJob
+from printbridge_client.config import ClientConfig, ServerConfig
+from printbridge_client.models import JobHistoryEntry
+from printbridge_client.printers import PrinterError, PrinterManager
 
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ MAX_BACKOFF_SECONDS = 60
 
 StatusCallback = Callable[[str], None]
 JobCallback = Callable[[JobHistoryEntry], None]
-ConfigCallback = Callable[[EndpointConfig], None]
+ConfigCallback = Callable[[ClientConfig], None]
 
 
 @dataclass
@@ -40,7 +40,7 @@ class WorkerState:
 class PollingWorker:
     def __init__(
         self,
-        config: EndpointConfig,
+        config: ClientConfig,
         client_token: str,
         printer_manager: PrinterManager | None = None,
         on_status: StatusCallback | None = None,

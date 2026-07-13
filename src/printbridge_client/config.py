@@ -51,7 +51,7 @@ class AppearanceConfig:
 
 
 @dataclass
-class EndpointConfig:
+class ClientConfig:
     server_url: str = ""
     servers: list[ServerConfig] = field(default_factory=list)
     selected_printer: str = ""
@@ -71,9 +71,9 @@ class ConfigStore:
     def __init__(self, config_path: Path | None = None) -> None:
         self.config_path = config_path or default_config_path()
 
-    def load(self) -> EndpointConfig:
+    def load(self) -> ClientConfig:
         if not self.config_path.exists():
-            return EndpointConfig()
+            return ClientConfig()
 
         with self.config_path.open("r", encoding="utf-8") as file:
             raw = json.load(file)
@@ -89,7 +89,7 @@ class ConfigStore:
             appearance_raw = {}
 
         servers = _parse_servers(raw)
-        return EndpointConfig(
+        return ClientConfig(
             server_url=str(raw.get("server_url", "")),
             servers=servers,
             selected_printer=str(raw.get("selected_printer", "")),
@@ -106,7 +106,7 @@ class ConfigStore:
             ),
         )
 
-    def save(self, config: EndpointConfig) -> None:
+    def save(self, config: ClientConfig) -> None:
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         payload = asdict(config)
         with self.config_path.open("w", encoding="utf-8") as file:
