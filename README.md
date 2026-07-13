@@ -61,7 +61,7 @@ The endpoint starts one background polling worker for each enabled server profil
 
 The main window lists every configured server with its enabled state, token state, polling interval, heartbeat interval, printer-mapping count, and current worker status. Each server has independent Start and Stop controls. Click `Edit` to open that server in a separate settings window. Stored tokens are hidden; enter a new token only when replacing the existing token.
 
-Server cards are shown four at a time with animated pagination, so large installations remain responsive. The server editor keeps its main form fixed and scrolls only the remote-printer mapping panel.
+Server cards are shown one at a time in an animated carousel, so large installations remain responsive without stacking cards. A newly added server becomes the active slide automatically. The server editor keeps its main form fixed and scrolls only a compact remote-printer mapping panel.
 
 ## Configuration
 
@@ -187,7 +187,7 @@ Each server runs in its own worker and has independent polling and heartbeat int
 
 ## Desktop Interface
 
-The GUI uses a bundled pywebview interface with glossy layered panels over an opaque native window on every platform. Appearance settings offer six named darkness grades—Quartz, Moonstone, Labradorite, Onyx, Obsidian, and Jet—instead of platform-dependent transparency controls.
+The GUI uses a bundled pywebview interface with glossy layered panels over an opaque native window on every platform. Appearance settings offer six named stone palettes—Quartz, Moonstone, Labradorite, Onyx, Obsidian, and Jet. Each palette changes the full workspace color system, including its base, ambient glows, sidebar, cards, controls, borders, and accent color.
 
 ## Auto-Start
 
