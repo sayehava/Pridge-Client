@@ -225,7 +225,6 @@ build_native() {
         --include-data-files="$(context_value "$context" metadata)=printbridge_client/_build.json" \
         --include-package-data=webview \
         --include-package=pystray \
-        --include-package=PIL \
         --include-package=keyring \
         --report="$OUTPUT_DIR/native-macos-$ARCH-compilation-report.xml" \
         "$REPOSITORY/src/printbridge_client/__main__.py"
