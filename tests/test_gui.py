@@ -239,6 +239,13 @@ class EndpointApiTests(unittest.TestCase):
 
     @patch("printbridge_endpoint.gui.set_start_at_login")
     def test_updates_application_darkness_setting(self, set_start_at_login):
+        self.api.window = Mock()
+        server_window = Mock()
+        about_window = Mock()
+        settings_window = Mock()
+        self.api.server_windows["server"] = server_window
+        self.api.utility_windows.update({"about": about_window, "settings": settings_window})
+
         result = self.api.update_application_settings(
             {
                 "start_polling_on_launch": True,
@@ -251,6 +258,11 @@ class EndpointApiTests(unittest.TestCase):
         self.assertFalse(result["restart_required"])
         self.assertEqual(result["state"]["appearance"]["darkness_grade"], "Obsidian")
         self.assertEqual(self.api.config.appearance.darkness_grade, "Obsidian")
+        expected_script = 'document.documentElement.dataset.darkness = "obsidian";'
+        self.api.window.evaluate_js.assert_called_once_with(expected_script)
+        server_window.evaluate_js.assert_called_once_with(expected_script)
+        about_window.evaluate_js.assert_called_once_with(expected_script)
+        settings_window.evaluate_js.assert_not_called()
         set_start_at_login.assert_called_once_with(True)
 
     def test_native_transparency_is_always_disabled(self):

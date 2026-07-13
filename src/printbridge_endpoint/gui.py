@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import queue
 import uuid
@@ -336,6 +337,7 @@ class EndpointApi:
         darkness_grade = str(fields.get("darkness_grade", self.config.appearance.darkness_grade)).strip().title()
         if darkness_grade in DARKNESS_GRADES:
             self.config.appearance.darkness_grade = darkness_grade
+        self._broadcast_appearance()
         self.config = self._current_config()
         self.config_store.save(self.config)
         try:
@@ -565,6 +567,24 @@ class EndpointApi:
     def _forget_utility_window(self, key: str, window: webview.Window) -> None:
         if self.utility_windows.get(key) is window:
             self.utility_windows.pop(key, None)
+
+    def _broadcast_appearance(self) -> None:
+        grade = self.config.appearance.darkness_grade.lower()
+        script = f"document.documentElement.dataset.darkness = {json.dumps(grade)};"
+        targets = [
+            self.window,
+            *self.server_windows.values(),
+            *(window for key, window in self.utility_windows.items() if key != "settings"),
+        ]
+        seen: set[int] = set()
+        for window in targets:
+            if window is None or id(window) in seen:
+                continue
+            seen.add(id(window))
+            try:
+                window.evaluate_js(script)
+            except Exception as exc:
+                logger.debug("Could not apply appearance to an open window: %s", exc)
 
     def _printer_mappings(self, value: object) -> list[PrinterMapping]:
         if not isinstance(value, list):
