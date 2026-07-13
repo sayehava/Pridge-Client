@@ -13,6 +13,16 @@
     return window.pywebview.api[name](...args);
   }
 
+  function whenApiReady(callback, attempts = 0) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.get_state) {
+      callback();
+      return;
+    }
+    if (attempts < 200) {
+      window.setTimeout(() => whenApiReady(callback, attempts + 1), 50);
+    }
+  }
+
   function Badge({ text, active = false }) {
     return html`<span class=${active ? "badge badge-active" : "badge"}>${text}</span>`;
   }
@@ -171,8 +181,7 @@
         if (!cancelled) applyResult(result);
       });
       const boot = () => poll();
-      if (window.pywebview && window.pywebview.api) boot();
-      else window.addEventListener("pywebviewready", boot, { once: true });
+      whenApiReady(boot);
       const id = window.setInterval(poll, POLL_MS);
       return () => {
         cancelled = true;

@@ -28,6 +28,16 @@
     return window.pywebview.api[name](...args);
   }
 
+  function whenApiReady(callback, attempts = 0) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.get_state) {
+      callback();
+      return;
+    }
+    if (attempts < 200) {
+      window.setTimeout(() => whenApiReady(callback, attempts + 1), 50);
+    }
+  }
+
   function ServerEditor() {
     const [form, setForm] = useState(emptyForm());
     const [loaded, setLoaded] = useState(!serverId);
@@ -76,8 +86,7 @@
         setLoaded(true);
         discoverRemotePrinters(serverForm);
       });
-      if (window.pywebview && window.pywebview.api) boot();
-      else window.addEventListener("pywebviewready", boot, { once: true });
+      whenApiReady(boot);
     }, []);
 
     const setField = (key) => (event) => {
