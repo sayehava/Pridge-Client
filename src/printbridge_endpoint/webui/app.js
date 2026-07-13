@@ -4,7 +4,7 @@
   const { useState, useEffect, useCallback, useRef } = React;
   const html = htm.bind(React.createElement);
   const S = window.PrintBridgeStrings;
-  const POLL_MS = 1000;
+  const POLL_MS = 2000;
 
   function callApi(name, ...args) {
     if (!window.pywebview || !window.pywebview.api || !window.pywebview.api[name]) {
@@ -158,11 +158,16 @@
   function App() {
     const [state, setState] = useState(null);
     const [error, setError] = useState(null);
+    const stateSignature = useRef("");
 
     const applyResult = useCallback((result) => {
       if (!result) return;
-      setState(result.state);
-      applyAppearance(result.state);
+      const nextSignature = JSON.stringify(result.state);
+      if (nextSignature !== stateSignature.current) {
+        stateSignature.current = nextSignature;
+        setState(result.state);
+        applyAppearance(result.state);
+      }
       if (!result.ok && result.error) {
         setError(result.error);
         window.setTimeout(() => setError(null), 4000);

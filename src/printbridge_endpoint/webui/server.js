@@ -176,12 +176,6 @@
       }));
     };
 
-    const dropPrinter = (event, remotePrinterId) => {
-      event.preventDefault();
-      const printerName = event.dataTransfer.getData("text/plain");
-      if (printerName) mapEndpoint(remotePrinterId, printerName);
-    };
-
     if (!loaded) return html`<div class="loading">${S.loading}</div>`;
 
     document.title = serverId ? S.edit_server : S.add_server;
@@ -249,26 +243,6 @@
             </div>
           </div>
 
-          <div class="local-printer-pool">
-            <div class="pool-heading">
-              <span>${S.local_printers}</span>
-              <small>${S.drag_printer_hint}</small>
-            </div>
-            <div class="printer-chips">
-              ${printers.length === 0
-                ? html`<span class="printer-pool-empty">${S.no_printers}</span>`
-                : printers.map(
-                    (name) => html`<button
-                      type="button"
-                      class="printer-chip"
-                      draggable="true"
-                      onDragStart=${(event) => event.dataTransfer.setData("text/plain", name)}
-                      key=${name}
-                    >${name}</button>`
-                  )}
-            </div>
-          </div>
-
           ${discovering && form.printer_mappings.length === 0
             ? html`<div class="mapping-empty">${S.discovering}</div>`
             : form.printer_mappings.length === 0
@@ -283,8 +257,6 @@
                     <div
                       class=${mapping.local_printer_name ? "mapping-row mapping-active" : "mapping-row"}
                       key=${mapping.remote_printer_id}
-                      onDragOver=${(event) => event.preventDefault()}
-                      onDrop=${(event) => dropPrinter(event, mapping.remote_printer_id)}
                     >
                       <div class="mapping-endpoint">
                         <div class="mapping-endpoint-name">${mapping.remote_printer_name}</div>
