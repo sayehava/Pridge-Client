@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from printbridge_endpoint.api import ApiError, PrintBridgeClient, ReservedJob
-from printbridge_endpoint.config import EndpointConfig
+from printbridge_endpoint.config import EndpointConfig, ServerConfig
 from printbridge_endpoint.models import JobHistoryEntry
 from printbridge_endpoint.printers import PrinterError, PrinterManager
 
@@ -106,7 +106,8 @@ class PollingWorker:
         self._set_status("Stopped")
 
     def _process_job(self, client: PrintBridgeClient, job: ReservedJob) -> None:
-        printer_name = job.printer_name or self.config.selected_printer
+        server = self.config.servers[0] if self.config.servers else None
+        printer_name = resolve_printer_name(server, job, self.config.selected_printer)
         self._record_job(job.job_id, "reserved")
         try:
             payload = decode_payload(job.payload_base64)
@@ -165,6 +166,27 @@ def decode_payload(payload_base64: str) -> bytes:
     if len(payload) > MAX_PAYLOAD_BYTES:
         raise ValueError("Print payload is larger than the configured safety limit.")
     return payload
+
+
+def resolve_printer_name(server: ServerConfig | None, job: ReservedJob, legacy_printer: str = "") -> str:
+    if server is not None:
+        for mapping in server.printer_mappings:
+            if job.remote_printer_id and mapping.remote_printer_id == job.remote_printer_id:
+                return mapping.local_printer_name
+        if job.remote_printer_name:
+            remote_name = job.remote_printer_name.casefold()
+            for mapping in server.printer_mappings:
+                if mapping.remote_printer_name and mapping.remote_printer_name.casefold() == remote_name:
+                    return mapping.local_printer_name
+        if server.default_printer:
+            return server.default_printer
+    if legacy_printer:
+        return legacy_printer
+
+    remote_label = job.remote_printer_name or job.remote_printer_id
+    if remote_label:
+        raise PrinterError(f"No local printer is mapped to remote printer {remote_label}.")
+    raise PrinterError("No local printer is configured for this server.")
 
 
 def _safe_error_message(exc: Exception) -> str:

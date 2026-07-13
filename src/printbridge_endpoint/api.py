@@ -23,6 +23,8 @@ class ReservedJob:
     payload_base64: str
     content_type: str
     printer_name: str | None = None
+    remote_printer_id: str = ""
+    remote_printer_name: str = ""
     copies: int = 1
 
 
@@ -30,6 +32,12 @@ class ReservedJob:
 class ServerInstructions:
     polling_interval_seconds: int | None = None
     heartbeat_interval_seconds: int | None = None
+
+
+@dataclass(frozen=True)
+class RemotePrinter:
+    printer_id: str
+    name: str
 
 
 class PrintBridgeClient:
@@ -94,6 +102,28 @@ class PrintBridgeClient:
             raise ApiError("Reserve job response contains an invalid job object.")
 
         return _parse_reserved_job(body["job"])
+
+    def list_remote_printers(self) -> list[RemotePrinter]:
+        response = self._request("GET", "/api/client/jobs")
+        body = _json_object(response)
+        jobs = body.get("jobs", [])
+        if not isinstance(jobs, list):
+            raise ApiError("Job list response contains an invalid jobs array.")
+
+        printers: dict[str, RemotePrinter] = {}
+        for job in jobs:
+            if not isinstance(job, dict):
+                continue
+            endpoint_id = job.get("endpoint_id")
+            if not isinstance(endpoint_id, (str, int)) or isinstance(endpoint_id, bool):
+                continue
+            printer_id = str(endpoint_id).strip()
+            if not printer_id:
+                continue
+            endpoint_name = job.get("endpoint_name")
+            name = endpoint_name.strip() if isinstance(endpoint_name, str) else ""
+            printers[printer_id] = RemotePrinter(printer_id=printer_id, name=name or f"Remote printer {printer_id}")
+        return sorted(printers.values(), key=lambda printer: (printer.name.casefold(), printer.printer_id))
 
     def report_printing(self, job_id: str) -> None:
         self.report_job_status(job_id, "printing")
@@ -184,6 +214,8 @@ def _parse_reserved_job(raw: dict[str, Any]) -> ReservedJob:
         content_type = "application/octet-stream"
 
     printer_name = raw.get("printer_name")
+    remote_printer_id = raw.get("endpoint_id", raw.get("printer_id", ""))
+    remote_printer_name = raw.get("endpoint_name", printer_name)
     copies = raw.get("copies", 1)
     try:
         copies = int(copies)
@@ -195,6 +227,8 @@ def _parse_reserved_job(raw: dict[str, Any]) -> ReservedJob:
         payload_base64=payload_base64,
         content_type=content_type,
         printer_name=printer_name if isinstance(printer_name, str) else None,
+        remote_printer_id=str(remote_printer_id).strip() if isinstance(remote_printer_id, (str, int)) else "",
+        remote_printer_name=remote_printer_name.strip() if isinstance(remote_printer_name, str) else "",
         copies=max(copies, 1),
     )
 
