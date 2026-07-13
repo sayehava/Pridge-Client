@@ -223,7 +223,6 @@ build_native() {
         --include-data-files="$REPOSITORY/LICENSE=LICENSE" \
         --include-data-files="$REPOSITORY/ADDITIONAL_TERMS.md=ADDITIONAL_TERMS.md" \
         --include-data-files="$(context_value "$context" metadata)=printbridge_client/_build.json" \
-        --include-package=webview \
         --include-package-data=webview \
         --include-package=pystray \
         --include-package=PIL \

@@ -35,6 +35,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("System.Windows.Forms.FolderBrowserDialog", text)
         self.assertIn('"--standalone"', text)
         self.assertIn('"--windows-console-mode=disable"', text)
+        self.assertNotIn('"--include-package=webview"', text)
         self.assertNotIn('"--onefile"', text)
 
     def test_macos_build_creates_native_app_bundles_and_dmgs(self):
@@ -47,6 +48,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("hdiutil create", text)
         self.assertIn("PRINTBRIDGE_MACOS_SIGNING_IDENTITY", text)
         self.assertIn("notarytool submit", text)
+        self.assertNotIn("--include-package=webview", text)
         self.assertNotIn("--onefile", text)
 
     def test_tag_workflow_publishes_all_expected_packages(self):

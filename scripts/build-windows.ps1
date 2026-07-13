@@ -150,7 +150,7 @@ function Build-Native {
         "--include-data-files=$(Join-Path $Repository 'LICENSE')=LICENSE",
         "--include-data-files=$(Join-Path $Repository 'ADDITIONAL_TERMS.md')=ADDITIONAL_TERMS.md",
         "--include-data-files=$($Context.metadata)=printbridge_client/_build.json",
-        "--include-package=webview", "--include-package-data=webview",
+        "--include-package-data=webview",
         "--include-package=pystray", "--include-package=PIL", "--include-package=keyring",
         "--include-package=clr_loader", "--include-module=clr", "--include-package=win32com",
         "--report=$(Join-Path $OutputDir 'native-windows-compilation-report.xml')",
