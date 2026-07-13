@@ -95,8 +95,11 @@ window.PrintBridgeStrings = Object.freeze({
   close: "Close",
   about_title: "PrintBridge Client Agent",
   about_description: "A secure desktop bridge that connects PrintBridge servers to local printers, receives print jobs, and sends their original data safely to the selected printer.",
-  developer: "Developer",
+  original_author: "Original author",
   version: "Version",
   copyright: "Copyright",
-  copyright_value: "© 2026 Sayeh Ava Pazouki. All rights reserved.",
+  copyright_value: "© 2026 Sayeh Ava Pazouki",
+  license: "License",
+  license_value: "GPL-3.0-or-later",
+  additional_terms_notice: "Modified or redistributed versions must keep this attribution visible under GNU GPLv3 Section 7(b).",
 });

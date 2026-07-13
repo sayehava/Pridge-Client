@@ -7,7 +7,11 @@ name = "printbridge-client-agent"
 version = "1.0.0"
 description = "Client-side desktop printing agent for PrintBridge"
 readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
 requires-python = ">=3.9"
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+]
 dependencies = [
     "requests>=2.31",
     "pywebview>=5.0",
@@ -37,3 +41,6 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 printbridge_endpoint = ["py.typed", "webui/*.html", "webui/*.css", "webui/*.js", "webui/vendor/*.js", "webui/assets/*.png"]
+
+[tool.setuptools]
+license-files = ["LICENSE", "ADDITIONAL_TERMS.md"]

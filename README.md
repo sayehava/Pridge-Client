@@ -231,6 +231,17 @@ If authentication keeps failing, replace the token in the settings window. Store
 
 The project exposes `printbridge-client` as its preferred console script and retains `printbridge-endpoint` as a compatibility alias. A packaged desktop build can launch the GUI by default or use `--headless` for background operation.
 
+## License
+
+PrintBridge Client Agent is free software licensed under GNU General Public License version 3 or, at your option, any later version (`GPL-3.0-or-later`). See [LICENSE](LICENSE) for the full license text.
+
+The project also carries an attribution requirement permitted by GNU GPLv3 Section 7(b). Modified or redistributed versions with an interactive user interface must keep this notice visible in their About or Legal Notices section:
+
+> Original author: Sayeh Ava Pazouki<br>
+> Copyright © 2026 Sayeh Ava Pazouki
+
+See [ADDITIONAL_TERMS.md](ADDITIONAL_TERMS.md) for the complete additional term.
+
 ## Updating
 
 After pulling updates, reinstall editable dependencies if metadata changed:
