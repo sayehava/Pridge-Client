@@ -2,4 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileComment: Additional terms apply; see ADDITIONAL_TERMS.md.
 
-__version__ = "1.0.0"
+from printbridge_client.build_info import embedded_version
+
+
+__version__ = embedded_version("1.0.0")

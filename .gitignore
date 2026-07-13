@@ -6,4 +6,12 @@ __pycache__/
 venv/
 build/
 dist/
+output/
+release/
+Release/
+.nuitka-cache/
+*.build/
+*.dist/
+*.onefile-build/
+*.spec.tmp
 *.egg-info/
