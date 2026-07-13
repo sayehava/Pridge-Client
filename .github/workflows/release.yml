@@ -1,0 +1,106 @@
+name: Build and publish release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    uses: ./.github/workflows/build-windows.yml
+    with:
+      version: ${{ github.ref_name }}
+    secrets: inherit
+
+  macos:
+    uses: ./.github/workflows/build-macos.yml
+    with:
+      version: ${{ github.ref_name }}
+    secrets: inherit
+
+  publish:
+    name: Publish GitHub Release
+    needs: [windows, macos]
+    runs-on: ubuntu-24.04
+    env:
+      PRINTBRIDGE_VERSION: ${{ github.ref_name }}
+
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Download all release packages
+        uses: actions/download-artifact@v8
+        with:
+          pattern: printbridge-*
+          path: ${{ runner.temp }}/release
+          merge-multiple: true
+
+      - name: Generate release notes and checksums
+        run: |
+          python3 scripts/generate_release_notes.py \
+            --output-dir "$RUNNER_TEMP/release" \
+            --tag "$GITHUB_REF_NAME" \
+            --markdown-output "$RUNNER_TEMP/PrintBridge-Client-Release-Notes.md"
+          python3 scripts/generate_checksums.py \
+            --output-dir "$RUNNER_TEMP/release" \
+            --require-all
+
+      - name: Validate final release filenames
+        run: |
+          cd "$RUNNER_TEMP/release"
+          test -f PrintBridge-Client-Native-Setup-x64.exe
+          test -f PrintBridge-Client-Native-Windows-x64-Portable.zip
+          test -f PrintBridge-Client-Native-macOS-arm64.dmg
+          test -f PrintBridge-Client-Native-macOS-x86_64.dmg
+          test -f PrintBridge-Client-PyInstaller-Setup-x64.exe
+          test -f PrintBridge-Client-PyInstaller-Windows-x64-Portable.zip
+          test -f PrintBridge-Client-PyInstaller-macOS-arm64.dmg
+          test -f PrintBridge-Client-PyInstaller-macOS-x86_64.dmg
+          test -f SHA256SUMS.txt
+          test -f PrintBridge-Client-Release-Notes.txt
+
+      - name: Upload complete release artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: PrintBridge-Client-${{ github.ref_name }}
+          path: |
+            ${{ runner.temp }}/release/PrintBridge-Client-Native-Setup-x64.exe
+            ${{ runner.temp }}/release/PrintBridge-Client-Native-Windows-x64-Portable.zip
+            ${{ runner.temp }}/release/PrintBridge-Client-Native-macOS-arm64.dmg
+            ${{ runner.temp }}/release/PrintBridge-Client-Native-macOS-x86_64.dmg
+            ${{ runner.temp }}/release/PrintBridge-Client-PyInstaller-Setup-x64.exe
+            ${{ runner.temp }}/release/PrintBridge-Client-PyInstaller-Windows-x64-Portable.zip
+            ${{ runner.temp }}/release/PrintBridge-Client-PyInstaller-macOS-arm64.dmg
+            ${{ runner.temp }}/release/PrintBridge-Client-PyInstaller-macOS-x86_64.dmg
+            ${{ runner.temp }}/release/SHA256SUMS.txt
+            ${{ runner.temp }}/release/PrintBridge-Client-Release-Notes.txt
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: PrintBridge Client ${{ github.ref_name }}
+          body_path: ${{ runner.temp }}/PrintBridge-Client-Release-Notes.md
+          fail_on_unmatched_files: true
+          files: |
+            ${{ runner.temp }}/release/PrintBridge-Client-Native-Setup-x64.exe
+            ${{ runner.temp }}/release/PrintBridge-Client-Native-Windows-x64-Portable.zip
+            ${{ runner.temp }}/release/PrintBridge-Client-Native-macOS-arm64.dmg
+            ${{ runner.temp }}/release/PrintBridge-Client-Native-macOS-x86_64.dmg
+            ${{ runner.temp }}/release/PrintBridge-Client-PyInstaller-Setup-x64.exe
+            ${{ runner.temp }}/release/PrintBridge-Client-PyInstaller-Windows-x64-Portable.zip
+            ${{ runner.temp }}/release/PrintBridge-Client-PyInstaller-macOS-arm64.dmg
+            ${{ runner.temp }}/release/PrintBridge-Client-PyInstaller-macOS-x86_64.dmg
+            ${{ runner.temp }}/release/SHA256SUMS.txt
+            ${{ runner.temp }}/release/PrintBridge-Client-Release-Notes.txt

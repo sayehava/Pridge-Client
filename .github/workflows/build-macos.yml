@@ -1,0 +1,159 @@
+name: Build macOS packages
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version or v-prefixed tag embedded in the packages
+        required: false
+        type: string
+        default: ""
+    secrets:
+      MACOS_CERTIFICATE_BASE64:
+        required: false
+      MACOS_CERTIFICATE_PASSWORD:
+        required: false
+      MACOS_SIGNING_IDENTITY:
+        required: false
+      NOTARY_KEY_BASE64:
+        required: false
+      NOTARY_KEY_ID:
+        required: false
+      NOTARY_ISSUER_ID:
+        required: false
+      NOTARY_APPLE_ID:
+        required: false
+      NOTARY_TEAM_ID:
+        required: false
+      NOTARY_PASSWORD:
+        required: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Optional version override, such as 1.0.0
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: macOS ${{ matrix.arch }} ${{ matrix.variant }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+            variant: Native
+          - runner: macos-15
+            arch: arm64
+            variant: PyInstaller
+          - runner: macos-15-intel
+            arch: x86_64
+            variant: Native
+          - runner: macos-15-intel
+            arch: x86_64
+            variant: PyInstaller
+    runs-on: ${{ matrix.runner }}
+    env:
+      PRINTBRIDGE_VERSION: ${{ inputs.version }}
+      PRINTBRIDGE_MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+      PRINTBRIDGE_NOTARY_KEY_BASE64: ${{ secrets.NOTARY_KEY_BASE64 }}
+      PRINTBRIDGE_NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+      PRINTBRIDGE_NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+      PRINTBRIDGE_NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
+      PRINTBRIDGE_NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+      PRINTBRIDGE_NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
+      MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install build dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements-release.txt -e ".[secure,tray]"
+
+      - name: Import optional signing certificate
+        if: ${{ env.MACOS_CERTIFICATE_BASE64 != '' }}
+        env:
+          CERTIFICATE_BASE64: ${{ env.MACOS_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          export KEYCHAIN_PATH="$RUNNER_TEMP/printbridge-signing.keychain-db"
+          export KEYCHAIN_PASSWORD="printbridge-ci-keychain"
+          python3 -c 'import base64, os, pathlib; pathlib.Path(os.environ["RUNNER_TEMP"], "certificate.p12").write_bytes(base64.b64decode(os.environ["CERTIFICATE_BASE64"]))'
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$KEYCHAIN_PATH" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+
+      - name: Run tests
+        run: python3 -m unittest discover -s tests
+
+      - name: Build ${{ matrix.variant }} package
+        run: |
+          release="$RUNNER_TEMP/release-${{ matrix.variant }}-${{ matrix.arch }}"
+          bash scripts/build-macos.sh "${{ matrix.variant }}" --output-dir "$release"
+
+      - name: Smoke-test mounted app bundle
+        run: |
+          release="$RUNNER_TEMP/release-${{ matrix.variant }}-${{ matrix.arch }}"
+          package="PrintBridge-Client-${{ matrix.variant }}-macOS-${{ matrix.arch }}.dmg"
+          dmg="$release/$package"
+          test -f "$dmg"
+          mountpoint="$RUNNER_TEMP/mounted-${{ matrix.variant }}-${{ matrix.arch }}"
+          mkdir -p "$mountpoint" "$RUNNER_TEMP/clean-home-${{ matrix.variant }}-${{ matrix.arch }}"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mountpoint" "$dmg"
+          trap 'hdiutil detach "$mountpoint" || true' EXIT
+          app="$mountpoint/PrintBridge Client.app"
+          test -f "$app/Contents/Resources/Legal/LICENSE"
+          test -f "$app/Contents/Resources/Legal/ADDITIONAL_TERMS.md"
+          test -f "$app/Contents/Resources/printbridge_client/webui/index.html"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :PrintBridgeBuildVariant' "$app/Contents/Info.plist")" = "${{ matrix.variant }}"
+          executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
+          lipo -archs "$app/Contents/MacOS/$executable" | grep -qw "${{ matrix.arch }}"
+          codesign --verify --deep --strict "$app"
+          HOME="$RUNNER_TEMP/clean-home-${{ matrix.variant }}-${{ matrix.arch }}" "$app/Contents/MacOS/$executable" > "$RUNNER_TEMP/gui-start.log" 2>&1 &
+          app_pid=$!
+          sleep 10
+          kill -0 "$app_pid"
+          kill "$app_pid"
+          wait "$app_pid" || true
+          test ! -s "$RUNNER_TEMP/gui-start.log"
+          hdiutil detach "$mountpoint"
+          trap - EXIT
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: printbridge-macos-${{ matrix.variant }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/release-${{ matrix.variant }}-${{ matrix.arch }}/PrintBridge-Client-${{ matrix.variant }}-macOS-${{ matrix.arch }}.dmg
+          if-no-files-found: error
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-logs-macos-${{ matrix.variant }}-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/release-${{ matrix.variant }}-${{ matrix.arch }}/*.log
+            ${{ runner.temp }}/release-${{ matrix.variant }}-${{ matrix.arch }}/*.xml
+          if-no-files-found: warn
+
+      - name: Delete temporary signing keychain
+        if: ${{ always() && env.MACOS_CERTIFICATE_BASE64 != '' }}
+        run: security delete-keychain "$RUNNER_TEMP/printbridge-signing.keychain-db" || true

@@ -43,6 +43,25 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("notarytool submit", text)
         self.assertNotIn("--onefile", text)
 
+    def test_tag_workflow_publishes_all_expected_packages(self):
+        text = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+        expected = (
+            "PrintBridge-Client-Native-Setup-x64.exe",
+            "PrintBridge-Client-Native-Windows-x64-Portable.zip",
+            "PrintBridge-Client-Native-macOS-arm64.dmg",
+            "PrintBridge-Client-Native-macOS-x86_64.dmg",
+            "PrintBridge-Client-PyInstaller-Setup-x64.exe",
+            "PrintBridge-Client-PyInstaller-Windows-x64-Portable.zip",
+            "PrintBridge-Client-PyInstaller-macOS-arm64.dmg",
+            "PrintBridge-Client-PyInstaller-macOS-x86_64.dmg",
+            "SHA256SUMS.txt",
+            "PrintBridge-Client-Release-Notes.txt",
+        )
+        for filename in expected:
+            self.assertIn(filename, text)
+        self.assertIn('tags:\n      - "v*"', text)
+
 
 if __name__ == "__main__":
     unittest.main()

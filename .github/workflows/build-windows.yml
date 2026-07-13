@@ -1,0 +1,127 @@
+name: Build Windows packages
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version or v-prefixed tag embedded in the packages
+        required: false
+        type: string
+        default: ""
+    secrets:
+      WINDOWS_CERTIFICATE_BASE64:
+        required: false
+      WINDOWS_CERTIFICATE_PASSWORD:
+        required: false
+      WINDOWS_TIMESTAMP_URL:
+        required: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Optional version override, such as 1.0.0
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Windows x64 ${{ matrix.variant }}
+    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [Native, PyInstaller]
+    env:
+      PRINTBRIDGE_VERSION: ${{ inputs.version }}
+      PRINTBRIDGE_WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+      PRINTBRIDGE_WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+      PRINTBRIDGE_WINDOWS_TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          architecture: x64
+          cache: pip
+
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-release.txt -e ".[windows,secure,tray]"
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --no-progress --yes
+          }
+
+      - name: Run tests
+        shell: pwsh
+        run: python -m unittest discover -s tests
+
+      - name: Build ${{ matrix.variant }} packages
+        shell: pwsh
+        run: |
+          $release = Join-Path $env:RUNNER_TEMP "release-${{ matrix.variant }}"
+          ./scripts/build-windows.ps1 -Variant "${{ matrix.variant }}" -OutputDir $release
+
+      - name: Smoke-test portable GUI and installer
+        shell: pwsh
+        run: |
+          $release = Join-Path $env:RUNNER_TEMP "release-${{ matrix.variant }}"
+          $portableName = if ("${{ matrix.variant }}" -eq "Native") {
+            "PrintBridge-Client-Native-Windows-x64-Portable.zip"
+          } else {
+            "PrintBridge-Client-PyInstaller-Windows-x64-Portable.zip"
+          }
+          $installerName = if ("${{ matrix.variant }}" -eq "Native") {
+            "PrintBridge-Client-Native-Setup-x64.exe"
+          } else {
+            "PrintBridge-Client-PyInstaller-Setup-x64.exe"
+          }
+          $portable = Join-Path $release $portableName
+          $installer = Join-Path $release $installerName
+          if (-not (Test-Path $portable) -or -not (Test-Path $installer)) {
+            throw "Expected Windows release packages were not created."
+          }
+          $expanded = Join-Path $env:RUNNER_TEMP "portable-smoke-${{ matrix.variant }}"
+          Expand-Archive -Path $portable -DestinationPath $expanded -Force
+          $portableExe = Join-Path $expanded "PrintBridge Client\PrintBridge Client.exe"
+          $process = Start-Process -FilePath $portableExe -PassThru
+          Start-Sleep -Seconds 10
+          if ($process.HasExited) { throw "The portable GUI exited during startup." }
+          Stop-Process -Id $process.Id -Force
+
+          $installed = Join-Path $env:RUNNER_TEMP "installed-${{ matrix.variant }}"
+          $setup = Start-Process -FilePath $installer -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=$installed" -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw "Installer smoke test failed with exit code $($setup.ExitCode)." }
+          $installedExe = Join-Path $installed "PrintBridge Client.exe"
+          $process = Start-Process -FilePath $installedExe -PassThru
+          Start-Sleep -Seconds 10
+          if ($process.HasExited) { throw "The installed GUI exited during startup." }
+          Stop-Process -Id $process.Id -Force
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: printbridge-windows-${{ matrix.variant }}
+          path: |
+            ${{ runner.temp }}/release-${{ matrix.variant }}/*.exe
+            ${{ runner.temp }}/release-${{ matrix.variant }}/*-Portable.zip
+          if-no-files-found: error
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-logs-windows-${{ matrix.variant }}
+          path: |
+            ${{ runner.temp }}/release-${{ matrix.variant }}/*.log
+            ${{ runner.temp }}/release-${{ matrix.variant }}/*.xml
+          if-no-files-found: warn
