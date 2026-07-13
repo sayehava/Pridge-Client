@@ -51,8 +51,8 @@ Use the settings window to connect the endpoint to one or more PrintBridge Serve
 3. Leave `Enabled` checked if this server should poll for jobs.
 4. Set that server's polling and heartbeat intervals.
 5. Click `Test Connection` to verify the URL and token.
-6. Under `Remote Printer Mappings`, wait for the assigned virtual printers and installed local printers to load automatically.
-7. Select a local printer for each virtual printer, or drag a local-printer chip onto its endpoint row. Leave the first `Disabled` option selected when that endpoint should not print locally.
+6. Under `Remote Printer Mappings`, wait for all server endpoints and installed local printers to load automatically.
+7. Use each endpoint's dropdown to select a local printer. Leave `Disabled` selected when that endpoint should not be assigned to this client.
 8. Click `Add Server` to save the connection.
 9. Repeat for every server this office computer should serve.
 10. Use the Start and Stop buttons on each server card to control servers independently.
@@ -118,6 +118,7 @@ The current endpoint client expects these language-neutral JSON endpoints:
 
 - `POST /api/client/auth`
 - `GET /api/client/endpoints`
+- `PUT /api/client/endpoints`
 - `GET /api/client/jobs`
 - `POST /api/client/heartbeat`
 - `POST /api/client/jobs/reserve`
@@ -157,7 +158,7 @@ Printer discovery is platform-specific behind a shared interface:
 
 Each server profile maps remote PrintBridge endpoint IDs to local printer names. The endpoint reads `endpoint_id` from a reserved job and routes the raw payload through that server's mapping. An endpoint whose selector is `Disabled` has no local mapping, so its job is reported as failed instead of being sent to an arbitrary printer.
 
-The settings window loads all virtual printers assigned to the authenticated client from `GET /api/client/endpoints`. It also refreshes the operating system's local printer list whenever the server editor opens. Older servers without the endpoint-list route fall back to discovering endpoints from their active job list.
+The settings window loads all virtual printer endpoints from `GET /api/client/endpoints`. It also refreshes the operating system's local printer list whenever the server editor opens. Saving a server sends every non-disabled endpoint ID to `PUT /api/client/endpoints`, making the local printer dropdown the source of that client's server assignments. Older servers without the endpoint-list route fall back to discovering endpoints from their active job list.
 
 Printing sends raw bytes to the resolved local printer:
 
