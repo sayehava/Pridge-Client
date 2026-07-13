@@ -172,7 +172,7 @@
         if (!cancelled) applyResult(result);
       });
       const boot = () => poll();
-      if (window.pywebview) boot();
+      if (window.pywebview && window.pywebview.api) boot();
       else window.addEventListener("pywebviewready", boot, { once: true });
       const id = window.setInterval(poll, POLL_MS);
       return () => {

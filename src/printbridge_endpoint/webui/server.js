@@ -67,7 +67,7 @@
         setHasToken(server.has_token);
         setLoaded(true);
       });
-      if (window.pywebview) boot();
+      if (window.pywebview && window.pywebview.api) boot();
       else window.addEventListener("pywebviewready", boot, { once: true });
     }, []);
 
