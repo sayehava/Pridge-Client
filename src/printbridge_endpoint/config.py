@@ -13,6 +13,7 @@ APP_DIR_NAME = "PrintBridge Endpoint"
 CONFIG_FILE_NAME = "config.json"
 KEYRING_SERVICE = "printbridge-endpoint"
 KEYRING_USERNAME = "client-token"
+DARKNESS_GRADES = ("Quartz", "Moonstone", "Labradorite", "Onyx", "Obsidian", "Jet")
 
 
 @dataclass
@@ -42,8 +43,7 @@ class LoggingConfig:
 
 @dataclass
 class AppearanceConfig:
-    transparency_enabled: bool = True
-    glass_opacity_percent: int = 56
+    darkness_grade: str = "Onyx"
 
 
 @dataclass
@@ -98,13 +98,7 @@ class ConfigStore:
                 file_enabled=bool(logging_raw.get("file_enabled", True)),
             ),
             appearance=AppearanceConfig(
-                transparency_enabled=bool(appearance_raw.get("transparency_enabled", True)),
-                glass_opacity_percent=_bounded_int(
-                    appearance_raw.get("glass_opacity_percent", 56),
-                    default=56,
-                    minimum=25,
-                    maximum=95,
-                ),
+                darkness_grade=_appearance_grade(appearance_raw),
             ),
         )
 
@@ -210,6 +204,21 @@ def _bounded_int(value: Any, default: int, minimum: int, maximum: int) -> int:
     except (TypeError, ValueError):
         return default
     return min(max(parsed, minimum), maximum)
+
+
+def _appearance_grade(raw: dict[str, Any]) -> str:
+    grade = str(raw.get("darkness_grade", "")).strip().title()
+    if grade in DARKNESS_GRADES:
+        return grade
+
+    legacy_opacity = _bounded_int(
+        raw.get("glass_opacity_percent", 62),
+        default=62,
+        minimum=25,
+        maximum=95,
+    )
+    thresholds = ((30, "Quartz"), (42, "Moonstone"), (54, "Labradorite"), (68, "Onyx"), (82, "Obsidian"))
+    return next((name for limit, name in thresholds if legacy_opacity <= limit), "Jet")
 
 
 def _parse_servers(raw: dict[str, Any]) -> list[ServerConfig]:

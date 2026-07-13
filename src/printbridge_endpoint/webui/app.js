@@ -25,9 +25,7 @@
 
   function applyAppearance(state) {
     if (!state || !state.appearance) return;
-    const appearance = state.appearance;
-    const opacity = appearance.transparency_enabled ? appearance.glass_opacity_percent / 100 : 0.97;
-    document.documentElement.style.setProperty("--window-opacity", String(opacity));
+    document.documentElement.dataset.darkness = (state.appearance.darkness_grade || "Onyx").toLowerCase();
   }
 
   function Badge({ text, active = false }) {

@@ -102,15 +102,15 @@ class ConfigStoreTests(unittest.TestCase):
 
         self.assertEqual(config.servers[0].default_printer, "Legacy Printer")
 
-    def test_loads_and_bounds_appearance_settings(self) -> None:
+    def test_migrates_legacy_opacity_to_darkness_grade(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.json"
             path.write_text(
                 json.dumps(
                     {
                         "appearance": {
-                            "transparency_enabled": False,
-                            "glass_opacity_percent": 120,
+                            "transparency_enabled": True,
+                            "glass_opacity_percent": 80,
                         }
                     }
                 ),
@@ -119,8 +119,7 @@ class ConfigStoreTests(unittest.TestCase):
 
             config = ConfigStore(path).load()
 
-        self.assertFalse(config.appearance.transparency_enabled)
-        self.assertEqual(config.appearance.glass_opacity_percent, 95)
+        self.assertEqual(config.appearance.darkness_grade, "Obsidian")
 
 
 if __name__ == "__main__":

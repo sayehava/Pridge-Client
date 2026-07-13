@@ -1,6 +1,6 @@
 :root {
   color-scheme: dark;
-  --window-opacity: 0.56;
+  --window-darkness: 0.62;
   --sidebar-bg: rgba(12, 20, 38, 0.58);
   --card-bg: rgba(25, 35, 57, 0.55);
   --card-bg-soft: rgba(40, 53, 78, 0.58);
@@ -21,6 +21,13 @@
   --gap: 14px;
 }
 
+html[data-darkness="quartz"] { --window-darkness: 0.24; }
+html[data-darkness="moonstone"] { --window-darkness: 0.36; }
+html[data-darkness="labradorite"] { --window-darkness: 0.48; }
+html[data-darkness="onyx"] { --window-darkness: 0.62; }
+html[data-darkness="obsidian"] { --window-darkness: 0.77; }
+html[data-darkness="jet"] { --window-darkness: 0.90; }
+
 * {
   box-sizing: border-box;
 }
@@ -31,7 +38,7 @@ html, body {
 }
 
 body {
-  background: transparent;
+  background: #2a3d5a;
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 13px;
@@ -47,7 +54,7 @@ body::before {
     radial-gradient(circle at 12% 10%, rgba(59, 130, 246, 0.32), transparent 34%),
     radial-gradient(circle at 88% 18%, rgba(139, 92, 246, 0.24), transparent 34%),
     radial-gradient(circle at 64% 90%, rgba(14, 165, 233, 0.18), transparent 38%),
-    rgba(7, 12, 25, var(--window-opacity));
+    rgba(7, 12, 25, var(--window-darkness));
 }
 
 body::after {
@@ -625,23 +632,54 @@ button.danger-text {
   accent-color: var(--accent);
 }
 
-.opacity-control {
-  min-width: 190px;
-  text-align: right;
+.stone-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
 }
 
-.opacity-control input {
-  width: 150px;
-  accent-color: var(--accent);
-  vertical-align: middle;
+button.stone-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  text-align: left;
+  color: var(--text-dim);
+  background: rgba(15, 24, 43, 0.44);
+  border-color: var(--border);
 }
 
-.opacity-value {
-  display: inline-block;
-  min-width: 38px;
-  color: #bfdbfe;
-  font-weight: 700;
+button.stone-option.selected {
+  border-color: rgba(96, 165, 250, 0.72);
+  background: linear-gradient(135deg, rgba(79, 140, 255, 0.24), rgba(38, 54, 82, 0.64));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 0 2px rgba(79, 140, 255, 0.1);
 }
+
+.stone-option strong,
+.stone-option small {
+  display: block;
+}
+
+.stone-option small {
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.stone-swatch {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 4px rgba(255, 255, 255, 0.18), 0 3px 8px rgba(0, 0, 0, 0.22);
+}
+
+.stone-quartz { background: #aabbd0; }
+.stone-moonstone { background: #879bb6; }
+.stone-labradorite { background: #60758f; }
+.stone-onyx { background: #3e4d65; }
+.stone-obsidian { background: #222c40; }
+.stone-jet { background: #0c1220; }
 
 .utility-actions {
   display: flex;

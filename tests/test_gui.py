@@ -182,32 +182,23 @@ class EndpointApiTests(unittest.TestCase):
         create_window.return_value.show.assert_called_once()
 
     @patch("printbridge_endpoint.gui.set_start_at_login")
-    def test_updates_application_appearance_settings(self, set_start_at_login):
+    def test_updates_application_darkness_setting(self, set_start_at_login):
         result = self.api.update_application_settings(
             {
                 "start_polling_on_launch": True,
                 "start_at_login": True,
-                "transparency_enabled": False,
-                "glass_opacity_percent": 42,
+                "darkness_grade": "Obsidian",
             }
         )
 
         self.assertTrue(result["ok"])
-        self.assertTrue(result["restart_required"])
-        self.assertEqual(result["state"]["appearance"]["glass_opacity_percent"], 42)
-        self.assertFalse(self.api.config.appearance.transparency_enabled)
+        self.assertFalse(result["restart_required"])
+        self.assertEqual(result["state"]["appearance"]["darkness_grade"], "Obsidian")
+        self.assertEqual(self.api.config.appearance.darkness_grade, "Obsidian")
         set_start_at_login.assert_called_once_with(True)
 
-    @patch("printbridge_endpoint.gui.platform.system", return_value="Windows")
-    def test_disables_native_transparency_on_windows(self, _system):
+    def test_native_transparency_is_always_disabled(self):
         self.assertEqual(_window_effects(), {"transparent": False, "vibrancy": False})
-        state = self.api.get_state()["state"]
-        self.assertFalse(state["appearance"]["transparency_supported"])
-        self.assertFalse(state["appearance"]["transparency_enabled"])
-
-    @patch("printbridge_endpoint.gui.platform.system", return_value="Darwin")
-    def test_respects_disabled_transparency_setting(self, _system):
-        self.assertEqual(_window_effects(False), {"transparent": False, "vibrancy": False})
 
 
 if __name__ == "__main__":
