@@ -90,6 +90,8 @@ window.PrintBridgeStrings = Object.freeze({
   ],
   startup: "Startup",
   settings_saved: "Settings saved.",
+  saving_settings: "Saving…",
+  settings_saved_automatically: "Saved automatically.",
   close: "Close",
   about_title: "PrintBridge Endpoint",
   about_description: "A secure desktop bridge that connects PrintBridge servers to local printers, receives print jobs, and sends their original data safely to the selected printer.",

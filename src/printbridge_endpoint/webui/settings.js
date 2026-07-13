@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const { useEffect, useState } = React;
+  const { useEffect, useRef, useState } = React;
   const html = htm.bind(React.createElement);
   const S = window.PrintBridgeStrings;
 
@@ -25,6 +25,7 @@
   function Settings() {
     const [form, setForm] = useState(null);
     const [message, setMessage] = useState("");
+    const saveSequence = useRef(0);
 
     useEffect(() => {
       whenApiReady(() => callApi("get_state").then((result) => {
@@ -45,11 +46,13 @@
       const next = { ...form, [key]: value };
       setForm(next);
       if (key === "darkness_grade") setPreview(next);
+      const sequence = ++saveSequence.current;
+      setMessage(S.saving_settings);
+      callApi("update_application_settings", next).then((result) => {
+        if (!result || sequence !== saveSequence.current) return;
+        setMessage(result.ok ? S.settings_saved_automatically : (result.error || S.save_failed));
+      });
     };
-    const save = () => callApi("update_application_settings", form).then((result) => {
-      if (!result) return;
-      setMessage(result.message || S.settings_saved);
-    });
 
     return html`
       <main class="utility-page">
@@ -90,7 +93,6 @@
         ${message ? html`<div class="settings-message">${message}</div>` : null}
         <div class="utility-actions">
           <button onClick=${() => callApi("close_utility_window", "settings")}>${S.close}</button>
-          <button class="primary" onClick=${save}>${S.save}</button>
         </div>
       </main>
     `;
