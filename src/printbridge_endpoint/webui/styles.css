@@ -369,11 +369,34 @@ button.danger-text {
 
 /* Server connection list */
 .server-list {
+  flex: 1 1 auto;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.server-page {
   display: flex;
   flex-direction: column;
   gap: 9px;
-  overflow-y: auto;
-  min-height: 0;
+  min-height: 100%;
+}
+
+.page-slide-forward {
+  animation: server-page-forward 220ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.page-slide-backward {
+  animation: server-page-backward 220ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+@keyframes server-page-forward {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes server-page-backward {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
 .server-item {
@@ -434,6 +457,50 @@ button.danger-text {
 
 .server-actions button {
   padding: 6px 10px;
+}
+
+.server-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.page-numbers {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+button.page-number,
+button.page-arrow {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 7px;
+  border-radius: 7px;
+  background: rgba(24, 35, 57, 0.52);
+  color: var(--text-muted);
+}
+
+button.page-number.active {
+  background: linear-gradient(135deg, #6098ff, #316de2);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.page-gap {
+  color: var(--text-muted);
+  padding: 0 2px;
+}
+
+.page-summary {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .server-empty {

@@ -5,6 +5,7 @@
   const html = htm.bind(React.createElement);
   const S = window.PrintBridgeStrings;
   const POLL_MS = 2000;
+  const SERVER_PAGE_SIZE = 4;
 
   function callApi(name, ...args) {
     if (!window.pywebview || !window.pywebview.api || !window.pywebview.api[name]) {
@@ -52,6 +53,30 @@
   }
 
   function ServerConnections({ servers, onAdd, onEdit, onRemove, onStart, onStop }) {
+    const [page, setPage] = useState(0);
+    const [direction, setDirection] = useState("forward");
+    const pageCount = Math.max(1, Math.ceil(servers.length / SERVER_PAGE_SIZE));
+
+    useEffect(() => {
+      if (page >= pageCount) setPage(pageCount - 1);
+    }, [page, pageCount]);
+
+    const goToPage = (nextPage) => {
+      const bounded = Math.min(Math.max(nextPage, 0), pageCount - 1);
+      if (bounded === page) return;
+      setDirection(bounded > page ? "forward" : "backward");
+      setPage(bounded);
+    };
+    const pageServers = servers.slice(page * SERVER_PAGE_SIZE, (page + 1) * SERVER_PAGE_SIZE);
+    const visiblePages = Array.from(new Set([0, page - 1, page, page + 1, pageCount - 1]))
+      .filter((item) => item >= 0 && item < pageCount)
+      .sort((a, b) => a - b);
+    const paginationItems = [];
+    visiblePages.forEach((item, index) => {
+      if (index > 0 && item - visiblePages[index - 1] > 1) paginationItems.push(`gap-${item}`);
+      paginationItems.push(item);
+    });
+
     return html`
       <div class="card area-server">
         <div class="card-heading-row">
@@ -68,7 +93,8 @@
               <div class="server-empty-copy">${S.no_servers_hint}</div>
             </div>`
           : html`<div class="server-list">
-              ${servers.map(
+              <div class=${`server-page page-slide-${direction}`} key=${page}>
+              ${pageServers.map(
                 (server) => html`
                   <div class="server-item" key=${server.id}>
                     <div class="server-item-main">
@@ -95,7 +121,28 @@
                   </div>
                 `
               )}
+              </div>
             </div>`}
+        ${servers.length > 0 && pageCount > 1
+          ? html`<nav class="server-pagination" aria-label=${S.server_pages}>
+              <button class="page-arrow" aria-label=${S.previous_page} disabled=${page === 0} onClick=${() => goToPage(page - 1)}>‹</button>
+              <div class="page-numbers">
+                ${paginationItems.map((item) =>
+                  typeof item === "string"
+                    ? html`<span class="page-gap" key=${item}>…</span>`
+                    : html`<button
+                        class=${item === page ? "page-number active" : "page-number"}
+                        aria-label=${S.page_number.replace("{page}", item + 1)}
+                        aria-current=${item === page ? "page" : null}
+                        onClick=${() => goToPage(item)}
+                        key=${item}
+                      >${item + 1}</button>`
+                )}
+              </div>
+              <span class="page-summary">${S.page_summary.replace("{page}", page + 1).replace("{pages}", pageCount)}</span>
+              <button class="page-arrow" aria-label=${S.next_page} disabled=${page === pageCount - 1} onClick=${() => goToPage(page + 1)}>›</button>
+            </nav>`
+          : null}
       </div>
     `;
   }
