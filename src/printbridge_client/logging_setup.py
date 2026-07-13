@@ -39,7 +39,7 @@ def configure_logging(config: ClientConfig, log_dir: Path | None = None) -> None
         path = log_dir or default_log_dir()
         path.mkdir(parents=True, exist_ok=True)
         file_handler = RotatingFileHandler(
-            path / "endpoint.log",
+            path / "client.log",
             maxBytes=1_000_000,
             backupCount=5,
             encoding="utf-8",

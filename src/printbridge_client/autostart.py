@@ -11,7 +11,8 @@ import sys
 from pathlib import Path
 
 
-APP_ID = "com.printbridge.endpoint"
+APP_ID = "com.printbridge.client"
+LEGACY_APP_ID = "com.printbridge.endpoint"
 
 
 class AutoStartError(RuntimeError):
@@ -35,9 +36,12 @@ def command() -> list[str]:
 
 
 def _set_macos_launch_agent(enabled: bool) -> None:
-    path = Path.home() / "Library" / "LaunchAgents" / f"{APP_ID}.plist"
+    directory = Path.home() / "Library" / "LaunchAgents"
+    path = directory / f"{APP_ID}.plist"
+    legacy_path = directory / f"{LEGACY_APP_ID}.plist"
     if not enabled:
         _unlink_if_exists(path)
+        _unlink_if_exists(legacy_path)
         return
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -60,6 +64,7 @@ def _set_macos_launch_agent(enabled: bool) -> None:
 """,
         encoding="utf-8",
     )
+    _unlink_if_exists(legacy_path)
 
 
 def _set_linux_desktop_entry(enabled: bool) -> None:

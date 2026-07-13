@@ -13,10 +13,14 @@ from pathlib import Path
 from typing import Any
 
 
-APP_DIR_NAME = "PrintBridge Endpoint"
+APP_DIR_NAME = "PrintBridge Client"
+CONFIG_DIR_NAME = "printbridge-client"
 CONFIG_FILE_NAME = "config.json"
-KEYRING_SERVICE = "printbridge-endpoint"
+KEYRING_SERVICE = "printbridge-client"
 KEYRING_USERNAME = "client-token"
+LEGACY_APP_DIR_NAME = "PrintBridge Endpoint"
+LEGACY_CONFIG_DIR_NAME = "printbridge-endpoint"
+LEGACY_KEYRING_SERVICE = "printbridge-endpoint"
 DARKNESS_GRADES = ("Quartz", "Moonstone", "Labradorite", "Onyx", "Obsidian", "Jet")
 
 
@@ -70,12 +74,18 @@ class ConfigError(ValueError):
 class ConfigStore:
     def __init__(self, config_path: Path | None = None) -> None:
         self.config_path = config_path or default_config_path()
+        self.legacy_config_path = legacy_config_path() if config_path is None else None
 
     def load(self) -> ClientConfig:
-        if not self.config_path.exists():
-            return ClientConfig()
+        source_path = self.config_path
+        migrate_legacy = False
+        if not source_path.exists():
+            if self.legacy_config_path is None or not self.legacy_config_path.exists():
+                return ClientConfig()
+            source_path = self.legacy_config_path
+            migrate_legacy = True
 
-        with self.config_path.open("r", encoding="utf-8") as file:
+        with source_path.open("r", encoding="utf-8") as file:
             raw = json.load(file)
 
         if not isinstance(raw, dict):
@@ -89,7 +99,7 @@ class ConfigStore:
             appearance_raw = {}
 
         servers = _parse_servers(raw)
-        return ClientConfig(
+        config = ClientConfig(
             server_url=str(raw.get("server_url", "")),
             servers=servers,
             selected_printer=str(raw.get("selected_printer", "")),
@@ -105,6 +115,9 @@ class ConfigStore:
                 darkness_grade=_appearance_grade(appearance_raw),
             ),
         )
+        if migrate_legacy:
+            self.save(config)
+        return config
 
     def save(self, config: ClientConfig) -> None:
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -117,21 +130,28 @@ class ConfigStore:
 class ClientTokenStore:
     def __init__(self, config_dir: Path | None = None) -> None:
         self.config_dir = config_dir or default_config_dir()
+        self.legacy_config_dir = legacy_config_dir() if config_dir is None else None
 
     def get(self, server_id: str = "default") -> str:
         keyring = _load_keyring()
         if keyring is not None:
             token = keyring.get_password(KEYRING_SERVICE, _token_username(server_id))
-            if token is None and server_id == "default":
-                token = keyring.get_password(KEYRING_SERVICE, KEYRING_USERNAME)
+            if token is None:
+                token = keyring.get_password(LEGACY_KEYRING_SERVICE, _token_username(server_id))
+                if token:
+                    keyring.set_password(KEYRING_SERVICE, _token_username(server_id), token)
             return token or ""
 
         fallback_path = self._fallback_path(server_id)
-        if not fallback_path.exists() and server_id == "default":
-            fallback_path = self.config_dir / "client-token"
-        if not fallback_path.exists():
+        if fallback_path.exists():
+            return fallback_path.read_text(encoding="utf-8").strip()
+        legacy_path = self._legacy_fallback_path(server_id)
+        if legacy_path is None or not legacy_path.exists():
             return ""
-        return fallback_path.read_text(encoding="utf-8").strip()
+        token = legacy_path.read_text(encoding="utf-8").strip()
+        if token:
+            self._write_fallback(token, server_id)
+        return token
 
     def set(self, token: str, server_id: str = "default") -> None:
         token = token.strip()
@@ -141,6 +161,27 @@ class ClientTokenStore:
             self._delete_fallback(server_id)
             return
 
+        self._write_fallback(token, server_id)
+
+    def clear(self, server_id: str = "default") -> None:
+        keyring = _load_keyring()
+        if keyring is not None:
+            for service in (KEYRING_SERVICE, LEGACY_KEYRING_SERVICE):
+                try:
+                    keyring.delete_password(service, _token_username(server_id))
+                except Exception:
+                    pass
+        self._delete_fallback(server_id, include_legacy=True)
+
+    def _fallback_path(self, server_id: str) -> Path:
+        return _fallback_path(self.config_dir, server_id)
+
+    def _legacy_fallback_path(self, server_id: str) -> Path | None:
+        if self.legacy_config_dir is None:
+            return None
+        return _fallback_path(self.legacy_config_dir, server_id)
+
+    def _write_fallback(self, token: str, server_id: str) -> None:
         self.config_dir.mkdir(parents=True, exist_ok=True)
         fallback_path = self._fallback_path(server_id)
         fallback_path.write_text(token, encoding="utf-8")
@@ -149,35 +190,35 @@ class ClientTokenStore:
         except OSError:
             pass
 
-    def clear(self, server_id: str = "default") -> None:
-        keyring = _load_keyring()
-        if keyring is not None:
+    def _delete_fallback(self, server_id: str, include_legacy: bool = False) -> None:
+        paths = [self._fallback_path(server_id)]
+        if include_legacy:
+            paths.append(self._legacy_fallback_path(server_id))
+        for path in paths:
+            if path is None:
+                continue
             try:
-                keyring.delete_password(KEYRING_SERVICE, _token_username(server_id))
-            except Exception:
+                path.unlink()
+            except FileNotFoundError:
                 pass
-        self._delete_fallback(server_id)
-
-    def _fallback_path(self, server_id: str) -> Path:
-        if server_id == "default":
-            return self.config_dir / "client-token"
-        return self.config_dir / f"client-token-{_safe_id(server_id)}"
-
-    def _delete_fallback(self, server_id: str) -> None:
-        try:
-            self._fallback_path(server_id).unlink()
-        except FileNotFoundError:
-            pass
 
 
 def default_config_dir() -> Path:
+    return _config_dir(APP_DIR_NAME, CONFIG_DIR_NAME)
+
+
+def legacy_config_dir() -> Path:
+    return _config_dir(LEGACY_APP_DIR_NAME, LEGACY_CONFIG_DIR_NAME)
+
+
+def _config_dir(app_dir_name: str, config_dir_name: str) -> Path:
     system = platform.system()
     if system == "Windows":
         base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
-        return base / APP_DIR_NAME
+        return base / app_dir_name
     if system == "Darwin":
-        return Path.home() / "Library" / "Application Support" / APP_DIR_NAME
-    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "printbridge-endpoint"
+        return Path.home() / "Library" / "Application Support" / app_dir_name
+    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / config_dir_name
 
 
 def default_log_dir() -> Path:
@@ -187,11 +228,15 @@ def default_log_dir() -> Path:
         return base / APP_DIR_NAME / "Logs"
     if system == "Darwin":
         return Path.home() / "Library" / "Logs" / APP_DIR_NAME
-    return Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")) / "printbridge-endpoint"
+    return Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")) / CONFIG_DIR_NAME
 
 
 def default_config_path() -> Path:
     return default_config_dir() / CONFIG_FILE_NAME
+
+
+def legacy_config_path() -> Path:
+    return legacy_config_dir() / CONFIG_FILE_NAME
 
 
 def _positive_int(value: Any, default: int) -> int:
@@ -290,6 +335,12 @@ def _token_username(server_id: str) -> str:
     if server_id == "default":
         return KEYRING_USERNAME
     return f"{KEYRING_USERNAME}:{_safe_id(server_id)}"
+
+
+def _fallback_path(directory: Path, server_id: str) -> Path:
+    if server_id == "default":
+        return directory / "client-token"
+    return directory / f"client-token-{_safe_id(server_id)}"
 
 
 def _safe_id(value: str) -> str:

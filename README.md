@@ -80,11 +80,11 @@ Client tokens are stored separately per server through the operating system cred
 
 Configuration locations:
 
-- Windows: `%APPDATA%\PrintBridge Endpoint\config.json`
-- macOS: `~/Library/Application Support/PrintBridge Endpoint/config.json`
-- Linux: `${XDG_CONFIG_HOME:-~/.config}/printbridge-endpoint/config.json`
+- Windows: `%APPDATA%\PrintBridge Client\config.json`
+- macOS: `~/Library/Application Support/PrintBridge Client/config.json`
+- Linux: `${XDG_CONFIG_HOME:-~/.config}/printbridge-client/config.json`
 
-Version 1.0 retains the legacy storage directory names so existing server profiles and credentials remain available after the Client rename.
+When the new configuration does not exist, Version 1.0 copies an existing Endpoint-era configuration and credentials into the Client locations. The legacy files and keyring entries are not deleted.
 
 ## Authentication
 
@@ -198,7 +198,7 @@ Confirmations use branded in-app dialogs with the PrintBridge application icon i
 The settings window can enable login startup:
 
 - Windows: current-user Run key
-- macOS: `~/Library/LaunchAgents/com.printbridge.endpoint.plist`
+- macOS: `~/Library/LaunchAgents/com.printbridge.client.plist`
 - Linux: XDG autostart desktop entry
 
 Auto-start launches the client in `--headless` mode.
@@ -209,9 +209,9 @@ Logs include startup, authentication, heartbeat, printer changes, job lifecycle 
 
 Log locations:
 
-- Windows: `%LOCALAPPDATA%\PrintBridge Endpoint\Logs\endpoint.log`
-- macOS: `~/Library/Logs/PrintBridge Endpoint/endpoint.log`
-- Linux: `${XDG_STATE_HOME:-~/.local/state}/printbridge-endpoint/endpoint.log`
+- Windows: `%LOCALAPPDATA%\PrintBridge Client\Logs\client.log`
+- macOS: `~/Library/Logs/PrintBridge Client/client.log`
+- Linux: `${XDG_STATE_HOME:-~/.local/state}/printbridge-client/client.log`
 
 ## Troubleshooting
 
