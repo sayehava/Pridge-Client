@@ -6,6 +6,9 @@ from __future__ import annotations
 
 import logging
 import platform
+from collections.abc import Callable, Sequence
+from threading import Event
+from time import monotonic, sleep
 from typing import Any
 
 
@@ -29,6 +32,72 @@ def configure_application_identity(name: str) -> None:
         Foundation.NSProcessInfo.processInfo().setProcessName_(name)
     except Exception as exc:
         logger.debug("Could not configure the native application identity: %s", exc)
+
+
+def create_application_menu(actions: Sequence[tuple[str, Callable[[], Any]]]) -> list[Any]:
+    if platform.system() != "Darwin":
+        return []
+
+    from webview.menu import Menu, MenuAction
+
+    return [Menu("__app__", [MenuAction(title, action) for title, action in actions])]
+
+
+def configure_application_menu(
+    window: Any,
+    name: str,
+    item_titles: Sequence[str],
+) -> Callable[[], None] | None:
+    if platform.system() != "Darwin":
+        return None
+
+    import webview
+
+    webview.settings["SHOW_DEFAULT_MENUS"] = False
+
+    def install() -> None:
+        import AppKit
+
+        deadline = monotonic() + 10
+        application = AppKit.NSApplication.sharedApplication()
+        while not application.isRunning() and monotonic() < deadline:
+            sleep(0.01)
+        if application.isRunning():
+            _replace_macos_application_menu(name, item_titles)
+            return
+        logger.debug("Could not install the macOS application menu before timeout")
+
+    return install
+
+
+def _replace_macos_application_menu(name: str, item_titles: Sequence[str]) -> None:
+    import AppKit
+    import Foundation
+
+    completed = Event()
+
+    def apply() -> None:
+        try:
+            main_menu = AppKit.NSApplication.sharedApplication().mainMenu()
+            if main_menu is None or main_menu.numberOfItems() == 0:
+                return
+            application_item = main_menu.itemAtIndex_(0)
+            application_item.setTitle_(name)
+            application_menu = application_item.submenu()
+            if application_menu is None:
+                return
+            allowed = set(item_titles)
+            for index in range(application_menu.numberOfItems() - 1, -1, -1):
+                if application_menu.itemAtIndex_(index).title() not in allowed:
+                    application_menu.removeItemAtIndex_(index)
+        except Exception as exc:
+            logger.debug("Could not replace the macOS application menu: %s", exc)
+        finally:
+            completed.set()
+
+    Foundation.NSOperationQueue.mainQueue().addOperationWithBlock_(apply)
+    if not completed.wait(5):
+        logger.debug("Timed out while replacing the macOS application menu")
 
 
 def configure_utility_window(window: Any) -> None:

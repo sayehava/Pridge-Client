@@ -237,6 +237,22 @@ class EndpointApiTests(unittest.TestCase):
         create_window.return_value.events.minimized.emit(create_window.return_value)
         create_window.return_value.restore.assert_called_once()
 
+    def test_quit_closes_every_window_and_allows_main_window_close(self):
+        main_window = Mock()
+        server_window = Mock()
+        utility_window = Mock()
+        self.api.window = main_window
+        self.api.server_windows["server"] = server_window
+        self.api.utility_windows["settings"] = utility_window
+
+        result = self.api.quit_application()
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(self.api.on_closing())
+        server_window.destroy.assert_called_once()
+        utility_window.destroy.assert_called_once()
+        main_window.destroy.assert_called_once()
+
     @patch("printbridge_endpoint.gui.set_start_at_login")
     def test_updates_application_darkness_setting(self, set_start_at_login):
         self.api.window = Mock()

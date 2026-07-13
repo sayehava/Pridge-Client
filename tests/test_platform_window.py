@@ -7,7 +7,11 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from printbridge_endpoint.platform_window import configure_application_identity, disable_minimize
+from printbridge_endpoint.platform_window import (
+    configure_application_identity,
+    create_application_menu,
+    disable_minimize,
+)
 
 
 class PlatformWindowTests(unittest.TestCase):
@@ -33,6 +37,16 @@ class PlatformWindowTests(unittest.TestCase):
     def test_skips_application_identity_outside_macos(self, _system):
         with patch.dict(sys.modules, {"Foundation": None}):
             configure_application_identity("PrintBridge Client")
+
+    @patch("printbridge_endpoint.platform_window.platform.system", return_value="Darwin")
+    def test_creates_three_item_macos_application_menu(self, _system):
+        actions = [("Settings", Mock()), ("About", Mock()), ("Quit", Mock())]
+
+        menu = create_application_menu(actions)
+
+        self.assertEqual(len(menu), 1)
+        self.assertEqual(menu[0].title, "__app__")
+        self.assertEqual([item.title for item in menu[0].items], ["Settings", "About", "Quit"])
 
     @patch("printbridge_endpoint.platform_window.platform.system", return_value="Darwin")
     def test_hides_macos_minimize_button(self, _system):

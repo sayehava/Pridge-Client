@@ -25,7 +25,12 @@ from printbridge_endpoint.config import (
     ServerConfig,
 )
 from printbridge_endpoint.models import JobHistoryEntry
-from printbridge_endpoint.platform_window import configure_application_identity, configure_utility_window
+from printbridge_endpoint.platform_window import (
+    configure_application_identity,
+    configure_application_menu,
+    configure_utility_window,
+    create_application_menu,
+)
 from printbridge_endpoint.printers import Printer, PrinterError, PrinterManager
 from printbridge_endpoint.strings import (
     APP_NAME,
@@ -39,6 +44,9 @@ from printbridge_endpoint.strings import (
     MESSAGE_TRAY_UNAVAILABLE,
     MESSAGE_WINDOW_HIDDEN,
     MESSAGE_WINDOW_MINIMIZED,
+    MENU_ABOUT,
+    MENU_QUIT,
+    MENU_SETTINGS,
     STATUS_RUNNING,
     STATUS_STOPPED,
     WINDOW_ADD_SERVER,
@@ -89,6 +97,7 @@ class EndpointApi:
         self.utility_windows: dict[str, webview.Window] = {}
         self.tray: TrayController | None = None
         self.window: webview.Window | None = None
+        self._quitting = False
         self.events: queue.Queue[tuple[str, object]] = queue.Queue()
         self.printers: list[Printer] = []
 
@@ -383,10 +392,15 @@ class EndpointApi:
         return self._ok()
 
     def quit_application(self) -> dict:
+        self._quitting = True
         if self.tray:
             self.tray.stop()
         for server_id in list(self.workers.keys()):
             self.stop_worker(server_id)
+        for window in list(self.server_windows.values()):
+            window.destroy()
+        for window in list(self.utility_windows.values()):
+            window.destroy()
         if self.window is not None:
             self.window.destroy()
         return self._ok()
@@ -422,6 +436,8 @@ class EndpointApi:
             self.window.show()
 
     def on_closing(self) -> bool:
+        if self._quitting:
+            return True
         self.hide_window()
         return False
 
@@ -680,6 +696,11 @@ class EndpointApi:
 def run_gui() -> None:
     configure_application_identity(APP_NAME)
     api = EndpointApi()
+    menu_actions = [
+        (MENU_SETTINGS, api.open_settings_window),
+        (MENU_ABOUT, api.open_about_window),
+        (MENU_QUIT, api.quit_application),
+    ]
     window = webview.create_window(
         WINDOW_TITLE,
         url=str(WEBUI_DIR / "index.html"),
@@ -688,16 +709,22 @@ def run_gui() -> None:
         height=760,
         min_size=(980, 640),
         background_color="#111827",
+        menu=create_application_menu(menu_actions),
         **_window_effects(),
     )
     api.window = window
     window.events.closing += api.on_closing
+    install_application_menu = configure_application_menu(
+        window,
+        APP_NAME,
+        [title for title, _action in menu_actions],
+    )
     api.start_tray()
 
     if api.config.start_polling_on_launch:
         api.start_workers()
 
-    webview.start(debug=False, icon=str(APP_ICON_PATH))
+    webview.start(install_application_menu, debug=False, icon=str(APP_ICON_PATH))
 
 
 def _window_effects() -> dict[str, bool]:
