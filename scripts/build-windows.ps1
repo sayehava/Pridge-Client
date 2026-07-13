@@ -182,6 +182,10 @@ try {
     $TranscriptStarted = $true
     if (-not (Get-Command python -ErrorAction SilentlyContinue)) { throw "Python is required on the build machine." }
     $env:PYTHONPATH = Join-Path $Repository "src"
+    $env:PYINSTALLER_CONFIG_DIR = Join-Path $TemporaryRoot "pyinstaller-config"
+    $env:PYTHONPYCACHEPREFIX = Join-Path $TemporaryRoot "python-cache"
+    $env:NUITKA_CACHE_DIR = Join-Path $TemporaryRoot "nuitka-cache"
+    $env:CCACHE_DIR = Join-Path $TemporaryRoot "ccache"
     $Bootstrapper = Join-Path $TemporaryRoot "MicrosoftEdgeWebview2Setup.exe"
     Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile $Bootstrapper
     if ($Variant -in @("Native", "All")) { Build-Native $Bootstrapper }

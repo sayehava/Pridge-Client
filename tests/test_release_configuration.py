@@ -34,6 +34,15 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn('"--windows-console-mode=disable"', text)
         self.assertNotIn('"--onefile"', text)
 
+    def test_macos_build_creates_native_app_bundles_and_dmgs(self):
+        text = (ROOT / "scripts" / "build-macos.sh").read_text(encoding="utf-8")
+
+        self.assertIn("--macos-create-app-bundle", text)
+        self.assertIn("hdiutil create", text)
+        self.assertIn("PRINTBRIDGE_MACOS_SIGNING_IDENTITY", text)
+        self.assertIn("notarytool submit", text)
+        self.assertNotIn("--onefile", text)
+
 
 if __name__ == "__main__":
     unittest.main()
