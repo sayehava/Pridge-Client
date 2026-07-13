@@ -82,6 +82,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
 
         self.assertIn('runtime_root="$app/Contents/MacOS"', text)
         self.assertIn('runtime_root="$app/Contents/Resources"', text)
+        self.assertIn('grep -Eq "Traceback|CRITICAL|FATAL"', text)
 
 
 if __name__ == "__main__":

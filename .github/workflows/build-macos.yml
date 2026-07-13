@@ -138,7 +138,10 @@ jobs:
           kill -0 "$app_pid"
           kill "$app_pid"
           wait "$app_pid" || true
-          test ! -s "$RUNNER_TEMP/gui-start.log"
+          if grep -Eq "Traceback|CRITICAL|FATAL" "$RUNNER_TEMP/gui-start.log"; then
+            cat "$RUNNER_TEMP/gui-start.log"
+            exit 1
+          fi
           hdiutil detach "$mountpoint"
           trap - EXIT
 
