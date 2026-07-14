@@ -249,6 +249,14 @@ If jobs fail immediately, verify that:
 
 If authentication keeps failing, replace the token in the settings window. Stored tokens are hidden and cannot be inspected from the GUI.
 
+## Versioning
+
+Pridge Client follows semantic versioning. The current application version is `1.1.0`.
+
+- Bug fixes increment the patch number, for example `1.1.0` to `1.1.1`.
+- Backward-compatible features increment the minor number and reset the patch number, for example `1.1.1` to `1.2.0`.
+- Major or breaking releases increment the major number and reset the remaining numbers, for example `1.2.0` to `2.0.0`.
+
 ## Packaging
 
 The project exposes `pridge-client` as its console script. A packaged desktop build can launch the GUI by default or use `--headless` for background operation.
