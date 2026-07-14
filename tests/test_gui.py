@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 
 from printbridge_client.api import RemotePrinter
 from printbridge_client.config import ConfigStore
-from printbridge_client.gui import ClientApi, _shutdown_smoke_test, _window_effects
+from printbridge_client.gui import APP_ICON_PATH, ClientApi, _shutdown_smoke_test, _webview_start_icon, _window_effects
 from printbridge_client.printers import DriverChoice, DriverOption, Printer, PrinterCapabilities
 
 
@@ -410,6 +410,17 @@ class ClientApiTests(unittest.TestCase):
 
     def test_native_transparency_is_always_disabled(self):
         self.assertEqual(_window_effects(), {"transparent": False, "vibrancy": False})
+
+    @patch("printbridge_client.gui.platform.system", return_value="Windows")
+    def test_webview_start_icon_is_skipped_on_windows(self, _system):
+        # pywebview's winforms backend builds a raw System.Drawing.Icon from
+        # this path, which requires an actual .ico file; passing the
+        # bundled PNG there crashes with an unhandled CLR exception.
+        self.assertIsNone(_webview_start_icon())
+
+    @patch("printbridge_client.gui.platform.system", return_value="Darwin")
+    def test_webview_start_icon_is_used_off_windows(self, _system):
+        self.assertEqual(_webview_start_icon(), str(APP_ICON_PATH))
 
     def test_smoke_test_shutdown_stops_tray_workers_and_windows(self):
         api = Mock()

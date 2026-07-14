@@ -931,7 +931,7 @@ def _run_gui_normal() -> None:
         install_application_menu,
         debug=False,
         gui=preferred_webview_gui(),
-        icon=str(APP_ICON_PATH),
+        icon=_webview_start_icon(),
     )
 
 
@@ -1060,8 +1060,24 @@ def _run_gui_smoke_test() -> None:
         on_started,
         debug=False,
         gui=gui_backend,
-        icon=str(APP_ICON_PATH),
+        icon=_webview_start_icon(),
     )
+
+
+def _webview_start_icon() -> str | None:
+    """Runtime window icon passed to webview.start(), or None to skip it.
+
+    pywebview's Windows backend builds a raw System.Drawing.Icon from this
+    path, which requires an actual .ico file and raises an unhandled
+    ArgumentException for a PNG (crashing the process with the CLR's
+    0xE0434352 exit code). GTK, Qt, and Cocoa all load PNG directly and are
+    unaffected. Windows already gets the correct icon baked into the
+    executable resource at build time, so there is nothing useful to pass
+    here on that platform.
+    """
+    if platform.system() == "Windows":
+        return None
+    return str(APP_ICON_PATH)
 
 
 def _window_effects() -> dict[str, bool]:
