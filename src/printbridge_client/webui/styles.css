@@ -1064,6 +1064,10 @@ button.stone-option.selected {
   line-height: 1.35;
 }
 
+.about-actions {
+  width: min(440px, 100%);
+}
+
 @media (max-height: 620px) {
   .about-page {
     gap: 7px;
