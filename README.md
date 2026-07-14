@@ -55,8 +55,8 @@ Use the settings window to connect the client to one or more PrintBridge Server 
 5. Click `Test Connection` to verify the URL and token.
 6. Under `Remote Printer Mappings`, wait for all server endpoints and installed local printers to load automatically.
 7. Use each endpoint's dropdown to select a local printer. Leave `Disabled` selected when that endpoint should not be assigned to this client.
-8. Click `Configure` next to a selected local printer and choose `RAW data` or `System driver`.
-9. For System Driver mode, select the options reported by CUPS/macOS or open the installed driver's native preferences on Windows, then save the printer settings.
+8. Click `Configure` next to a selected local printer and choose `RAW data` or `System Driver`. New printer profiles use System Driver by default.
+9. For System Driver mode, select the options reported by CUPS/macOS or open the installed driver's native preferences on Windows. Changes save automatically; use `Test Print` to submit a local test page, then click `Done`.
 10. Click `Add Server` to save the connection.
 11. Repeat for every server this office computer should serve.
 12. Use the Start and Stop buttons on each server card to control servers independently.
@@ -172,7 +172,7 @@ The settings window loads all virtual printer endpoints from `GET /api/client/en
 
 ## Printing Modes
 
-Printing mode and page/job settings are stored once per installed local printer, so mappings from multiple servers share the same printer profile. Existing configurations default to `raw`.
+Printing mode and page/job settings are stored once per installed local printer, so mappings from multiple servers share the same printer profile. Printers without a stored profile default to `system_driver`; profiles explicitly configured for `raw` remain unchanged.
 
 `raw` mode sends the decoded payload bytes directly to the resolved printer:
 
@@ -185,6 +185,8 @@ The client does not interpret or transform RAW payloads. Base64 is decoded to by
 
 - Windows: the registered `PrintTo` document handler and the installed printer driver; `Open Driver Settings` displays the driver's native preferences window, which owns and saves its supported options
 - Linux/macOS: CUPS `lp`; `lpoptions` supplies the exact option IDs, choices, display labels, and defaults shown in Pridge Client
+
+Printer setup changes save automatically. `Test Print` generates a local PDF test page and submits it through the selected printer's system driver. Test printing is unavailable in RAW mode because arbitrary printers do not share a safe, universal RAW test language.
 
 CUPS options can include media or label size, orientation, resolution, input source, media type, duplex, cutter behavior, and other driver-specific controls. Only options reported by the current driver are shown. Saved values are validated again before each system-driver job; removed or changed choices fall back to the driver's current default.
 
