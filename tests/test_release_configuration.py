@@ -41,7 +41,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn('"--python-flag=-m"', text)
         self.assertNotIn('"--include-module=webview.platforms.winforms"', text)
         self.assertNotIn('"--include-module=webview.platforms.edgechromium"', text)
-        self.assertNotIn('"--include-module=webview.platforms.win32"', text)
+        self.assertIn('"--include-module=webview.platforms.win32"', text)
         self.assertNotIn('__main__.py"', text)
         self.assertIn('"--nofollow-import-to=tkinter"', text)
         self.assertIn("function Test-FrozenGui", text)
