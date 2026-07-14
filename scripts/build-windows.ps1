@@ -82,6 +82,40 @@ function Invoke-CodeSign {
     )
 }
 
+function Stop-ResidualProcesses {
+    param([string]$Root)
+    Get-Process -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -eq "MicrosoftEdgeWebview2Setup" -or
+        $_.Name -eq "Pridge Client" -or
+        ((try { $_.Path } catch { $null }) -and $_.Path.StartsWith($Root, [System.StringComparison]::OrdinalIgnoreCase))
+    } | ForEach-Object {
+        try {
+            $_.Kill()
+            $_.WaitForExit(5000)
+        } catch {
+            # The process may have already exited; nothing left to stop.
+        } finally {
+            $_.Dispose()
+        }
+    }
+}
+
+function Remove-ItemWithRetry {
+    param([string]$Path, [int]$MaxAttempts = 5, [int]$DelayMilliseconds = 2000)
+    for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+        try {
+            if (Test-Path $Path) { Remove-Item $Path -Recurse -Force -ErrorAction Stop }
+            return
+        } catch {
+            if ($Attempt -eq $MaxAttempts) {
+                Write-Warning "Could not remove temporary build directory '$Path' after $MaxAttempts attempts: $($_.Exception.Message)"
+                return
+            }
+            Start-Sleep -Milliseconds $DelayMilliseconds
+        }
+    }
+}
+
 function New-BuildContext {
     param([string]$BuildVariant)
     $ContextDir = Join-Path $TemporaryRoot ("context-" + $BuildVariant)
@@ -99,8 +133,12 @@ function Add-LegalFiles {
 function Test-FrozenExecutable {
     param([string]$Executable)
     $Process = Start-Process -FilePath $Executable -ArgumentList "--version" -Wait -PassThru
-    if ($Process.ExitCode -ne 0) {
-        throw "Packaged executable smoke test failed with exit code $($Process.ExitCode)."
+    try {
+        if ($Process.ExitCode -ne 0) {
+            throw "Packaged executable smoke test failed with exit code $($Process.ExitCode)."
+        }
+    } finally {
+        $Process.Dispose()
     }
 }
 
@@ -137,9 +175,12 @@ function Test-FrozenGui {
         throw
     }
     finally {
-        if ($Process -and -not $Process.HasExited) {
-            Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
-            $Process.WaitForExit()
+        if ($Process) {
+            if (-not $Process.HasExited) {
+                Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
+                $Process.WaitForExit()
+            }
+            $Process.Dispose()
         }
         $env:APPDATA = $PreviousAppData
         $env:LOCALAPPDATA = $PreviousLocalAppData
@@ -258,7 +299,8 @@ try {
 }
 finally {
     if ($TranscriptStarted) { Stop-Transcript | Out-Null }
-    if (Test-Path $TemporaryRoot) { Remove-Item $TemporaryRoot -Recurse -Force }
+    try { Stop-ResidualProcesses $TemporaryRoot } catch { Write-Warning "Could not stop residual build processes: $($_.Exception.Message)" }
+    Remove-ItemWithRetry $TemporaryRoot
     $FinalGitStatus = (& git -C $Repository status --porcelain --untracked-files=all) -join "`n"
     if ($FinalGitStatus -ne $InitialGitStatus) {
         throw "The build changed the source repository.`n$FinalGitStatus"
