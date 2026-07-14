@@ -57,7 +57,7 @@
     const [error, setError] = useState("");
     const [setupPrinter, setSetupPrinter] = useState("");
     const [printerCapabilities, setPrinterCapabilities] = useState(null);
-    const [printerProfile, setPrinterProfile] = useState({ mode: "raw", driver_settings: {} });
+    const [printerProfile, setPrinterProfile] = useState({ mode: "system_driver", driver_settings: {} });
     const [profileBusy, setProfileBusy] = useState(false);
     const [profileError, setProfileError] = useState("");
     const [profileMessage, setProfileMessage] = useState("");
@@ -190,7 +190,7 @@
       if (!printerName) return;
       setSetupPrinter(printerName);
       setPrinterCapabilities(null);
-      setPrinterProfile({ mode: "raw", driver_settings: {} });
+      setPrinterProfile({ mode: "system_driver", driver_settings: {} });
       setProfileError("");
       setProfileMessage("");
       setProfileBusy(true);
@@ -202,7 +202,7 @@
           return;
         }
         setPrinterCapabilities(result.capabilities || null);
-        setPrinterProfile(result.profile || { mode: "raw", driver_settings: {} });
+        setPrinterProfile(result.profile || { mode: "system_driver", driver_settings: {} });
       });
     };
 
@@ -214,33 +214,36 @@
       setProfileMessage("");
     };
 
-    const setPrintingMode = (event) => {
-      setPrinterProfile((current) => ({ ...current, mode: event.target.value }));
-      setProfileError("");
-      setProfileMessage("");
-    };
-
-    const setDriverOption = (optionId, valueId) => {
-      setPrinterProfile((current) => ({
-        ...current,
-        driver_settings: { ...(current.driver_settings || {}), [optionId]: valueId },
-      }));
-    };
-
-    const savePrinterProfile = () => {
+    const persistPrinterProfile = (nextProfile) => {
       setProfileBusy(true);
       setProfileError("");
       setProfileMessage("");
-      callApi("update_printer_profile", setupPrinter, printerProfile).then((result) => {
+      callApi("update_printer_profile", setupPrinter, nextProfile).then((result) => {
         setProfileBusy(false);
         if (!result) return;
         if (!result.ok) {
           setProfileError(result.error || S.printer_profile_save_failed);
           return;
         }
-        setPrinterProfile(result.profile || printerProfile);
-        setProfileMessage(result.message || S.settings_saved);
+        setPrinterProfile(result.profile || nextProfile);
+        setPrinterCapabilities(result.capabilities || printerCapabilities);
+        setProfileMessage(S.settings_saved_automatically);
       });
+    };
+
+    const setPrintingMode = (event) => {
+      const nextProfile = { ...printerProfile, mode: event.target.value };
+      setPrinterProfile(nextProfile);
+      persistPrinterProfile(nextProfile);
+    };
+
+    const setDriverOption = (optionId, valueId) => {
+      const nextProfile = {
+        ...printerProfile,
+        driver_settings: { ...(printerProfile.driver_settings || {}), [optionId]: valueId },
+      };
+      setPrinterProfile(nextProfile);
+      persistPrinterProfile(nextProfile);
     };
 
     const openNativeDriverSettings = () => {
@@ -257,6 +260,21 @@
         setPrinterCapabilities(result.capabilities || printerCapabilities);
         setPrinterProfile(result.profile || printerProfile);
         setProfileMessage(S.driver_settings_updated);
+      });
+    };
+
+    const testPrinter = () => {
+      setProfileBusy(true);
+      setProfileError("");
+      setProfileMessage("");
+      callApi("test_printer", setupPrinter).then((result) => {
+        setProfileBusy(false);
+        if (!result) return;
+        if (!result.ok) {
+          setProfileError(result.error || S.test_print_failed);
+          return;
+        }
+        setProfileMessage(result.message || S.test_print_submitted);
       });
     };
 
@@ -391,7 +409,6 @@
                       <h2>${S.printer_setup}</h2>
                       <p>${setupPrinter}</p>
                     </div>
-                    <button type="button" class="ghost dialog-close" onClick=${closePrinterSetup} disabled=${profileBusy}>×</button>
                   </div>
 
                   ${profileBusy && !printerCapabilities
@@ -399,7 +416,7 @@
                     : html`
                         <div class="field">
                           <label class="field-label">${S.printing_mode}</label>
-                          <select value=${printerProfile.mode} onChange=${setPrintingMode}>
+                          <select value=${printerProfile.mode} onChange=${setPrintingMode} disabled=${profileBusy}>
                             <option value="raw">${S.raw_mode}</option>
                             <option
                               value="system_driver"
@@ -446,6 +463,7 @@
                                             <select
                                               value=${printerProfile.driver_settings[option.id] || option.default}
                                               onChange=${(event) => setDriverOption(option.id, event.target.value)}
+                                              disabled=${profileBusy}
                                             >
                                               ${option.choices.map(
                                                 (choice) => html`<option value=${choice.id} key=${choice.id}>${choice.label}</option>`
@@ -466,15 +484,16 @@
                   ${profileError ? html`<div class="connection-result error-result">${profileError}</div>` : null}
 
                   <div class="printer-setup-actions">
-                    <button type="button" onClick=${closePrinterSetup} disabled=${profileBusy}>${S.close}</button>
                     <button
                       type="button"
-                      class="primary"
-                      onClick=${savePrinterProfile}
-                      disabled=${profileBusy || !printerCapabilities}
+                      class="ghost"
+                      onClick=${testPrinter}
+                      disabled=${profileBusy || !printerCapabilities || printerProfile.mode !== "system_driver"}
+                      title=${printerProfile.mode === "system_driver" ? S.test_print : S.test_print_driver_only}
                     >
-                      ${profileBusy ? S.saving_settings : S.save_printer_settings}
+                      ${profileBusy ? S.working : S.test_print}
                     </button>
+                    <button type="button" class="primary" onClick=${closePrinterSetup} disabled=${profileBusy}>${S.done}</button>
                   </div>
                 </div>
               </div>

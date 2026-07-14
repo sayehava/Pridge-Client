@@ -1335,13 +1335,6 @@ button.stone-option.selected {
   font-size: 12px;
 }
 
-.dialog-close {
-  min-width: 32px;
-  padding: 4px 8px;
-  font-size: 20px;
-  line-height: 1;
-}
-
 .driver-loading,
 .driver-mode-note {
   padding: 10px 12px;
@@ -1396,7 +1389,7 @@ button.stone-option.selected {
 
 .printer-setup-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 8px;
   padding-top: 4px;
 }
