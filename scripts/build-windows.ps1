@@ -104,6 +104,48 @@ function Test-FrozenExecutable {
     }
 }
 
+function Test-FrozenGui {
+    param([string]$Executable)
+    $SmokeRoot = Join-Path $TemporaryRoot ("gui-smoke-" + [guid]::NewGuid().ToString("N"))
+    $PreviousAppData = $env:APPDATA
+    $PreviousLocalAppData = $env:LOCALAPPDATA
+    $env:APPDATA = Join-Path $SmokeRoot "Roaming"
+    $env:LOCALAPPDATA = Join-Path $SmokeRoot "Local"
+    New-Item -ItemType Directory -Path $env:APPDATA, $env:LOCALAPPDATA -Force | Out-Null
+    $Process = $null
+    try {
+        $Process = Start-Process -FilePath $Executable -PassThru
+        $Deadline = [DateTime]::UtcNow.AddSeconds(20)
+        while ([DateTime]::UtcNow -lt $Deadline) {
+            Start-Sleep -Milliseconds 250
+            $Process.Refresh()
+            if ($Process.HasExited) {
+                throw "Packaged GUI exited during startup with exit code $($Process.ExitCode)."
+            }
+            if ($Process.MainWindowHandle -ne [IntPtr]::Zero -and $Process.MainWindowTitle -eq "Pridge Client") {
+                return
+            }
+        }
+        throw "Packaged GUI did not create a visible Pridge Client window within 20 seconds."
+    }
+    catch {
+        $ClientLog = Join-Path $env:LOCALAPPDATA "Pridge Client\Logs\client.log"
+        if (Test-Path $ClientLog) {
+            Write-Host "Packaged GUI log:"
+            Get-Content $ClientLog
+        }
+        throw
+    }
+    finally {
+        if ($Process -and -not $Process.HasExited) {
+            Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
+            $Process.WaitForExit()
+        }
+        $env:APPDATA = $PreviousAppData
+        $env:LOCALAPPDATA = $PreviousLocalAppData
+    }
+}
+
 function New-PortableArchive {
     param([string]$Distribution, [string]$Destination)
     $PortableRoot = Join-Path $TemporaryRoot ("portable-" + [guid]::NewGuid().ToString("N"))
@@ -154,7 +196,10 @@ function Build-Native {
         "--include-module=pystray._win32", "--include-package=keyring",
         "--nofollow-import-to=PIL.ImageTk", "--nofollow-import-to=PIL._tkinter_finder",
         "--nofollow-import-to=tkinter", "--nofollow-import-to=_tkinter",
-        "--include-package=clr_loader", "--include-module=clr", "--include-package=win32com",
+        "--include-package=clr_loader", "--include-package=pythonnet", "--include-module=clr",
+        "--include-module=webview.platforms.winforms",
+        "--include-module=webview.platforms.edgechromium",
+        "--include-module=webview.platforms.win32", "--include-package=win32com",
         "--report=$(Join-Path $OutputDir 'native-windows-compilation-report.xml')",
         (Join-Path $Repository "src\printbridge_client\__main__.py")
     )
@@ -166,6 +211,7 @@ function Build-Native {
     Add-LegalFiles $Distribution.FullName
     $Executable = Join-Path $Distribution.FullName "$($Context.executable_name).exe"
     Test-FrozenExecutable $Executable
+    Test-FrozenGui $Executable
     Invoke-CodeSign $Executable
     New-PortableArchive $Distribution.FullName (Join-Path $OutputDir $Context.windows_packages[1])
     New-Installer $Context $Distribution.FullName $Context.windows_packages[0] $Bootstrapper
@@ -187,6 +233,7 @@ function Build-PyInstaller {
     if (-not (Test-Path $Executable)) { throw "Could not find the PyInstaller onedir executable." }
     Add-LegalFiles $Distribution
     Test-FrozenExecutable $Executable
+    Test-FrozenGui $Executable
     Invoke-CodeSign $Executable
     New-PortableArchive $Distribution (Join-Path $OutputDir $Context.windows_packages[1])
     New-Installer $Context $Distribution $Context.windows_packages[0] $Bootstrapper

@@ -18,7 +18,7 @@ classifiers = [
 ]
 dependencies = [
     "requests>=2.31",
-    "pywebview>=5.0",
+    "pywebview==6.2.1",
     "pyobjc-core>=10.0; platform_system == 'Darwin'",
     "pyobjc-framework-Cocoa>=10.0; platform_system == 'Darwin'",
     "pyobjc-framework-Quartz>=10.0; platform_system == 'Darwin'",
@@ -33,7 +33,10 @@ tray = [
     "pystray==0.19.5",
     "Pillow>=10",
 ]
-windows = ["pywin32>=306; platform_system == 'Windows'"]
+windows = [
+    "pywin32>=306; platform_system == 'Windows'",
+    "pythonnet==3.0.5; platform_system == 'Windows'",
+]
 linux = ["pycups>=2.0; platform_system == 'Linux'"]
 
 [project.scripts]

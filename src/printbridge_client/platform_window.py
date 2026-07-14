@@ -15,6 +15,18 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def preferred_webview_gui() -> str | None:
+    """Select the renderer whose dependencies are bundled for this platform."""
+    system = platform.system()
+    if system == "Windows":
+        return "edgechromium"
+    if system == "Darwin":
+        return "cocoa"
+    if system == "Linux":
+        return "qt"
+    return None
+
+
 def configure_application_identity(name: str) -> None:
     """Set the native process and bundle name used by the macOS menu bar."""
     if platform.system() != "Darwin":

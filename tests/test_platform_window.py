@@ -11,10 +11,23 @@ from printbridge_client.platform_window import (
     configure_application_identity,
     create_application_menu,
     disable_minimize,
+    preferred_webview_gui,
 )
 
 
 class PlatformWindowTests(unittest.TestCase):
+    @patch("printbridge_client.platform_window.platform.system", return_value="Windows")
+    def test_selects_edge_chromium_on_windows(self, _system):
+        self.assertEqual(preferred_webview_gui(), "edgechromium")
+
+    @patch("printbridge_client.platform_window.platform.system", return_value="Darwin")
+    def test_selects_cocoa_on_macos(self, _system):
+        self.assertEqual(preferred_webview_gui(), "cocoa")
+
+    @patch("printbridge_client.platform_window.platform.system", return_value="Linux")
+    def test_selects_qt_on_linux(self, _system):
+        self.assertEqual(preferred_webview_gui(), "qt")
+
     @patch("printbridge_client.platform_window.platform.system", return_value="Darwin")
     def test_sets_macos_process_and_bundle_name(self, _system):
         info = {}

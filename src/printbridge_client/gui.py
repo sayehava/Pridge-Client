@@ -33,6 +33,7 @@ from printbridge_client.platform_window import (
     configure_application_menu,
     configure_utility_window,
     create_application_menu,
+    preferred_webview_gui,
 )
 from printbridge_client.printers import Printer, PrinterError, PrinterManager, validate_driver_settings
 from printbridge_client.strings import (
@@ -853,7 +854,12 @@ def run_gui() -> None:
     if api.config.start_polling_on_launch:
         api.start_workers()
 
-    webview.start(install_application_menu, debug=False, icon=str(APP_ICON_PATH))
+    webview.start(
+        install_application_menu,
+        debug=False,
+        gui=preferred_webview_gui(),
+        icon=str(APP_ICON_PATH),
+    )
 
 
 def _window_effects() -> dict[str, bool]:

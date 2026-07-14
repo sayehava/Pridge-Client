@@ -38,8 +38,20 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertNotIn('"--include-package=webview"', text)
         self.assertNotIn('"--include-package=PIL"', text)
         self.assertIn('"--include-module=pystray._win32"', text)
+        self.assertIn('"--include-module=webview.platforms.winforms"', text)
+        self.assertIn('"--include-module=webview.platforms.edgechromium"', text)
         self.assertIn('"--nofollow-import-to=tkinter"', text)
+        self.assertIn("function Test-FrozenGui", text)
+        self.assertIn("$Process.MainWindowHandle", text)
+        self.assertIn('Test-FrozenGui $Executable', text)
         self.assertNotIn('"--onefile"', text)
+
+    def test_pyinstaller_collects_windows_webview_runtime(self):
+        text = (ROOT / "packaging" / "pyinstaller" / "Pridge-Client.spec").read_text(encoding="utf-8")
+
+        self.assertIn('"webview.platforms.winforms"', text)
+        self.assertIn('"webview.platforms.edgechromium"', text)
+        self.assertIn('(\"pythonnet\", \"clr_loader\")', text)
 
     def test_macos_build_creates_native_app_bundles_and_dmgs(self):
         text = (ROOT / "scripts" / "build-macos.sh").read_text(encoding="utf-8")

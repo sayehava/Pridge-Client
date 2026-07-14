@@ -35,7 +35,20 @@ for package in ("webview", "keyring", "pystray", "PIL"):
 
 hiddenimports += collect_submodules("printbridge_client")
 if sys.platform == "win32":
-    hiddenimports += ["webview.platforms.edgechromium", "clr", "pythoncom", "pywintypes", "win32print"]
+    for package in ("pythonnet", "clr_loader"):
+        package_datas, package_binaries, package_hiddenimports = collect_all(package)
+        datas += package_datas
+        binaries += package_binaries
+        hiddenimports += package_hiddenimports
+    hiddenimports += [
+        "webview.platforms.winforms",
+        "webview.platforms.edgechromium",
+        "webview.platforms.win32",
+        "clr",
+        "pythoncom",
+        "pywintypes",
+        "win32print",
+    ]
 elif sys.platform == "darwin":
     hiddenimports += ["webview.platforms.cocoa", "AppKit", "Foundation", "WebKit"]
 
