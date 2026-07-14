@@ -170,10 +170,36 @@ prepare_context() {
     python3 "$REPOSITORY/scripts/prepare_build.py" --work-dir "$context_dir" --variant "$build_variant" --arch "$ARCH"
 }
 
+verify_bundle_architecture() {
+    local app="$1"
+    local required_arch="$2"
+    local incompatible=0
+    local binary archs
+    while IFS= read -r -d '' binary; do
+        if ! file -b "$binary" | grep -q "Mach-O"; then
+            continue
+        fi
+        archs="$(lipo -archs "$binary" 2>/dev/null || true)"
+        if [[ -z "$archs" ]]; then
+            continue
+        fi
+        if [[ " $archs " != *" $required_arch "* ]]; then
+            echo "Incompatible Mach-O binary (has [$archs], missing $required_arch): $binary" >&2
+            incompatible=$((incompatible + 1))
+        fi
+    done < <(find "$app" -type f \( -name "*.so" -o -name "*.dylib" -o -perm -u+x \) -print0)
+    if [[ "$incompatible" -gt 0 ]]; then
+        echo "Found $incompatible Mach-O binaries inside $app without the required $required_arch slice." >&2
+        exit 1
+    fi
+    echo "Verified every Mach-O binary in $app contains the required $required_arch architecture."
+}
+
 finalize_app() {
     local app="$1"
     local context="$2"
     python3 "$REPOSITORY/scripts/finalize_macos_app.py" --app "$app" --context "$context"
+    verify_bundle_architecture "$app" "$ARCH"
     local executable
     executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
     "$app/Contents/MacOS/$executable" --version
@@ -181,12 +207,6 @@ finalize_app() {
     mkdir -p "$smoke_home"
     HOME="$smoke_home" perl -e 'alarm shift; exec @ARGV' 45 \
         "$app/Contents/MacOS/$executable" --gui-smoke-test
-    local architectures
-    architectures="$(lipo -archs "$app/Contents/MacOS/$executable")"
-    if [[ " $architectures " != *" $ARCH "* ]]; then
-        echo "The app executable does not contain the required $ARCH architecture." >&2
-        exit 1
-    fi
 }
 
 sign_app() {
