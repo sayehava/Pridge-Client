@@ -50,7 +50,19 @@ if sys.platform == "win32":
         "win32print",
     ]
 elif sys.platform == "darwin":
-    hiddenimports += ["webview.platforms.cocoa", "AppKit", "Foundation", "WebKit"]
+    # pywebview's cocoa backend and keyring's macOS backend bridge into
+    # these PyObjC packages, several of which ship architecture-specific
+    # compiled extensions (objc/_objc.so, AppKit/_AppKit.so, etc.).
+    # collect_all is used instead of a bare hiddenimports entry so every
+    # such binary and its supporting data is actually bundled, rather
+    # than relying on PyInstaller's static import-graph walker to trace
+    # PyObjC's dynamic framework loading correctly for every architecture.
+    hiddenimports += ["webview.platforms.cocoa", "PyObjCTools", "PyObjCTools.AppHelper"]
+    for package in ("objc", "AppKit", "Foundation", "Quartz", "WebKit", "Security", "UniformTypeIdentifiers"):
+        package_datas, package_binaries, package_hiddenimports = collect_all(package)
+        datas += package_datas
+        binaries += package_binaries
+        hiddenimports += package_hiddenimports
 elif sys.platform.startswith("linux"):
     hiddenimports += [
         "webview.platforms.qt",
