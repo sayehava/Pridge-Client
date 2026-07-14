@@ -27,16 +27,16 @@ class PlatformWindowTests(unittest.TestCase):
         )
 
         with patch.dict(sys.modules, {"Foundation": foundation}):
-            configure_application_identity("PrintBridge Client")
+            configure_application_identity("Pridge Client")
 
-        self.assertEqual(info["CFBundleName"], "PrintBridge Client")
-        self.assertEqual(info["CFBundleDisplayName"], "PrintBridge Client")
-        process_info.setProcessName_.assert_called_once_with("PrintBridge Client")
+        self.assertEqual(info["CFBundleName"], "Pridge Client")
+        self.assertEqual(info["CFBundleDisplayName"], "Pridge Client")
+        process_info.setProcessName_.assert_called_once_with("Pridge Client")
 
     @patch("printbridge_client.platform_window.platform.system", return_value="Linux")
     def test_skips_application_identity_outside_macos(self, _system):
         with patch.dict(sys.modules, {"Foundation": None}):
-            configure_application_identity("PrintBridge Client")
+            configure_application_identity("Pridge Client")
 
     @patch("printbridge_client.platform_window.platform.system", return_value="Darwin")
     def test_creates_three_item_macos_application_menu(self, _system):

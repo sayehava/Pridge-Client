@@ -119,7 +119,7 @@ class PollingWorker:
             self._record_job(job.job_id, "printing")
             for copy_number in range(job.copies):
                 logger.info("Printing job %s copy %s of %s", job.job_id, copy_number + 1, job.copies)
-                self.printer_manager.print_raw(printer_name, payload, f"PrintBridge {job.job_id}")
+                self.printer_manager.print_raw(printer_name, payload, f"Pridge {job.job_id}")
             client.report_printed(job.job_id)
             self._record_job(job.job_id, "printed")
         except (ApiError, PrinterError, ValueError) as exc:

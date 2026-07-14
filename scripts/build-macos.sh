@@ -59,7 +59,7 @@ if [[ "$SELECT_OUTPUT_DIR" -eq 1 ]]; then
         echo "The output folder selector is available only on macOS." >&2
         exit 2
     fi
-    if ! OUTPUT_DIR="$(osascript -e 'POSIX path of (choose folder with prompt "Choose where PrintBridge Client release packages will be saved.")')"; then
+    if ! OUTPUT_DIR="$(osascript -e 'POSIX path of (choose folder with prompt "Choose where Pridge Client release packages will be saved.")')"; then
         echo "Output directory selection was cancelled." >&2
         exit 2
     fi
@@ -70,7 +70,7 @@ OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd -P)"
 
 INITIAL_GIT_STATUS="$(git -C "$REPOSITORY" status --porcelain --untracked-files=all)"
 TEMP_BASE="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
-TEMP_ROOT="$(mktemp -d "$TEMP_BASE/PrintBridge-Client-macOS.XXXXXX")"
+TEMP_ROOT="$(mktemp -d "$TEMP_BASE/Pridge-Client-macOS.XXXXXX")"
 LOG_PATH="$OUTPUT_DIR/build-macos-$VARIANT.log"
 
 cleanup() {
@@ -184,7 +184,7 @@ create_dmg() {
     version="$(context_value "$context" version)"
     local stage="$TEMP_ROOT/dmg-$build_variant"
     mkdir -p "$stage"
-    cp -R "$app" "$stage/PrintBridge Client.app"
+    cp -R "$app" "$stage/Pridge Client.app"
     cp "$REPOSITORY/LICENSE" "$stage/LICENSE"
     cp "$REPOSITORY/ADDITIONAL_TERMS.md" "$stage/ADDITIONAL_TERMS.md"
     cp "$(context_value "$context" icon_icns)" "$stage/.VolumeIcon.icns"
@@ -210,7 +210,7 @@ build_native() {
         --macos-create-app-bundle \
         --assume-yes-for-downloads \
         --output-dir="$compile_root" \
-        --output-filename="PrintBridge Client" \
+        --output-filename="Pridge Client" \
         --macos-app-icon="$(context_value "$context" icon_icns)" \
         --macos-app-version="$(context_value "$context" version)" \
         --company-name="$(context_value "$context" company_name)" \
@@ -248,8 +248,8 @@ build_pyinstaller() {
     python3 -m PyInstaller --noconfirm --clean \
         --distpath "$compile_root/dist" \
         --workpath "$compile_root/work" \
-        "$REPOSITORY/packaging/pyinstaller/PrintBridge-Client.spec"
-    local app="$compile_root/dist/PrintBridge Client.app"
+        "$REPOSITORY/packaging/pyinstaller/Pridge-Client.spec"
+    local app="$compile_root/dist/Pridge Client.app"
     if [[ ! -d "$app" ]]; then echo "Could not find the PyInstaller app bundle." >&2; exit 1; fi
     finalize_app "$app" "$context"
     sign_app "$app"

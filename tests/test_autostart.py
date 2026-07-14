@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from printbridge_client.autostart import APP_ID, LEGACY_APP_ID, _set_macos_launch_agent, command
+from printbridge_client.autostart import APP_ID, LEGACY_APP_IDS, _set_macos_launch_agent, command
 
 
 class AutoStartTests(unittest.TestCase):
@@ -19,15 +19,16 @@ class AutoStartTests(unittest.TestCase):
             home = Path(directory)
             launch_agents = home / "Library" / "LaunchAgents"
             launch_agents.mkdir(parents=True)
-            legacy_path = launch_agents / f"{LEGACY_APP_ID}.plist"
-            legacy_path.write_text("legacy", encoding="utf-8")
+            legacy_paths = [launch_agents / f"{app_id}.plist" for app_id in LEGACY_APP_IDS]
+            for legacy_path in legacy_paths:
+                legacy_path.write_text("legacy", encoding="utf-8")
 
             with patch("printbridge_client.autostart.Path.home", return_value=home):
                 _set_macos_launch_agent(True)
 
             client_path = launch_agents / f"{APP_ID}.plist"
             self.assertTrue(client_path.exists())
-            self.assertFalse(legacy_path.exists())
+            self.assertFalse(any(legacy_path.exists() for legacy_path in legacy_paths))
             self.assertIn("printbridge_client", client_path.read_text(encoding="utf-8"))
 
 

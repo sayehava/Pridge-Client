@@ -43,7 +43,7 @@ jobs:
       - name: Download all release packages
         uses: actions/download-artifact@v8
         with:
-          pattern: printbridge-*
+          pattern: pridge-*
           path: ${{ github.workspace }}/build
           merge-multiple: true
 
@@ -52,7 +52,7 @@ jobs:
           python3 scripts/generate_release_notes.py \
             --output-dir "$GITHUB_WORKSPACE/build" \
             --tag "$GITHUB_REF_NAME" \
-            --markdown-output "$GITHUB_WORKSPACE/build/PrintBridge-Client-Release-Notes.md"
+            --markdown-output "$GITHUB_WORKSPACE/build/Pridge-Client-Release-Notes.md"
           python3 scripts/generate_checksums.py \
             --output-dir "$GITHUB_WORKSPACE/build" \
             --require-all
@@ -60,48 +60,48 @@ jobs:
       - name: Validate final release filenames
         run: |
           cd "$GITHUB_WORKSPACE/build"
-          test -f PrintBridge-Client-Native-Setup-x64.exe
-          test -f PrintBridge-Client-Native-Windows-x64-Portable.zip
-          test -f PrintBridge-Client-Native-macOS-arm64.dmg
-          test -f PrintBridge-Client-Native-macOS-x86_64.dmg
-          test -f PrintBridge-Client-PyInstaller-Setup-x64.exe
-          test -f PrintBridge-Client-PyInstaller-Windows-x64-Portable.zip
-          test -f PrintBridge-Client-PyInstaller-macOS-arm64.dmg
-          test -f PrintBridge-Client-PyInstaller-macOS-x86_64.dmg
+          test -f Pridge-Client-Native-Setup-x64.exe
+          test -f Pridge-Client-Native-Windows-x64-Portable.zip
+          test -f Pridge-Client-Native-macOS-arm64.dmg
+          test -f Pridge-Client-Native-macOS-x86_64.dmg
+          test -f Pridge-Client-PyInstaller-Setup-x64.exe
+          test -f Pridge-Client-PyInstaller-Windows-x64-Portable.zip
+          test -f Pridge-Client-PyInstaller-macOS-arm64.dmg
+          test -f Pridge-Client-PyInstaller-macOS-x86_64.dmg
           test -f SHA256SUMS.txt
-          test -f PrintBridge-Client-Release-Notes.txt
+          test -f Pridge-Client-Release-Notes.txt
 
       - name: Upload complete release artifact
         uses: actions/upload-artifact@v7
         with:
-          name: PrintBridge-Client-${{ github.ref_name }}
+          name: Pridge-Client-${{ github.ref_name }}
           path: |
-            ${{ github.workspace }}/build/PrintBridge-Client-Native-Setup-x64.exe
-            ${{ github.workspace }}/build/PrintBridge-Client-Native-Windows-x64-Portable.zip
-            ${{ github.workspace }}/build/PrintBridge-Client-Native-macOS-arm64.dmg
-            ${{ github.workspace }}/build/PrintBridge-Client-Native-macOS-x86_64.dmg
-            ${{ github.workspace }}/build/PrintBridge-Client-PyInstaller-Setup-x64.exe
-            ${{ github.workspace }}/build/PrintBridge-Client-PyInstaller-Windows-x64-Portable.zip
-            ${{ github.workspace }}/build/PrintBridge-Client-PyInstaller-macOS-arm64.dmg
-            ${{ github.workspace }}/build/PrintBridge-Client-PyInstaller-macOS-x86_64.dmg
+            ${{ github.workspace }}/build/Pridge-Client-Native-Setup-x64.exe
+            ${{ github.workspace }}/build/Pridge-Client-Native-Windows-x64-Portable.zip
+            ${{ github.workspace }}/build/Pridge-Client-Native-macOS-arm64.dmg
+            ${{ github.workspace }}/build/Pridge-Client-Native-macOS-x86_64.dmg
+            ${{ github.workspace }}/build/Pridge-Client-PyInstaller-Setup-x64.exe
+            ${{ github.workspace }}/build/Pridge-Client-PyInstaller-Windows-x64-Portable.zip
+            ${{ github.workspace }}/build/Pridge-Client-PyInstaller-macOS-arm64.dmg
+            ${{ github.workspace }}/build/Pridge-Client-PyInstaller-macOS-x86_64.dmg
             ${{ github.workspace }}/build/SHA256SUMS.txt
-            ${{ github.workspace }}/build/PrintBridge-Client-Release-Notes.txt
+            ${{ github.workspace }}/build/Pridge-Client-Release-Notes.txt
           if-no-files-found: error
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          name: PrintBridge Client ${{ github.ref_name }}
-          body_path: ${{ github.workspace }}/build/PrintBridge-Client-Release-Notes.md
+          name: Pridge Client ${{ github.ref_name }}
+          body_path: ${{ github.workspace }}/build/Pridge-Client-Release-Notes.md
           fail_on_unmatched_files: true
           files: |
-            ${{ github.workspace }}/build/PrintBridge-Client-Native-Setup-x64.exe
-            ${{ github.workspace }}/build/PrintBridge-Client-Native-Windows-x64-Portable.zip
-            ${{ github.workspace }}/build/PrintBridge-Client-Native-macOS-arm64.dmg
-            ${{ github.workspace }}/build/PrintBridge-Client-Native-macOS-x86_64.dmg
-            ${{ github.workspace }}/build/PrintBridge-Client-PyInstaller-Setup-x64.exe
-            ${{ github.workspace }}/build/PrintBridge-Client-PyInstaller-Windows-x64-Portable.zip
-            ${{ github.workspace }}/build/PrintBridge-Client-PyInstaller-macOS-arm64.dmg
-            ${{ github.workspace }}/build/PrintBridge-Client-PyInstaller-macOS-x86_64.dmg
+            ${{ github.workspace }}/build/Pridge-Client-Native-Setup-x64.exe
+            ${{ github.workspace }}/build/Pridge-Client-Native-Windows-x64-Portable.zip
+            ${{ github.workspace }}/build/Pridge-Client-Native-macOS-arm64.dmg
+            ${{ github.workspace }}/build/Pridge-Client-Native-macOS-x86_64.dmg
+            ${{ github.workspace }}/build/Pridge-Client-PyInstaller-Setup-x64.exe
+            ${{ github.workspace }}/build/Pridge-Client-PyInstaller-Windows-x64-Portable.zip
+            ${{ github.workspace }}/build/Pridge-Client-PyInstaller-macOS-arm64.dmg
+            ${{ github.workspace }}/build/Pridge-Client-PyInstaller-macOS-x86_64.dmg
             ${{ github.workspace }}/build/SHA256SUMS.txt
-            ${{ github.workspace }}/build/PrintBridge-Client-Release-Notes.txt
+            ${{ github.workspace }}/build/Pridge-Client-Release-Notes.txt

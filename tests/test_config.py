@@ -15,8 +15,8 @@ class ConfigStoreTests(unittest.TestCase):
     def test_copies_legacy_default_config_to_client_location(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            client_path = root / "PrintBridge Client" / "config.json"
-            legacy_path = root / "PrintBridge Endpoint" / "config.json"
+            client_path = root / "Pridge Client" / "config.json"
+            legacy_path = root / "PrintBridge Client" / "config.json"
             legacy_path.parent.mkdir(parents=True)
             legacy_path.write_text(
                 json.dumps({"servers": [{"id": "office", "server_url": "https://print.example.test"}]}),
@@ -24,7 +24,7 @@ class ConfigStoreTests(unittest.TestCase):
             )
 
             with patch("printbridge_client.config.default_config_path", return_value=client_path), patch(
-                "printbridge_client.config.legacy_config_path", return_value=legacy_path
+                "printbridge_client.config.legacy_config_paths", return_value=(legacy_path,)
             ):
                 config = ConfigStore().load()
 
@@ -36,13 +36,13 @@ class ConfigStoreTests(unittest.TestCase):
     def test_copies_legacy_fallback_token_to_client_location(self, _load_keyring) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            client_directory = root / "PrintBridge Client"
-            legacy_directory = root / "PrintBridge Endpoint"
+            client_directory = root / "Pridge Client"
+            legacy_directory = root / "PrintBridge Client"
             legacy_directory.mkdir(parents=True)
             (legacy_directory / "client-token-office").write_text("legacy-token", encoding="utf-8")
 
             with patch("printbridge_client.config.default_config_dir", return_value=client_directory), patch(
-                "printbridge_client.config.legacy_config_dir", return_value=legacy_directory
+                "printbridge_client.config.legacy_config_dirs", return_value=(legacy_directory,)
             ):
                 token = ClientTokenStore().get("office")
 
@@ -54,7 +54,7 @@ class ConfigStoreTests(unittest.TestCase):
     def test_copies_legacy_keyring_token_to_client_service(self, load_keyring) -> None:
         keyring = Mock()
         keyring.get_password.side_effect = lambda service, _username: (
-            "legacy-token" if service == "printbridge-endpoint" else None
+            "legacy-token" if service == "printbridge-client" else None
         )
         load_keyring.return_value = keyring
 
@@ -62,7 +62,7 @@ class ConfigStoreTests(unittest.TestCase):
 
         self.assertEqual(token, "legacy-token")
         keyring.set_password.assert_called_once_with(
-            "printbridge-client",
+            "pridge-client",
             "client-token:office",
             "legacy-token",
         )

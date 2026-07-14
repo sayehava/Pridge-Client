@@ -103,10 +103,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: printbridge-windows-${{ matrix.variant }}
+          name: pridge-windows-${{ matrix.variant }}
           path: |
-            ${{ github.workspace }}/build/PrintBridge-Client-${{ matrix.variant }}-Setup-x64.exe
-            ${{ github.workspace }}/build/PrintBridge-Client-${{ matrix.variant }}-Windows-x64-Portable.zip
+            ${{ github.workspace }}/build/Pridge-Client-${{ matrix.variant }}-Setup-x64.exe
+            ${{ github.workspace }}/build/Pridge-Client-${{ matrix.variant }}-Windows-x64-Portable.zip
           if-no-files-found: warn
           retention-days: 30
 

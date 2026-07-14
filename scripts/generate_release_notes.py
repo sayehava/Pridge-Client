@@ -91,8 +91,8 @@ def render(tag: str, markdown: bool) -> str:
     heading = (lambda value: f"## {value}") if markdown else (lambda value: value + "\n" + "-" * len(value))
     bullet = "- "
     lines = [
-        "# PrintBridge Client Release Notes" if markdown else "PrintBridge Client Release Notes",
-        "" if markdown else "=" * len("PrintBridge Client Release Notes"),
+        "# Pridge Client Release Notes" if markdown else "Pridge Client Release Notes",
+        "" if markdown else "=" * len("Pridge Client Release Notes"),
         "",
         f"Application version: {version}",
         f"Release date: {dt.datetime.now(dt.timezone.utc).date().isoformat()}",
@@ -123,7 +123,7 @@ def render(tag: str, markdown: bool) -> str:
             bullet + "Packages are unsigned unless the optional signing secrets are configured.",
             "",
             heading("Upgrade notes"),
-            bullet + "Close an existing PrintBridge Client instance before installing or replacing a portable directory.",
+            bullet + "Close an existing Pridge Client instance before installing or replacing a portable directory.",
             bullet + "Existing user configuration and credentials are preserved.",
             "",
             heading("Build system information"),

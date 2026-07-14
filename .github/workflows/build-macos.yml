@@ -180,7 +180,7 @@ jobs:
           arch="${{ matrix.arch }}"
           release="$GITHUB_WORKSPACE/build"
 
-          package="PrintBridge-Client-${variant}-macOS-${arch}.dmg"
+          package="Pridge-Client-${variant}-macOS-${arch}.dmg"
           dmg="$release/$package"
 
           if [[ ! -f "$dmg" ]]; then
@@ -217,7 +217,7 @@ jobs:
             -mountpoint "$mountpoint" \
             "$dmg"
 
-          app="$mountpoint/PrintBridge Client.app"
+          app="$mountpoint/Pridge Client.app"
 
           test -d "$app"
           test -f "$app/Contents/Info.plist"
@@ -321,8 +321,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: printbridge-macos-${{ matrix.variant }}-${{ matrix.arch }}
-          path: ${{ github.workspace }}/build/PrintBridge-Client-${{ matrix.variant }}-macOS-${{ matrix.arch }}.dmg
+          name: pridge-macos-${{ matrix.variant }}-${{ matrix.arch }}
+          path: ${{ github.workspace }}/build/Pridge-Client-${{ matrix.variant }}-macOS-${{ matrix.arch }}.dmg
           if-no-files-found: warn
           retention-days: 30
 

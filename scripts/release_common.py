@@ -21,36 +21,36 @@ ENTRY_POINT = PACKAGE_ROOT / "__main__.py"
 WEBUI_ROOT = PACKAGE_ROOT / "webui"
 ICON_PNG = WEBUI_ROOT / "assets" / "Icon.png"
 
-APP_NAME = "PrintBridge Client"
-EXECUTABLE_NAME = "PrintBridge Client"
+APP_NAME = "Pridge Client"
+EXECUTABLE_NAME = "Pridge Client"
 AUTHOR = "Sayeh Ava Pazouki"
 COMPANY_NAME = "Sayeh Ava Pazouki"
 COPYRIGHT = "Copyright © 2026 Sayeh Ava Pazouki"
 DESCRIPTION = "Desktop printing client for PrintBridge"
-IDENTIFIER = "com.printbridge.client"
+IDENTIFIER = "com.pridge.client"
 LICENSE_NAME = "GPL-3.0-or-later"
-RELEASE_NOTES_NAME = "PrintBridge-Client-Release-Notes.txt"
+RELEASE_NOTES_NAME = "Pridge-Client-Release-Notes.txt"
 CHECKSUMS_NAME = "SHA256SUMS.txt"
 
 WINDOWS_PACKAGES = {
     "Native": (
-        "PrintBridge-Client-Native-Setup-x64.exe",
-        "PrintBridge-Client-Native-Windows-x64-Portable.zip",
+        "Pridge-Client-Native-Setup-x64.exe",
+        "Pridge-Client-Native-Windows-x64-Portable.zip",
     ),
     "PyInstaller": (
-        "PrintBridge-Client-PyInstaller-Setup-x64.exe",
-        "PrintBridge-Client-PyInstaller-Windows-x64-Portable.zip",
+        "Pridge-Client-PyInstaller-Setup-x64.exe",
+        "Pridge-Client-PyInstaller-Windows-x64-Portable.zip",
     ),
 }
 
 MACOS_PACKAGES = {
     "Native": {
-        "arm64": "PrintBridge-Client-Native-macOS-arm64.dmg",
-        "x86_64": "PrintBridge-Client-Native-macOS-x86_64.dmg",
+        "arm64": "Pridge-Client-Native-macOS-arm64.dmg",
+        "x86_64": "Pridge-Client-Native-macOS-x86_64.dmg",
     },
     "PyInstaller": {
-        "arm64": "PrintBridge-Client-PyInstaller-macOS-arm64.dmg",
-        "x86_64": "PrintBridge-Client-PyInstaller-macOS-x86_64.dmg",
+        "arm64": "Pridge-Client-PyInstaller-macOS-arm64.dmg",
+        "x86_64": "Pridge-Client-PyInstaller-macOS-x86_64.dmg",
     },
 }
 

@@ -36,7 +36,7 @@ class PrinterManager:
             return _list_posix_printers()
         return []
 
-    def print_raw(self, printer_name: str, data: bytes, job_name: str = "PrintBridge Job") -> None:
+    def print_raw(self, printer_name: str, data: bytes, job_name: str = "Pridge Job") -> None:
         if not printer_name:
             raise PrinterError("No printer is selected.")
         if not data:

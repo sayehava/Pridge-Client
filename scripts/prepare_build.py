@@ -64,8 +64,8 @@ def write_windows_version_file(path: Path, version: str) -> None:
 
 def create_icons(work_dir: Path) -> tuple[Path, Path]:
     source = Image.open(ICON_PNG).convert("RGBA")
-    icon_ico = work_dir / "PrintBridge-Client.ico"
-    icon_icns = work_dir / "PrintBridge-Client.icns"
+    icon_ico = work_dir / "Pridge-Client.ico"
+    icon_icns = work_dir / "Pridge-Client.icns"
     source.save(icon_ico, format="ICO", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
     source.save(icon_icns, format="ICNS")
     return icon_ico, icon_icns

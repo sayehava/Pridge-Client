@@ -46,9 +46,9 @@ class TrayController:
             draw.rectangle((18, 36, 46, 48), fill=(255, 255, 255, 255))
 
         self.icon = pystray.Icon(
-            "printbridge-client",
+            "pridge-client",
             image,
-            "PrintBridge Client",
+            "Pridge Client",
             menu=pystray.Menu(
                 pystray.MenuItem("Open", self._show),
                 pystray.MenuItem("Quit", self._quit),

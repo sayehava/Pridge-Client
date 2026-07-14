@@ -28,16 +28,16 @@
 
 [Setup]
 AppId={{7DDA97B0-0C07-48E8-98A0-D11AFC8FE3B7}
-AppName=PrintBridge Client
+AppName=Pridge Client
 AppVersion={#AppVersion}
-AppVerName=PrintBridge Client {#AppVersion}
+AppVerName=Pridge Client {#AppVersion}
 AppPublisher=Sayeh Ava Pazouki
 AppCopyright=Copyright © 2026 Sayeh Ava Pazouki
-AppPublisherURL=https://github.com/sayehava/PrintBridge-Client
-AppSupportURL=https://github.com/sayehava/PrintBridge-Client/issues
-AppUpdatesURL=https://github.com/sayehava/PrintBridge-Client/releases
-DefaultDirName={localappdata}\Programs\PrintBridge Client
-DefaultGroupName=PrintBridge Client
+AppPublisherURL=https://github.com/sayehava/Pridge-Client
+AppSupportURL=https://github.com/sayehava/Pridge-Client/issues
+AppUpdatesURL=https://github.com/sayehava/Pridge-Client/releases
+DefaultDirName={localappdata}\Programs\Pridge Client
+DefaultGroupName=Pridge Client
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
@@ -46,15 +46,15 @@ Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 SetupIconFile={#IconFile}
-UninstallDisplayIcon={app}\PrintBridge Client.exe
+UninstallDisplayIcon={app}\Pridge Client.exe
 LicenseFile={#LicenseFile}
 OutputDir={#OutputDir}
 OutputBaseFilename={#OutputBaseFilename}
 VersionInfoVersion={#AppVersion}
 VersionInfoCompany=Sayeh Ava Pazouki
-VersionInfoDescription=PrintBridge Client Setup
+VersionInfoDescription=Pridge Client Setup
 VersionInfoCopyright=Copyright © 2026 Sayeh Ava Pazouki
-VersionInfoProductName=PrintBridge Client
+VersionInfoProductName=Pridge Client
 VersionInfoProductVersion={#AppVersion}
 
 [Files]
@@ -62,15 +62,15 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 Source: "{#WebView2Bootstrapper}"; DestDir: "{tmp}"; DestName: "MicrosoftEdgeWebview2Setup.exe"; Flags: deleteafterinstall
 
 [Icons]
-Name: "{autoprograms}\PrintBridge Client"; Filename: "{app}\PrintBridge Client.exe"; WorkingDir: "{app}"
-Name: "{autodesktop}\PrintBridge Client"; Filename: "{app}\PrintBridge Client.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autoprograms}\Pridge Client"; Filename: "{app}\Pridge Client.exe"; WorkingDir: "{app}"
+Name: "{autodesktop}\Pridge Client"; Filename: "{app}\Pridge Client.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"
 
 [Run]
 Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing Microsoft WebView2 Runtime..."; Flags: waituntilterminated; Check: not WebView2RuntimeInstalled
-Filename: "{app}\PrintBridge Client.exe"; Description: "Launch PrintBridge Client"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\Pridge Client.exe"; Description: "Launch Pridge Client"; Flags: nowait postinstall skipifsilent
 
 [Code]
 function ValidWebViewVersion(const Version: String): Boolean;

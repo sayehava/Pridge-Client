@@ -110,7 +110,7 @@ class ClientApi:
         self.heartbeat_status = STATUS_STOPPED
         self.ready_status = MESSAGE_READY
         self.recent_jobs: list[str] = []
-        self.logs: list[str] = ["PrintBridge Client GUI loaded"]
+        self.logs: list[str] = ["Pridge Client GUI loaded"]
 
         self._install_log_handler()
         self.refresh_printers()

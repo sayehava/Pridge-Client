@@ -7,7 +7,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "printbridge-client"
+name = "pridge-client"
 version = "1.0.0"
 description = "Desktop printing client for PrintBridge"
 readme = "README.md"
@@ -37,7 +37,7 @@ windows = ["pywin32>=306; platform_system == 'Windows'"]
 linux = ["pycups>=2.0; platform_system == 'Linux'"]
 
 [project.scripts]
-printbridge-client = "printbridge_client.__main__:main"
+pridge-client = "printbridge_client.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

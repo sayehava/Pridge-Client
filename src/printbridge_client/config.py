@@ -13,14 +13,14 @@ from pathlib import Path
 from typing import Any
 
 
-APP_DIR_NAME = "PrintBridge Client"
-CONFIG_DIR_NAME = "printbridge-client"
+APP_DIR_NAME = "Pridge Client"
+CONFIG_DIR_NAME = "pridge-client"
 CONFIG_FILE_NAME = "config.json"
-KEYRING_SERVICE = "printbridge-client"
+KEYRING_SERVICE = "pridge-client"
 KEYRING_USERNAME = "client-token"
-LEGACY_APP_DIR_NAME = "PrintBridge Endpoint"
-LEGACY_CONFIG_DIR_NAME = "printbridge-endpoint"
-LEGACY_KEYRING_SERVICE = "printbridge-endpoint"
+LEGACY_APP_DIR_NAMES = ("PrintBridge Client", "PrintBridge Endpoint")
+LEGACY_CONFIG_DIR_NAMES = ("printbridge-client", "printbridge-endpoint")
+LEGACY_KEYRING_SERVICES = ("printbridge-client", "printbridge-endpoint")
 DARKNESS_GRADES = ("Quartz", "Moonstone", "Labradorite", "Onyx", "Obsidian", "Jet")
 
 
@@ -74,15 +74,15 @@ class ConfigError(ValueError):
 class ConfigStore:
     def __init__(self, config_path: Path | None = None) -> None:
         self.config_path = config_path or default_config_path()
-        self.legacy_config_path = legacy_config_path() if config_path is None else None
+        self.legacy_config_paths = legacy_config_paths() if config_path is None else ()
 
     def load(self) -> ClientConfig:
         source_path = self.config_path
         migrate_legacy = False
         if not source_path.exists():
-            if self.legacy_config_path is None or not self.legacy_config_path.exists():
+            source_path = next((path for path in self.legacy_config_paths if path.exists()), None)
+            if source_path is None:
                 return ClientConfig()
-            source_path = self.legacy_config_path
             migrate_legacy = True
 
         with source_path.open("r", encoding="utf-8") as file:
@@ -130,14 +130,16 @@ class ConfigStore:
 class ClientTokenStore:
     def __init__(self, config_dir: Path | None = None) -> None:
         self.config_dir = config_dir or default_config_dir()
-        self.legacy_config_dir = legacy_config_dir() if config_dir is None else None
+        self.legacy_config_dirs = legacy_config_dirs() if config_dir is None else ()
 
     def get(self, server_id: str = "default") -> str:
         keyring = _load_keyring()
         if keyring is not None:
             token = keyring.get_password(KEYRING_SERVICE, _token_username(server_id))
-            if token is None:
-                token = keyring.get_password(LEGACY_KEYRING_SERVICE, _token_username(server_id))
+            for service in LEGACY_KEYRING_SERVICES:
+                if token:
+                    break
+                token = keyring.get_password(service, _token_username(server_id))
                 if token:
                     keyring.set_password(KEYRING_SERVICE, _token_username(server_id), token)
             return token or ""
@@ -145,8 +147,8 @@ class ClientTokenStore:
         fallback_path = self._fallback_path(server_id)
         if fallback_path.exists():
             return fallback_path.read_text(encoding="utf-8").strip()
-        legacy_path = self._legacy_fallback_path(server_id)
-        if legacy_path is None or not legacy_path.exists():
+        legacy_path = next((path for path in self._legacy_fallback_paths(server_id) if path.exists()), None)
+        if legacy_path is None:
             return ""
         token = legacy_path.read_text(encoding="utf-8").strip()
         if token:
@@ -166,7 +168,7 @@ class ClientTokenStore:
     def clear(self, server_id: str = "default") -> None:
         keyring = _load_keyring()
         if keyring is not None:
-            for service in (KEYRING_SERVICE, LEGACY_KEYRING_SERVICE):
+            for service in (KEYRING_SERVICE, *LEGACY_KEYRING_SERVICES):
                 try:
                     keyring.delete_password(service, _token_username(server_id))
                 except Exception:
@@ -176,10 +178,8 @@ class ClientTokenStore:
     def _fallback_path(self, server_id: str) -> Path:
         return _fallback_path(self.config_dir, server_id)
 
-    def _legacy_fallback_path(self, server_id: str) -> Path | None:
-        if self.legacy_config_dir is None:
-            return None
-        return _fallback_path(self.legacy_config_dir, server_id)
+    def _legacy_fallback_paths(self, server_id: str) -> tuple[Path, ...]:
+        return tuple(_fallback_path(directory, server_id) for directory in self.legacy_config_dirs)
 
     def _write_fallback(self, token: str, server_id: str) -> None:
         self.config_dir.mkdir(parents=True, exist_ok=True)
@@ -193,10 +193,8 @@ class ClientTokenStore:
     def _delete_fallback(self, server_id: str, include_legacy: bool = False) -> None:
         paths = [self._fallback_path(server_id)]
         if include_legacy:
-            paths.append(self._legacy_fallback_path(server_id))
+            paths.extend(self._legacy_fallback_paths(server_id))
         for path in paths:
-            if path is None:
-                continue
             try:
                 path.unlink()
             except FileNotFoundError:
@@ -207,8 +205,11 @@ def default_config_dir() -> Path:
     return _config_dir(APP_DIR_NAME, CONFIG_DIR_NAME)
 
 
-def legacy_config_dir() -> Path:
-    return _config_dir(LEGACY_APP_DIR_NAME, LEGACY_CONFIG_DIR_NAME)
+def legacy_config_dirs() -> tuple[Path, ...]:
+    return tuple(
+        _config_dir(app_dir_name, config_dir_name)
+        for app_dir_name, config_dir_name in zip(LEGACY_APP_DIR_NAMES, LEGACY_CONFIG_DIR_NAMES)
+    )
 
 
 def _config_dir(app_dir_name: str, config_dir_name: str) -> Path:
@@ -235,8 +236,8 @@ def default_config_path() -> Path:
     return default_config_dir() / CONFIG_FILE_NAME
 
 
-def legacy_config_path() -> Path:
-    return legacy_config_dir() / CONFIG_FILE_NAME
+def legacy_config_paths() -> tuple[Path, ...]:
+    return tuple(directory / CONFIG_FILE_NAME for directory in legacy_config_dirs())
 
 
 def _positive_int(value: Any, default: int) -> int:

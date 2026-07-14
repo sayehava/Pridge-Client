@@ -1,6 +1,6 @@
-# Building PrintBridge Client Releases
+# Building Pridge Client Releases
 
-PrintBridge Client has two independent desktop release targets:
+Pridge Client has two independent desktop release targets:
 
 - **Native** uses Nuitka standalone compilation.
 - **PyInstaller** uses PyInstaller onedir application bundles.
@@ -44,13 +44,13 @@ The selector opens before compilation begins. Cancelling it stops the build with
 Windows PowerShell:
 
 ```powershell
-$env:PRINTBRIDGE_RELEASE_DIR = "D:\PrintBridge Builds"
+$env:PRINTBRIDGE_RELEASE_DIR = "D:\Pridge Builds"
 ```
 
 macOS:
 
 ```bash
-export PRINTBRIDGE_RELEASE_DIR="$HOME/PrintBridge Builds"
+export PRINTBRIDGE_RELEASE_DIR="$HOME/Pridge Builds"
 ```
 
 All intermediate compiler output, PyInstaller work/dist files, Nuitka output, Python bytecode, compiler caches, installer staging, signing credentials, and DMG staging use a unique operating-system temporary directory. The build scripts delete their temporary directory on exit and fail if tracked or non-ignored repository state changes during a build. Only final release files and build logs are copied into `build`.
@@ -61,7 +61,7 @@ GitHub Actions uses `${{ runner.temp }}` for compilation and staging, then colle
 
 Use a native CPython 3.12 installation for the build machine. Python is a build-time dependency only.
 
-Create the virtual environment outside the repository. Install the build tools from [requirements-release.txt](requirements-release.txt) and install PrintBridge Client with the platform extras.
+Create the virtual environment outside the repository. Install the build tools from [requirements-release.txt](requirements-release.txt) and install Pridge Client with the platform extras.
 
 Do not build from a general-purpose Python environment containing unrelated GUI frameworks. Pywebview discovers installed renderers dynamically, so a clean release environment keeps each package reliable and small.
 
@@ -94,8 +94,8 @@ python -B -m unittest discover -s tests
 
 This command uses Nuitka `--standalone` and disables the console window. It creates:
 
-- `PrintBridge-Client-Native-Setup-x64.exe`
-- `PrintBridge-Client-Native-Windows-x64-Portable.zip`
+- `Pridge-Client-Native-Setup-x64.exe`
+- `Pridge-Client-Native-Windows-x64-Portable.zip`
 
 ### Windows PyInstaller build
 
@@ -103,10 +103,10 @@ This command uses Nuitka `--standalone` and disables the console window. It crea
 ./scripts/build-windows.ps1 -Variant PyInstaller
 ```
 
-This command uses the reusable [PrintBridge-Client.spec](packaging/pyinstaller/PrintBridge-Client.spec), onedir mode, and a windowed executable. It creates:
+This command uses the reusable [Pridge-Client.spec](packaging/pyinstaller/Pridge-Client.spec), onedir mode, and a windowed executable. It creates:
 
-- `PrintBridge-Client-PyInstaller-Setup-x64.exe`
-- `PrintBridge-Client-PyInstaller-Windows-x64-Portable.zip`
+- `Pridge-Client-PyInstaller-Setup-x64.exe`
+- `Pridge-Client-PyInstaller-Windows-x64-Portable.zip`
 
 ### Build all Windows variants
 
@@ -117,10 +117,10 @@ This command uses the reusable [PrintBridge-Client.spec](packaging/pyinstaller/P
 To provide an explicit output directory for one command:
 
 ```powershell
-./scripts/build-windows.ps1 -Variant All -OutputDir "D:\PrintBridge Builds"
+./scripts/build-windows.ps1 -Variant All -OutputDir "D:\Pridge Builds"
 ```
 
-Both setup packages use the shared Inno Setup definition at [PrintBridge-Client.iss](packaging/windows/PrintBridge-Client.iss). The installer checks Microsoft's WebView2 Runtime `pv` registry value for both per-machine and per-user installations. It runs the embedded official Evergreen bootstrapper with `/silent /install` only when a valid runtime is missing. The portable packages require the Microsoft WebView2 Runtime already provided by or installed on Windows; they never require Python.
+Both setup packages use the shared Inno Setup definition at [Pridge-Client.iss](packaging/windows/Pridge-Client.iss). The installer checks Microsoft's WebView2 Runtime `pv` registry value for both per-machine and per-user installations. It runs the embedded official Evergreen bootstrapper with `/silent /install` only when a valid runtime is missing. The portable packages require the Microsoft WebView2 Runtime already provided by or installed on Windows; they never require Python.
 
 ## macOS prerequisites
 
@@ -155,8 +155,8 @@ bash scripts/build-macos.sh Native
 
 This command uses Nuitka standalone mode to create a native `.app`, applies application metadata and icons, signs the bundle, and places it in a compressed DMG. The filename is selected from the current native architecture:
 
-- `PrintBridge-Client-Native-macOS-arm64.dmg`
-- `PrintBridge-Client-Native-macOS-x86_64.dmg`
+- `Pridge-Client-Native-macOS-arm64.dmg`
+- `Pridge-Client-Native-macOS-x86_64.dmg`
 
 ### macOS PyInstaller build
 
@@ -166,8 +166,8 @@ bash scripts/build-macos.sh PyInstaller
 
 This command uses the reusable PyInstaller spec to create a windowed onedir `.app`, applies application metadata and icons, signs the bundle, and places it in a compressed DMG. The filename is selected from the current native architecture:
 
-- `PrintBridge-Client-PyInstaller-macOS-arm64.dmg`
-- `PrintBridge-Client-PyInstaller-macOS-x86_64.dmg`
+- `Pridge-Client-PyInstaller-macOS-arm64.dmg`
+- `Pridge-Client-PyInstaller-macOS-x86_64.dmg`
 
 ### Build all macOS variants for the current architecture
 
@@ -178,7 +178,7 @@ bash scripts/build-macos.sh All
 To provide an explicit output directory for one command:
 
 ```bash
-bash scripts/build-macos.sh All --output-dir "$HOME/PrintBridge Builds"
+bash scripts/build-macos.sh All --output-dir "$HOME/Pridge Builds"
 ```
 
 The DMG contains the `.app`, an `/Applications` shortcut, the GPL license, and the additional attribution terms. A custom volume icon, application name, version, identifier, author, copyright, description, build variant, and build system are embedded during packaging.
@@ -261,7 +261,7 @@ The frozen application is launched directly from its package. It does not use th
 
 Platform builds create `SHA256SUMS.txt` for every final package currently present in the output directory. The tag workflow downloads all eight packages and regenerates the canonical file with `--require-all`.
 
-`scripts/generate_release_notes.py` creates `PrintBridge-Client-Release-Notes.txt` and a Markdown rendering used as the GitHub Release description. It reads non-merge commits since the previous `v*` tag, or all relevant history when no previous tag exists. It filters common dependency, formatting, merge, and generated-file noise and groups entries into features, fixes, improvements, documentation, build and packaging, and internal changes.
+`scripts/generate_release_notes.py` creates `Pridge-Client-Release-Notes.txt` and a Markdown rendering used as the GitHub Release description. It reads non-merge commits since the previous `v*` tag, or all relevant history when no previous tag exists. It filters common dependency, formatting, merge, and generated-file noise and groups entries into features, fixes, improvements, documentation, build and packaging, and internal changes.
 
 Manual commands:
 
@@ -289,7 +289,7 @@ To publish a release:
 Example:
 
 ```bash
-git tag -a v1.0.0 -m "Release PrintBridge Client 1.0.0"
+git tag -a v1.0.0 -m "Release Pridge Client 1.0.0"
 git push origin v1.0.0
 ```
 
@@ -298,16 +298,16 @@ The `Build and publish release` workflow calls both native platform workflows, e
 ## Expected final filenames
 
 ```text
-PrintBridge-Client-Native-Setup-x64.exe
-PrintBridge-Client-Native-Windows-x64-Portable.zip
-PrintBridge-Client-Native-macOS-arm64.dmg
-PrintBridge-Client-Native-macOS-x86_64.dmg
-PrintBridge-Client-PyInstaller-Setup-x64.exe
-PrintBridge-Client-PyInstaller-Windows-x64-Portable.zip
-PrintBridge-Client-PyInstaller-macOS-arm64.dmg
-PrintBridge-Client-PyInstaller-macOS-x86_64.dmg
+Pridge-Client-Native-Setup-x64.exe
+Pridge-Client-Native-Windows-x64-Portable.zip
+Pridge-Client-Native-macOS-arm64.dmg
+Pridge-Client-Native-macOS-x86_64.dmg
+Pridge-Client-PyInstaller-Setup-x64.exe
+Pridge-Client-PyInstaller-Windows-x64-Portable.zip
+Pridge-Client-PyInstaller-macOS-arm64.dmg
+Pridge-Client-PyInstaller-macOS-x86_64.dmg
 SHA256SUMS.txt
-PrintBridge-Client-Release-Notes.txt
+Pridge-Client-Release-Notes.txt
 ```
 
 Every application About/Legal Notices view retains:

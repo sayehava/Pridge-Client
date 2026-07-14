@@ -1,6 +1,6 @@
-# PrintBridge Client
+# Pridge Client
 
-PrintBridge Client is the local desktop application that connects an office computer to PrintBridge Server, receives print jobs, and sends raw payloads to local printers.
+Pridge Client is the local desktop application that connects an office computer to PrintBridge Server, receives print jobs, and sends raw payloads to local printers.
 
 This repository contains the first Python implementation. The server protocol is intentionally simple and language-neutral so future clients written in C++, Rust, C#, Go, or another language can reuse the same API.
 
@@ -82,11 +82,11 @@ Client tokens are stored separately per server through the operating system cred
 
 Configuration locations:
 
-- Windows: `%APPDATA%\PrintBridge Client\config.json`
-- macOS: `~/Library/Application Support/PrintBridge Client/config.json`
-- Linux: `${XDG_CONFIG_HOME:-~/.config}/printbridge-client/config.json`
+- Windows: `%APPDATA%\Pridge Client\config.json`
+- macOS: `~/Library/Application Support/Pridge Client/config.json`
+- Linux: `${XDG_CONFIG_HOME:-~/.config}/pridge-client/config.json`
 
-When the new configuration does not exist, Version 1.0 copies an existing Endpoint-era configuration and credentials into the Client locations. The legacy files and keyring entries are not deleted.
+When the new configuration does not exist, the client copies existing PrintBridge Client or Endpoint-era configuration and credentials into the Pridge locations. The legacy files and keyring entries are not deleted.
 
 ## Authentication
 
@@ -193,14 +193,14 @@ Each server runs in its own worker and has independent polling and heartbeat int
 
 The GUI uses a bundled pywebview interface with glossy layered panels over an opaque native window on every platform. Appearance settings offer six named stone palettes—Quartz, Moonstone, Labradorite, Onyx, Obsidian, and Jet. Each palette changes the full workspace color system, including its base, ambient glows, sidebar, cards, controls, borders, and accent color.
 
-Confirmations use branded in-app dialogs with the PrintBridge application icon instead of browser or Python-native message boxes.
+Confirmations use branded in-app dialogs with the Pridge application icon instead of browser or Python-native message boxes.
 
 ## Auto-Start
 
 The settings window can enable login startup:
 
 - Windows: current-user Run key
-- macOS: `~/Library/LaunchAgents/com.printbridge.client.plist`
+- macOS: `~/Library/LaunchAgents/com.pridge.client.plist`
 - Linux: XDG autostart desktop entry
 
 Auto-start launches the client in `--headless` mode.
@@ -211,9 +211,9 @@ Logs include startup, authentication, heartbeat, printer changes, job lifecycle 
 
 Log locations:
 
-- Windows: `%LOCALAPPDATA%\PrintBridge Client\Logs\client.log`
-- macOS: `~/Library/Logs/PrintBridge Client/client.log`
-- Linux: `${XDG_STATE_HOME:-~/.local/state}/printbridge-client/client.log`
+- Windows: `%LOCALAPPDATA%\Pridge Client\Logs\client.log`
+- macOS: `~/Library/Logs/Pridge Client/client.log`
+- Linux: `${XDG_STATE_HOME:-~/.local/state}/pridge-client/client.log`
 
 ## Troubleshooting
 
@@ -231,11 +231,11 @@ If authentication keeps failing, replace the token in the settings window. Store
 
 ## Packaging
 
-The project exposes `printbridge-client` as its console script. A packaged desktop build can launch the GUI by default or use `--headless` for background operation.
+The project exposes `pridge-client` as its console script. A packaged desktop build can launch the GUI by default or use `--headless` for background operation.
 
 ## License
 
-PrintBridge Client is free software licensed under GNU General Public License version 3 or, at your option, any later version (`GPL-3.0-or-later`). See [LICENSE](LICENSE) for the full license text.
+Pridge Client is free software licensed under GNU General Public License version 3 or, at your option, any later version (`GPL-3.0-or-later`). See [LICENSE](LICENSE) for the full license text.
 
 The project also carries an attribution requirement permitted by GNU GPLv3 Section 7(b). Modified or redistributed versions with an interactive user interface must keep this notice visible in their About or Legal Notices section:
 

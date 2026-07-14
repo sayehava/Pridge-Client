@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class ReleaseConfigurationTests(unittest.TestCase):
     def test_pyinstaller_is_reusable_windowed_onedir_spec(self):
-        text = (ROOT / "packaging" / "pyinstaller" / "PrintBridge-Client.spec").read_text(encoding="utf-8")
+        text = (ROOT / "packaging" / "pyinstaller" / "Pridge-Client.spec").read_text(encoding="utf-8")
 
         self.assertIn("exclude_binaries=True", text)
         self.assertIn("console=False", text)
@@ -19,7 +19,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertNotIn("onefile", text.lower())
 
     def test_windows_installer_bootstraps_webview_only_when_missing(self):
-        text = (ROOT / "packaging" / "windows" / "PrintBridge-Client.iss").read_text(encoding="utf-8")
+        text = (ROOT / "packaging" / "windows" / "Pridge-Client.iss").read_text(encoding="utf-8")
 
         self.assertIn("F3017226-FE2A-4295-8BDF-00C3A9A7E4C5", text)
         self.assertIn("Check: not WebView2RuntimeInstalled", text)
@@ -61,16 +61,16 @@ class ReleaseConfigurationTests(unittest.TestCase):
         text = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 
         expected = (
-            "PrintBridge-Client-Native-Setup-x64.exe",
-            "PrintBridge-Client-Native-Windows-x64-Portable.zip",
-            "PrintBridge-Client-Native-macOS-arm64.dmg",
-            "PrintBridge-Client-Native-macOS-x86_64.dmg",
-            "PrintBridge-Client-PyInstaller-Setup-x64.exe",
-            "PrintBridge-Client-PyInstaller-Windows-x64-Portable.zip",
-            "PrintBridge-Client-PyInstaller-macOS-arm64.dmg",
-            "PrintBridge-Client-PyInstaller-macOS-x86_64.dmg",
+            "Pridge-Client-Native-Setup-x64.exe",
+            "Pridge-Client-Native-Windows-x64-Portable.zip",
+            "Pridge-Client-Native-macOS-arm64.dmg",
+            "Pridge-Client-Native-macOS-x86_64.dmg",
+            "Pridge-Client-PyInstaller-Setup-x64.exe",
+            "Pridge-Client-PyInstaller-Windows-x64-Portable.zip",
+            "Pridge-Client-PyInstaller-macOS-arm64.dmg",
+            "Pridge-Client-PyInstaller-macOS-x86_64.dmg",
             "SHA256SUMS.txt",
-            "PrintBridge-Client-Release-Notes.txt",
+            "Pridge-Client-Release-Notes.txt",
         )
         for filename in expected:
             self.assertIn(filename, text)
@@ -82,7 +82,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
 
         self.assertIn('runtime_root="$app/Contents/MacOS"', text)
         self.assertIn('runtime_root="$app/Contents/Resources"', text)
-        self.assertIn('grep -Eq "Traceback|CRITICAL|FATAL"', text)
+        self.assertIn('"Traceback|CRITICAL|FATAL"', text)
 
 
 if __name__ == "__main__":

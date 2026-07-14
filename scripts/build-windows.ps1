@@ -20,7 +20,7 @@ if ($SelectOutputDir -and $OutputDir) {
 if ($SelectOutputDir) {
     Add-Type -AssemblyName System.Windows.Forms
     $FolderDialog = New-Object System.Windows.Forms.FolderBrowserDialog
-    $FolderDialog.Description = "Choose where PrintBridge Client release packages will be saved."
+    $FolderDialog.Description = "Choose where Pridge Client release packages will be saved."
     $FolderDialog.SelectedPath = Join-Path $Repository "build"
     try {
         if ($FolderDialog.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) {
@@ -40,7 +40,7 @@ $OutputDir = [IO.Path]::GetFullPath($OutputDir)
 New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
 
 $TemporaryBase = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
-$TemporaryRoot = Join-Path $TemporaryBase ("PrintBridge-Client-Windows-" + [guid]::NewGuid().ToString("N"))
+$TemporaryRoot = Join-Path $TemporaryBase ("Pridge-Client-Windows-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $TemporaryRoot -Force | Out-Null
 $LogPath = Join-Path $OutputDir ("build-windows-{0}.log" -f $Variant.ToLowerInvariant())
 $TranscriptStarted = $false
@@ -107,7 +107,7 @@ function Test-FrozenExecutable {
 function New-PortableArchive {
     param([string]$Distribution, [string]$Destination)
     $PortableRoot = Join-Path $TemporaryRoot ("portable-" + [guid]::NewGuid().ToString("N"))
-    $PortableApp = Join-Path $PortableRoot "PrintBridge Client"
+    $PortableApp = Join-Path $PortableRoot "Pridge Client"
     New-Item -ItemType Directory -Path $PortableApp -Force | Out-Null
     Copy-Item (Join-Path $Distribution "*") $PortableApp -Recurse -Force
     if (Test-Path $Destination) { Remove-Item $Destination -Force }
@@ -126,7 +126,7 @@ function New-Installer {
         "/DIconFile=$($Context.icon_ico)",
         "/DLicenseFile=$(Join-Path $Repository 'LICENSE')",
         "/DWebView2Bootstrapper=$Bootstrapper",
-        (Join-Path $Repository "packaging\windows\PrintBridge-Client.iss")
+        (Join-Path $Repository "packaging\windows\Pridge-Client.iss")
     )
     $InstallerPath = Join-Path $OutputDir $InstallerName
     if (-not (Test-Path $InstallerPath)) { throw "Inno Setup did not create $InstallerName." }
@@ -180,9 +180,9 @@ function Build-PyInstaller {
         "-m", "PyInstaller", "--noconfirm", "--clean",
         "--distpath", (Join-Path $CompileRoot "dist"),
         "--workpath", (Join-Path $CompileRoot "work"),
-        (Join-Path $Repository "packaging\pyinstaller\PrintBridge-Client.spec")
+        (Join-Path $Repository "packaging\pyinstaller\Pridge-Client.spec")
     )
-    $Distribution = Join-Path $CompileRoot "dist\PrintBridge Client"
+    $Distribution = Join-Path $CompileRoot "dist\Pridge Client"
     $Executable = Join-Path $Distribution "$($Context.executable_name).exe"
     if (-not (Test-Path $Executable)) { throw "Could not find the PyInstaller onedir executable." }
     Add-LegalFiles $Distribution

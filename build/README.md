@@ -1,6 +1,6 @@
 # Build Output
 
-Local and CI release builds place final PrintBridge Client packages in this directory.
+Local and CI release builds place final Pridge Client packages in this directory.
 
 Generated installers, portable archives, DMGs, checksums, release notes, compiler reports, and logs are intentionally ignored by Git. This file keeps the output directory present in a fresh checkout.
 

@@ -11,8 +11,8 @@ import sys
 from pathlib import Path
 
 
-APP_ID = "com.printbridge.client"
-LEGACY_APP_ID = "com.printbridge.endpoint"
+APP_ID = "com.pridge.client"
+LEGACY_APP_IDS = ("com.printbridge.client", "com.printbridge.endpoint")
 
 
 class AutoStartError(RuntimeError):
@@ -38,10 +38,11 @@ def command() -> list[str]:
 def _set_macos_launch_agent(enabled: bool) -> None:
     directory = Path.home() / "Library" / "LaunchAgents"
     path = directory / f"{APP_ID}.plist"
-    legacy_path = directory / f"{LEGACY_APP_ID}.plist"
+    legacy_paths = tuple(directory / f"{app_id}.plist" for app_id in LEGACY_APP_IDS)
     if not enabled:
         _unlink_if_exists(path)
-        _unlink_if_exists(legacy_path)
+        for legacy_path in legacy_paths:
+            _unlink_if_exists(legacy_path)
         return
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -64,16 +65,20 @@ def _set_macos_launch_agent(enabled: bool) -> None:
 """,
         encoding="utf-8",
     )
-    _unlink_if_exists(legacy_path)
+    for legacy_path in legacy_paths:
+        _unlink_if_exists(legacy_path)
 
 
 def _set_linux_desktop_entry(enabled: bool) -> None:
     autostart_directory = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "autostart"
-    path = autostart_directory / "printbridge-client.desktop"
-    legacy_path = autostart_directory / "printbridge-endpoint.desktop"
+    path = autostart_directory / "pridge-client.desktop"
+    legacy_paths = tuple(
+        autostart_directory / name for name in ("printbridge-client.desktop", "printbridge-endpoint.desktop")
+    )
     if not enabled:
         _unlink_if_exists(path)
-        _unlink_if_exists(legacy_path)
+        for legacy_path in legacy_paths:
+            _unlink_if_exists(legacy_path)
         return
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -83,7 +88,7 @@ def _set_linux_desktop_entry(enabled: bool) -> None:
             [
                 "[Desktop Entry]",
                 "Type=Application",
-                "Name=PrintBridge Client",
+                "Name=Pridge Client",
                 f"Exec={exec_line}",
                 "X-GNOME-Autostart-enabled=true",
                 "",
@@ -91,7 +96,8 @@ def _set_linux_desktop_entry(enabled: bool) -> None:
         ),
         encoding="utf-8",
     )
-    _unlink_if_exists(legacy_path)
+    for legacy_path in legacy_paths:
+        _unlink_if_exists(legacy_path)
 
 
 def _set_windows_run_key(enabled: bool) -> None:
@@ -101,8 +107,8 @@ def _set_windows_run_key(enabled: bool) -> None:
         raise AutoStartError("Windows auto-start requires winreg.") from exc
 
     key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
-    value_name = "PrintBridge Client"
-    legacy_value_names = ("PrintBridge Client Agent", "PrintBridge Endpoint Agent")
+    value_name = "Pridge Client"
+    legacy_value_names = ("PrintBridge Client", "PrintBridge Client Agent", "PrintBridge Endpoint Agent")
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
         if enabled:
             value = " ".join(f'"{part}"' if " " in part else part for part in command())

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileComment: Additional terms apply; see ADDITIONAL_TERMS.md.
 
-"""PrintBridge Client."""
+"""Pridge Client."""
 
 from printbridge_client.version import __version__
 

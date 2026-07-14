@@ -38,7 +38,7 @@
 
     return html`
       <main class="utility-page about-page">
-        <img class="about-logo" src="assets/Logo.png" alt="PrintBridge" />
+        <img class="about-logo" src="assets/Logo.png" alt="Pridge" />
         <p class="about-description">${S.about_description}</p>
         <div class="about-details">
           <div class="about-detail"><span>${S.version}</span><strong>${state.version}</strong></div>
