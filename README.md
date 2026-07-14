@@ -251,7 +251,7 @@ If authentication keeps failing, replace the token in the settings window. Store
 
 ## Versioning
 
-Pridge Client follows semantic versioning. The current application version is `1.1.0`.
+Pridge Client follows semantic versioning. The current application version is `1.1.1`.
 
 - Bug fixes increment the patch number, for example `1.1.0` to `1.1.1`.
 - Backward-compatible features increment the minor number and reset the patch number, for example `1.1.1` to `1.2.0`.
