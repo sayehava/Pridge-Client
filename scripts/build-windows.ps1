@@ -182,6 +182,7 @@ function Build-Native {
     New-Item -ItemType Directory -Path $CompileRoot -Force | Out-Null
     $Arguments = @(
         "-m", "nuitka", "--standalone", "--assume-yes-for-downloads", "--msvc=latest",
+        "--python-flag=-m",
         "--windows-console-mode=disable", "--output-dir=$CompileRoot",
         "--output-filename=$($Context.executable_name).exe",
         "--windows-icon-from-ico=$($Context.icon_ico)",
@@ -197,11 +198,9 @@ function Build-Native {
         "--nofollow-import-to=PIL.ImageTk", "--nofollow-import-to=PIL._tkinter_finder",
         "--nofollow-import-to=tkinter", "--nofollow-import-to=_tkinter",
         "--include-package=clr_loader", "--include-package=pythonnet", "--include-module=clr",
-        "--include-module=webview.platforms.winforms",
-        "--include-module=webview.platforms.edgechromium",
-        "--include-module=webview.platforms.win32", "--include-package=win32com",
+        "--include-package=win32com",
         "--report=$(Join-Path $OutputDir 'native-windows-compilation-report.xml')",
-        (Join-Path $Repository "src\printbridge_client\__main__.py")
+        (Join-Path $Repository "src\printbridge_client")
     )
     Invoke-CheckedCommand python $Arguments
     $Distribution = Get-ChildItem $CompileRoot -Directory -Recurse | Where-Object {
