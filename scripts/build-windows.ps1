@@ -233,10 +233,14 @@ function Build-Native {
     $Context = New-BuildContext "Native"
     $CompileRoot = Join-Path $TemporaryRoot "nuitka"
     New-Item -ItemType Directory -Path $CompileRoot -Force | Out-Null
-    # Nuitka's own analysis follows guilib.py's `import webview.platforms.winforms`
-    # automatically, but not that module's own `from webview.platforms import win32`
-    # sub-import, so pywebview.platforms.win32 must be included explicitly or the
-    # frozen app fails at startup with "You must have pythonnet installed".
+    # Nuitka ships a built-in "pywebview" plugin that force-includes exactly
+    # webview.platforms.{winforms,edgechromium,edgehtml,mshtml,cef} on Windows
+    # and excludes everything else under webview.platforms, including win32 -
+    # a real dependency winforms.py needs unconditionally, not an alternate
+    # renderer choice. Nuitka treats a user --include-module that contradicts
+    # a plugin's exclusion as a fatal conflict with no override, so the buggy
+    # plugin is disabled here and its (otherwise correct) Windows module set
+    # is replicated explicitly, with win32 added.
     $Arguments = @(
         "-m", "nuitka", "--standalone", "--assume-yes-for-downloads", "--msvc=latest",
         "--python-flag=-m",
@@ -256,7 +260,12 @@ function Build-Native {
         "--nofollow-import-to=tkinter", "--nofollow-import-to=_tkinter",
         "--include-package=clr_loader", "--include-package=pythonnet", "--include-module=clr",
         "--include-package=win32com",
+        "--disable-plugin=pywebview",
+        "--include-module=webview.platforms.winforms",
         "--include-module=webview.platforms.win32",
+        "--include-module=webview.platforms.edgechromium",
+        "--include-module=webview.platforms.mshtml",
+        "--include-module=webview.platforms.cef",
         "--report=$(Join-Path $OutputDir 'native-windows-compilation-report.xml')",
         (Join-Path $Repository "src\printbridge_client")
     )
