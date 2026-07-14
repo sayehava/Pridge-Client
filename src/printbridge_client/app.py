@@ -63,6 +63,7 @@ def _runtime_config(config: ClientConfig, server: ServerConfig) -> ClientConfig:
         server_url=server.server_url,
         servers=[server],
         selected_printer=config.selected_printer,
+        printer_profiles=config.printer_profiles,
         polling_interval_seconds=server.polling_interval_seconds,
         heartbeat_interval_seconds=server.heartbeat_interval_seconds,
         start_polling_on_launch=config.start_polling_on_launch,

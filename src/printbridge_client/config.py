@@ -22,6 +22,7 @@ LEGACY_APP_DIR_NAMES = ("PrintBridge Client", "PrintBridge Endpoint")
 LEGACY_CONFIG_DIR_NAMES = ("printbridge-client", "printbridge-endpoint")
 LEGACY_KEYRING_SERVICES = ("printbridge-client", "printbridge-endpoint")
 DARKNESS_GRADES = ("Quartz", "Moonstone", "Labradorite", "Onyx", "Obsidian", "Jet")
+PRINT_MODES = ("raw", "system_driver")
 
 
 @dataclass
@@ -29,6 +30,12 @@ class PrinterMapping:
     remote_printer_id: str
     local_printer_name: str
     remote_printer_name: str = ""
+
+
+@dataclass
+class PrinterProfile:
+    mode: str = "raw"
+    driver_settings: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -59,6 +66,7 @@ class ClientConfig:
     server_url: str = ""
     servers: list[ServerConfig] = field(default_factory=list)
     selected_printer: str = ""
+    printer_profiles: dict[str, PrinterProfile] = field(default_factory=dict)
     polling_interval_seconds: int = 5
     heartbeat_interval_seconds: int = 30
     start_polling_on_launch: bool = False
@@ -103,6 +111,7 @@ class ConfigStore:
             server_url=str(raw.get("server_url", "")),
             servers=servers,
             selected_printer=str(raw.get("selected_printer", "")),
+            printer_profiles=_parse_printer_profiles(raw.get("printer_profiles", {})),
             polling_interval_seconds=_positive_int(raw.get("polling_interval_seconds", 5), 5),
             heartbeat_interval_seconds=_positive_int(raw.get("heartbeat_interval_seconds", 30), 30),
             start_polling_on_launch=bool(raw.get("start_polling_on_launch", False)),
@@ -330,6 +339,32 @@ def _parse_printer_mappings(raw: Any) -> list[PrinterMapping]:
             )
         )
     return mappings
+
+
+def _parse_printer_profiles(raw: Any) -> dict[str, PrinterProfile]:
+    if not isinstance(raw, dict):
+        return {}
+
+    profiles: dict[str, PrinterProfile] = {}
+    for raw_name, raw_profile in raw.items():
+        name = str(raw_name).strip()
+        if not name or not isinstance(raw_profile, dict):
+            continue
+        mode = str(raw_profile.get("mode", "raw")).strip().lower()
+        if mode not in PRINT_MODES:
+            mode = "raw"
+        raw_settings = raw_profile.get("driver_settings", {})
+        if not isinstance(raw_settings, dict):
+            raw_settings = {}
+        settings = {
+            str(option_id).strip(): str(value_id).strip()
+            for option_id, value_id in raw_settings.items()
+            if str(option_id).strip()
+            and isinstance(value_id, (str, int, float, bool))
+            and str(value_id).strip()
+        }
+        profiles[name] = PrinterProfile(mode=mode, driver_settings=settings)
+    return profiles
 
 
 def _token_username(server_id: str) -> str:

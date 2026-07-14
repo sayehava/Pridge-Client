@@ -8,10 +8,52 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from printbridge_client.config import ClientTokenStore, ConfigStore
+from printbridge_client.config import ClientConfig, ClientTokenStore, ConfigStore, PrinterProfile
 
 
 class ConfigStoreTests(unittest.TestCase):
+    def test_saves_and_loads_per_printer_profiles(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            store = ConfigStore(path)
+            store.save(
+                ClientConfig(
+                    printer_profiles={
+                        "Office Labels": PrinterProfile(
+                            mode="system_driver",
+                            driver_settings={"PageSize": "w288h432", "Duplex": "None"},
+                        )
+                    }
+                )
+            )
+
+            config = store.load()
+
+        self.assertEqual(config.printer_profiles["Office Labels"].mode, "system_driver")
+        self.assertEqual(config.printer_profiles["Office Labels"].driver_settings["PageSize"], "w288h432")
+
+    def test_invalid_printer_profile_mode_falls_back_to_raw(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "printer_profiles": {
+                            "Office Labels": {
+                                "mode": "unknown",
+                                "driver_settings": {"Resolution": "300dpi", "invalid": None},
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            config = ConfigStore(path).load()
+
+        self.assertEqual(config.printer_profiles["Office Labels"].mode, "raw")
+        self.assertEqual(config.printer_profiles["Office Labels"].driver_settings, {"Resolution": "300dpi"})
+
     def test_copies_legacy_default_config_to_client_location(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
