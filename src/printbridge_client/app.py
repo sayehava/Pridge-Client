@@ -9,7 +9,9 @@ import threading
 
 from printbridge_client.config import ClientTokenStore, ConfigStore, ClientConfig, ServerConfig
 from printbridge_client.logging_setup import configure_logging
+from printbridge_client.platform_window import show_startup_error
 from printbridge_client.strings import APP_NAME
+from printbridge_client.strings import MESSAGE_GUI_STARTUP_FAILED
 from printbridge_client.version import __version__
 from printbridge_client.worker import PollingWorker
 
@@ -53,9 +55,14 @@ def main() -> None:
             worker.join(timeout=10)
         return
 
-    from printbridge_client.gui import run_gui
+    try:
+        from printbridge_client.gui import run_gui
 
-    run_gui()
+        run_gui()
+    except Exception:
+        logger.exception("Desktop GUI startup failed")
+        show_startup_error(APP_NAME, MESSAGE_GUI_STARTUP_FAILED)
+        raise SystemExit(1)
 
 
 def _runtime_config(config: ClientConfig, server: ServerConfig) -> ClientConfig:

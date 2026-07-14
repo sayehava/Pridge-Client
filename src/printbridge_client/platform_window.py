@@ -27,6 +27,28 @@ def preferred_webview_gui() -> str | None:
     return None
 
 
+def show_startup_error(title: str, message: str) -> None:
+    """Display a native fatal-startup message without depending on pywebview."""
+    try:
+        system = platform.system()
+        if system == "Windows":
+            import ctypes
+
+            ctypes.windll.user32.MessageBoxW(None, message, f"{title} Startup Error", 0x10)
+        elif system == "Darwin":
+            import AppKit
+
+            alert = AppKit.NSAlert.alloc().init()
+            alert.setMessageText_(f"{title} Startup Error")
+            alert.setInformativeText_(message)
+            alert.setAlertStyle_(AppKit.NSAlertStyleCritical)
+            alert.runModal()
+        else:
+            logger.error("%s Startup Error: %s", title, message)
+    except Exception as exc:
+        logger.error("Could not display the startup error dialog: %s", exc)
+
+
 def configure_application_identity(name: str) -> None:
     """Set the native process and bundle name used by the macOS menu bar."""
     if platform.system() != "Darwin":

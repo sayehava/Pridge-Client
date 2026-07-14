@@ -12,6 +12,7 @@ from printbridge_client.platform_window import (
     create_application_menu,
     disable_minimize,
     preferred_webview_gui,
+    show_startup_error,
 )
 
 
@@ -27,6 +28,13 @@ class PlatformWindowTests(unittest.TestCase):
     @patch("printbridge_client.platform_window.platform.system", return_value="Linux")
     def test_selects_qt_on_linux(self, _system):
         self.assertEqual(preferred_webview_gui(), "qt")
+
+    @patch("printbridge_client.platform_window.logger.error")
+    @patch("printbridge_client.platform_window.platform.system", return_value="Linux")
+    def test_logs_startup_error_when_no_native_dialog_is_available(self, _system, log_error):
+        show_startup_error("Pridge Client", "Could not start")
+
+        log_error.assert_called_once_with("%s Startup Error: %s", "Pridge Client", "Could not start")
 
     @patch("printbridge_client.platform_window.platform.system", return_value="Darwin")
     def test_sets_macos_process_and_bundle_name(self, _system):
