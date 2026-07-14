@@ -49,7 +49,6 @@
           <div class="about-detail"><span>${S.license}</span><strong>${S.license_value}</strong></div>
         </div>
         <p class="legal-notice">${S.additional_terms_notice}</p>
-        <button class="primary" onClick=${() => callApi("close_utility_window", "about")}>${S.close}</button>
       </main>
     `;
   }
