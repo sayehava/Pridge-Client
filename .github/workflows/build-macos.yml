@@ -280,28 +280,15 @@ jobs:
           fi
 
           HOME="$clean_home" \
+            perl -e 'alarm shift; exec @ARGV' 45 \
             "$executable_path" \
+            --gui-smoke-test \
             > "$gui_log" \
-            2>&1 &
-
-          app_pid=$!
-
-          sleep 10
-
-          if ! kill -0 "$app_pid" 2>/dev/null; then
-            echo "The macOS GUI exited during startup."
-
-            if [[ -f "$gui_log" ]]; then
-              echo "===== GUI startup log ====="
+            2>&1 || {
+              echo "The packaged macOS GUI smoke test failed."
               cat "$gui_log"
-              echo "==========================="
-            fi
-
-            exit 1
-          fi
-
-          kill "$app_pid" || true
-          wait "$app_pid" || true
+              exit 1
+            }
 
           if grep -Eq \
             "Traceback|CRITICAL|FATAL" \

@@ -63,11 +63,25 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("hdiutil create", text)
         self.assertIn("PRINTBRIDGE_MACOS_SIGNING_IDENTITY", text)
         self.assertIn("notarytool submit", text)
+        self.assertIn('"$app/Contents/MacOS/$executable" --gui-smoke-test', text)
         self.assertNotIn("--include-package=webview", text)
         self.assertNotIn("--include-package=PIL", text)
         self.assertIn("--include-module=pystray._darwin", text)
         self.assertIn("--nofollow-import-to=tkinter", text)
         self.assertNotIn("--onefile", text)
+
+    def test_linux_build_bundles_qt_and_smoke_tests_both_variants(self):
+        text = (ROOT / "scripts" / "build-linux.sh").read_text(encoding="utf-8")
+        spec = (ROOT / "packaging" / "pyinstaller" / "Pridge-Client.spec").read_text(encoding="utf-8")
+        workflow = (ROOT / ".github" / "workflows" / "build-linux.yml").read_text(encoding="utf-8")
+
+        self.assertIn("--enable-plugin=pyqt6", text)
+        self.assertIn("--include-module=webview.platforms.qt", text)
+        self.assertIn("--gui-smoke-test", text)
+        self.assertIn('"webview.platforms.qt"', spec)
+        self.assertIn('PyQt6.QtWebEngineWidgets', spec)
+        self.assertIn("xvfb", workflow)
+        self.assertIn(".[linux,secure,tray]", workflow)
 
     def test_tag_workflow_publishes_all_expected_packages(self):
         text = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
@@ -81,6 +95,8 @@ class ReleaseConfigurationTests(unittest.TestCase):
             "Pridge-Client-PyInstaller-Windows-x64-Portable.zip",
             "Pridge-Client-PyInstaller-macOS-arm64.dmg",
             "Pridge-Client-PyInstaller-macOS-x86_64.dmg",
+            "Pridge-Client-Native-Linux-x86_64.tar.gz",
+            "Pridge-Client-PyInstaller-Linux-x86_64.tar.gz",
             "SHA256SUMS.txt",
             "Pridge-Client-Release-Notes.txt",
         )
@@ -95,6 +111,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn('runtime_root="$app/Contents/MacOS"', text)
         self.assertIn('runtime_root="$app/Contents/Resources"', text)
         self.assertIn('"Traceback|CRITICAL|FATAL"', text)
+        self.assertIn("--gui-smoke-test", text)
 
 
 if __name__ == "__main__":

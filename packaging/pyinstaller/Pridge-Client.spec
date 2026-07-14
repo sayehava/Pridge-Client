@@ -51,6 +51,18 @@ if sys.platform == "win32":
     ]
 elif sys.platform == "darwin":
     hiddenimports += ["webview.platforms.cocoa", "AppKit", "Foundation", "WebKit"]
+elif sys.platform.startswith("linux"):
+    hiddenimports += [
+        "webview.platforms.qt",
+        "qtpy",
+        "PyQt6.QtWebChannel",
+        "PyQt6.QtWebEngineCore",
+        "PyQt6.QtWebEngineWidgets",
+    ]
+
+excluded_gui_packages = ["PyQt5", "PySide2", "PySide6", "gtk"]
+if not sys.platform.startswith("linux"):
+    excluded_gui_packages += ["PyQt6", "qtpy"]
 
 analysis = Analysis(
     [str(package_root / "__main__.py")],
@@ -61,7 +73,7 @@ analysis = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["PyQt5", "PyQt6", "PySide2", "PySide6", "gtk", "qtpy"],
+    excludes=excluded_gui_packages,
     noarchive=False,
     optimize=0,
 )
@@ -82,7 +94,11 @@ exe = EXE(
     target_arch=context["arch"] if sys.platform == "darwin" else None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=context["icon_ico"] if sys.platform == "win32" else context["icon_icns"],
+    icon=(
+        context["icon_ico"]
+        if sys.platform == "win32"
+        else context["icon_icns"] if sys.platform == "darwin" else None
+    ),
     version=context["windows_version_file"] if sys.platform == "win32" else None,
 )
 collection = COLLECT(

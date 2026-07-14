@@ -21,6 +21,7 @@ from release_common import (
     EXECUTABLE_NAME,
     ICON_PNG,
     IDENTIFIER,
+    LINUX_PACKAGES,
     MACOS_PACKAGES,
     ROOT,
     WINDOWS_PACKAGES,
@@ -108,6 +109,7 @@ def main() -> None:
         "windows_version_file": str(version_file),
         "windows_packages": WINDOWS_PACKAGES[args.variant],
         "macos_package": MACOS_PACKAGES[args.variant].get(arch, ""),
+        "linux_package": LINUX_PACKAGES[args.variant] if arch == "x86_64" else "",
     }
     context_path = work_dir / "build-context.json"
     context_path.write_text(json.dumps(context, indent=2, sort_keys=True) + "\n", encoding="utf-8")

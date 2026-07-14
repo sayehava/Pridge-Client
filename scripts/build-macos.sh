@@ -126,6 +126,10 @@ finalize_app() {
     local executable
     executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
     "$app/Contents/MacOS/$executable" --version
+    local smoke_home="$TEMP_ROOT/gui-smoke-$(context_value "$context" variant)"
+    mkdir -p "$smoke_home"
+    HOME="$smoke_home" perl -e 'alarm shift; exec @ARGV' 45 \
+        "$app/Contents/MacOS/$executable" --gui-smoke-test
     local architectures
     architectures="$(lipo -archs "$app/Contents/MacOS/$executable")"
     if [[ " $architectures " != *" $ARCH "* ]]; then

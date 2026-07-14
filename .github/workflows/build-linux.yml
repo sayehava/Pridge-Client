@@ -1,0 +1,102 @@
+name: Build Linux packages
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version or v-prefixed tag embedded in the packages
+        required: false
+        type: string
+        default: ""
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Optional version override, such as 1.1.1
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Linux x86_64 ${{ matrix.variant }}
+    runs-on: ubuntu-24.04
+
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - Native
+          - PyInstaller
+
+    env:
+      PRINTBRIDGE_VERSION: ${{ inputs.version }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          architecture: x64
+          cache: pip
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            libcups2-dev \
+            libegl1 \
+            libgbm1 \
+            libgl1 \
+            libnss3 \
+            libxcomposite1 \
+            libxdamage1 \
+            libxkbcommon-x11-0 \
+            libxrandr2 \
+            libxcb-cursor0 \
+            xauth \
+            xvfb
+
+      - name: Install build dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install \
+            -r requirements-release.txt \
+            -e ".[linux,secure,tray]"
+
+      - name: Run tests
+        run: python3 -B -m unittest discover -s tests
+
+      - name: Build and smoke-test ${{ matrix.variant }} package
+        run: |
+          bash scripts/build-linux.sh \
+            "${{ matrix.variant }}" \
+            --output-dir "$GITHUB_WORKSPACE/build"
+
+      - name: Upload package
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pridge-linux-${{ matrix.variant }}
+          path: ${{ github.workspace }}/build/Pridge-Client-${{ matrix.variant }}-Linux-x86_64.tar.gz
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-logs-linux-${{ matrix.variant }}
+          path: |
+            ${{ github.workspace }}/build/*.log
+            ${{ github.workspace }}/build/*.xml
+          if-no-files-found: warn
+          retention-days: 30

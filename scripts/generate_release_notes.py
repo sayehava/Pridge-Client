@@ -16,6 +16,7 @@ from release_common import (
     AUTHOR,
     COPYRIGHT,
     LICENSE_NAME,
+    LINUX_PACKAGES,
     MACOS_PACKAGES,
     RELEASE_NOTES_NAME,
     ROOT,
@@ -82,7 +83,7 @@ def grouped_commits(subjects: list[str]) -> dict[str, list[str]]:
 def package_list(variant: str) -> list[str]:
     windows = list(WINDOWS_PACKAGES[variant])
     macos = list(MACOS_PACKAGES[variant].values())
-    return windows + macos
+    return windows + macos + [LINUX_PACKAGES[variant]]
 
 
 def render(tag: str, markdown: bool) -> str:
@@ -97,7 +98,7 @@ def render(tag: str, markdown: bool) -> str:
         f"Application version: {version}",
         f"Release date: {dt.datetime.now(dt.timezone.utc).date().isoformat()}",
         f"Git tag: {tag}",
-        "Supported platforms: Windows x64, macOS arm64, macOS x86_64",
+        "Supported platforms: Windows x64, macOS arm64, macOS x86_64, Linux x86_64",
         "",
         heading("Available Native packages"),
         *[bullet + name for name in package_list("Native")],

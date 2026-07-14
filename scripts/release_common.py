@@ -54,6 +54,11 @@ MACOS_PACKAGES = {
     },
 }
 
+LINUX_PACKAGES = {
+    "Native": "Pridge-Client-Native-Linux-x86_64.tar.gz",
+    "PyInstaller": "Pridge-Client-PyInstaller-Linux-x86_64.tar.gz",
+}
+
 
 def application_version() -> str:
     override = os.environ.get("PRINTBRIDGE_VERSION", "").strip()
@@ -106,7 +111,8 @@ def write_build_metadata(path: Path, variant: str, system: str, version: str | N
 def package_names() -> tuple[str, ...]:
     windows = [name for names in WINDOWS_PACKAGES.values() for name in names]
     macos = [name for names in MACOS_PACKAGES.values() for name in names.values()]
-    return tuple(windows + macos)
+    linux = list(LINUX_PACKAGES.values())
+    return tuple(windows + macos + linux)
 
 
 def git_status() -> str:
