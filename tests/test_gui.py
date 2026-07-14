@@ -173,6 +173,21 @@ class ClientApiTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         manager.open_driver_settings.assert_called_once_with("Office Driver")
 
+    def test_submits_test_page_using_saved_driver_profile(self):
+        manager = Mock()
+        manager.list_printers.return_value = [Printer("Office Driver", system_driver_available=True)]
+        self.api.printer_manager = manager
+        self.api.refresh_printers()
+
+        result = self.api.test_printer("Office Driver")
+
+        self.assertTrue(result["ok"])
+        manager.print_test_page.assert_called_once_with(
+            "Office Driver",
+            mode="system_driver",
+            driver_settings={},
+        )
+
     def test_starts_and_stops_one_server(self):
         result = self.api.add_server({"name": "Office", "server_url": "https://office.example.test"})
         server_id = result["state"]["servers"][0]["id"]

@@ -43,6 +43,8 @@ from printbridge_client.strings import (
     MESSAGE_SERVER_NOT_FOUND,
     MESSAGE_SERVER_REQUIRED,
     MESSAGE_SETTINGS_SAVED,
+    MESSAGE_TEST_PRINT_DRIVER_ONLY,
+    MESSAGE_TEST_PRINT_SUBMITTED,
     MESSAGE_TOKEN_REQUIRED,
     MESSAGE_TRAY_UNAVAILABLE,
     MESSAGE_WINDOW_HIDDEN,
@@ -352,7 +354,7 @@ class ClientApi:
         name = str(printer_name).strip()
         if name not in {printer.name for printer in self.printers}:
             return self._error("The selected printer is no longer available.")
-        mode = str(fields.get("mode", "raw")).strip().lower()
+        mode = str(fields.get("mode", "system_driver")).strip().lower()
         if mode not in PRINT_MODES:
             return self._error("The selected printing mode is not supported.")
 
@@ -392,6 +394,29 @@ class ClientApi:
         except PrinterError as exc:
             return self._error(str(exc))
         return self.get_printer_capabilities(name)
+
+    def test_printer(self, printer_name: str) -> dict:
+        name = str(printer_name).strip()
+        if name not in {printer.name for printer in self.printers}:
+            return self._error("The selected printer is no longer available.")
+        profile = self.config.printer_profiles.get(name, PrinterProfile())
+        if profile.mode != "system_driver":
+            return self._error(MESSAGE_TEST_PRINT_DRIVER_ONLY)
+        try:
+            self.printer_manager.print_test_page(
+                name,
+                mode=profile.mode,
+                driver_settings=profile.driver_settings,
+            )
+        except PrinterError as exc:
+            return self._error(str(exc))
+        logger.info("Submitted test page to printer %s", name)
+        return {
+            "ok": True,
+            "error": None,
+            "message": MESSAGE_TEST_PRINT_SUBMITTED,
+            "state": self._build_state(),
+        }
 
     def set_start_polling_on_launch(self, value: bool) -> dict:
         self.start_polling_on_launch = bool(value)

@@ -32,7 +32,7 @@ class ConfigStoreTests(unittest.TestCase):
         self.assertEqual(config.printer_profiles["Office Labels"].mode, "system_driver")
         self.assertEqual(config.printer_profiles["Office Labels"].driver_settings["PageSize"], "w288h432")
 
-    def test_invalid_printer_profile_mode_falls_back_to_raw(self) -> None:
+    def test_invalid_printer_profile_mode_falls_back_to_system_driver(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.json"
             path.write_text(
@@ -51,7 +51,7 @@ class ConfigStoreTests(unittest.TestCase):
 
             config = ConfigStore(path).load()
 
-        self.assertEqual(config.printer_profiles["Office Labels"].mode, "raw")
+        self.assertEqual(config.printer_profiles["Office Labels"].mode, "system_driver")
         self.assertEqual(config.printer_profiles["Office Labels"].driver_settings, {"Resolution": "300dpi"})
 
     def test_copies_legacy_default_config_to_client_location(self) -> None:

@@ -34,7 +34,7 @@ class PrinterMapping:
 
 @dataclass
 class PrinterProfile:
-    mode: str = "raw"
+    mode: str = "system_driver"
     driver_settings: dict[str, str] = field(default_factory=dict)
 
 
@@ -350,9 +350,9 @@ def _parse_printer_profiles(raw: Any) -> dict[str, PrinterProfile]:
         name = str(raw_name).strip()
         if not name or not isinstance(raw_profile, dict):
             continue
-        mode = str(raw_profile.get("mode", "raw")).strip().lower()
+        mode = str(raw_profile.get("mode", "system_driver")).strip().lower()
         if mode not in PRINT_MODES:
-            mode = "raw"
+            mode = "system_driver"
         raw_settings = raw_profile.get("driver_settings", {})
         if not isinstance(raw_settings, dict):
             raw_settings = {}

@@ -99,7 +99,7 @@ class PrinterManager:
         self,
         printer_name: str,
         data: bytes,
-        mode: str = "raw",
+        mode: str = "system_driver",
         driver_settings: Mapping[str, str] | None = None,
         content_type: str = "application/octet-stream",
         job_name: str = "Pridge Job",
@@ -126,6 +126,23 @@ class PrinterManager:
     def print_raw(self, printer_name: str, data: bytes, job_name: str = "Pridge Job") -> None:
         self.print_job(printer_name, data, mode="raw", job_name=job_name)
 
+    def print_test_page(
+        self,
+        printer_name: str,
+        mode: str,
+        driver_settings: Mapping[str, str] | None = None,
+    ) -> None:
+        if mode != "system_driver":
+            raise PrinterError("Test printing is available only in System Driver mode.")
+        self.print_job(
+            printer_name,
+            create_test_page_pdf(),
+            mode="system_driver",
+            driver_settings=driver_settings,
+            content_type="application/pdf",
+            job_name="Pridge Test Page",
+        )
+
 
 def validate_driver_settings(
     capabilities: PrinterCapabilities,
@@ -140,3 +157,43 @@ def validate_driver_settings(
         if selected:
             validated[option.id] = selected
     return validated
+
+
+def create_test_page_pdf() -> bytes:
+    content = (
+        b"BT\n"
+        b"/F1 24 Tf\n"
+        b"72 700 Td\n"
+        b"(Pridge Client Test Page) Tj\n"
+        b"0 -38 Td\n"
+        b"/F1 12 Tf\n"
+        b"(System driver printing is configured correctly.) Tj\n"
+        b"ET\n"
+    )
+    objects = (
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        f"<< /Length {len(content)} >>\nstream\n".encode("ascii") + content + b"endstream",
+    )
+    document = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for object_number, value in enumerate(objects, start=1):
+        offsets.append(len(document))
+        document.extend(f"{object_number} 0 obj\n".encode("ascii"))
+        document.extend(value)
+        document.extend(b"\nendobj\n")
+    xref_offset = len(document)
+    document.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    document.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        document.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    document.extend(
+        (
+            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+            f"startxref\n{xref_offset}\n%%EOF\n"
+        ).encode("ascii")
+    )
+    return bytes(document)

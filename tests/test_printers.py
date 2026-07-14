@@ -13,11 +13,19 @@ from printbridge_client.printers import (
     PrinterCapabilities,
     PrinterError,
     PrinterManager,
+    create_test_page_pdf,
     validate_driver_settings,
 )
 
 
 class DriverCapabilityTests(unittest.TestCase):
+    def test_generates_a_complete_pdf_test_page(self) -> None:
+        document = create_test_page_pdf()
+
+        self.assertTrue(document.startswith(b"%PDF-1.4"))
+        self.assertIn(b"Pridge Client Test Page", document)
+        self.assertTrue(document.endswith(b"%%EOF\n"))
+
     def test_parses_cups_option_ids_labels_choices_and_defaults(self) -> None:
         capabilities = parse_lpoptions(
             "PageSize/Media Size: Letter/US_Letter *A4/A4\n"
@@ -101,6 +109,25 @@ class PrinterManagerTests(unittest.TestCase):
 
         with self.assertRaises(PrinterError):
             self.manager.print_job("Labels", b"document", mode="system_driver")
+
+    def test_submits_pdf_test_page_through_system_driver(self) -> None:
+        self.manager.backend.get_capabilities.return_value = PrinterCapabilities(
+            printer_name="Labels",
+            system_driver_available=True,
+        )
+
+        self.manager.print_test_page("Labels", "system_driver")
+
+        args = self.manager.backend.print_driver.call_args.args
+        self.assertEqual(args[0], "Labels")
+        self.assertTrue(args[1].startswith(b"%PDF-1.4"))
+        self.assertEqual(args[2:], ("application/pdf", {}, "Pridge Test Page"))
+
+    def test_does_not_inject_a_generic_test_payload_in_raw_mode(self) -> None:
+        with self.assertRaises(PrinterError):
+            self.manager.print_test_page("Labels", "raw")
+
+        self.manager.backend.print_raw.assert_not_called()
 
 
 class PosixPrinterBackendTests(unittest.TestCase):
