@@ -32,7 +32,7 @@ AppName=Pridge Client
 AppVersion={#AppVersion}
 AppVerName=Pridge Client {#AppVersion}
 AppPublisher=Sayeh Ava Pazouki
-AppCopyright=Copyright © 2026 Sayeh Ava Pazouki
+AppCopyright=Copyright (c) 2026 Sayeh Ava Pazouki
 AppPublisherURL=https://github.com/sayehava/Pridge-Client
 AppSupportURL=https://github.com/sayehava/Pridge-Client/issues
 AppUpdatesURL=https://github.com/sayehava/Pridge-Client/releases
@@ -53,7 +53,7 @@ OutputBaseFilename={#OutputBaseFilename}
 VersionInfoVersion={#AppVersion}
 VersionInfoCompany=Sayeh Ava Pazouki
 VersionInfoDescription=Pridge Client Setup
-VersionInfoCopyright=Copyright © 2026 Sayeh Ava Pazouki
+VersionInfoCopyright=Copyright (c) 2026 Sayeh Ava Pazouki
 VersionInfoProductName=Pridge Client
 VersionInfoProductVersion={#AppVersion}
 
