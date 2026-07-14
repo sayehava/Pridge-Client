@@ -3,10 +3,11 @@
 # SPDX-FileComment: Additional terms apply; see ADDITIONAL_TERMS.md.
 
 import unittest
+from unittest.mock import Mock
 
 from printbridge_client.api import ReservedJob, parse_server_instructions
-from printbridge_client.config import PrinterMapping, ServerConfig
-from printbridge_client.worker import decode_payload, resolve_printer_name
+from printbridge_client.config import ClientConfig, PrinterMapping, PrinterProfile, ServerConfig
+from printbridge_client.worker import PollingWorker, decode_payload, resolve_printer_name
 
 
 class DecodePayloadTests(unittest.TestCase):
@@ -79,6 +80,41 @@ class PrinterMappingTests(unittest.TestCase):
         )
 
         self.assertEqual(resolve_printer_name(server, job), "Office Backup")
+
+
+class WorkerPrintingModeTests(unittest.TestCase):
+    def test_submits_job_with_saved_printer_mode_and_driver_settings(self) -> None:
+        server = ServerConfig(id="office", default_printer="Office Driver")
+        config = ClientConfig(
+            server_url="https://example.test",
+            servers=[server],
+            printer_profiles={
+                "Office Driver": PrinterProfile(
+                    mode="system_driver",
+                    driver_settings={"PageSize": "A4"},
+                )
+            },
+        )
+        printer_manager = Mock()
+        client = Mock()
+        worker = PollingWorker(config, "token", printer_manager=printer_manager)
+        job = ReservedJob(
+            job_id="42",
+            payload_base64="JVBERg==",
+            content_type="application/pdf",
+        )
+
+        worker._process_job(client, job)
+
+        printer_manager.print_job.assert_called_once_with(
+            "Office Driver",
+            b"%PDF",
+            mode="system_driver",
+            driver_settings={"PageSize": "A4"},
+            content_type="application/pdf",
+            job_name="Pridge 42",
+        )
+        client.report_printed.assert_called_once_with("42")
 
 
 if __name__ == "__main__":

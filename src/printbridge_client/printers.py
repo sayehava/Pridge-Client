@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import logging
 import platform
-import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Mapping
 
 
 logger = logging.getLogger(__name__)
@@ -21,126 +21,122 @@ class PrinterError(RuntimeError):
 class Printer:
     name: str
     is_default: bool = False
+    system_driver_available: bool = False
+
+
+@dataclass(frozen=True)
+class DriverChoice:
+    id: str
+    label: str
+
+    def public(self) -> dict[str, str]:
+        return {"id": self.id, "label": self.label}
+
+
+@dataclass(frozen=True)
+class DriverOption:
+    id: str
+    label: str
+    choices: tuple[DriverChoice, ...]
+    default: str = ""
+
+    def public(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "label": self.label,
+            "default": self.default,
+            "choices": [choice.public() for choice in self.choices],
+        }
+
+
+@dataclass(frozen=True)
+class PrinterCapabilities:
+    printer_name: str
+    system_driver_available: bool
+    driver_name: str = ""
+    options: tuple[DriverOption, ...] = field(default_factory=tuple)
+    supports_native_dialog: bool = False
+
+    def public(self, settings: Mapping[str, str] | None = None) -> dict[str, object]:
+        return {
+            "printer_name": self.printer_name,
+            "system_driver_available": self.system_driver_available,
+            "driver_name": self.driver_name,
+            "supports_native_dialog": self.supports_native_dialog,
+            "options": [option.public() for option in self.options],
+            "settings": validate_driver_settings(self, settings or {}),
+        }
 
 
 class PrinterManager:
-    def __init__(self) -> None:
-        self.system = platform.system()
+    def __init__(self, system: str | None = None) -> None:
+        from printbridge_client.printer_backends import create_backend
+
+        self.system = system or platform.system()
+        self.backend = create_backend(self.system)
 
     def list_printers(self) -> list[Printer]:
-        if self.system == "Windows":
-            return _list_windows_printers()
-        if self.system == "Linux":
-            return _list_linux_printers()
-        if self.system == "Darwin":
-            return _list_posix_printers()
-        return []
+        return self.backend.list_printers()
 
-    def print_raw(self, printer_name: str, data: bytes, job_name: str = "Pridge Job") -> None:
+    def get_capabilities(self, printer_name: str) -> PrinterCapabilities:
+        if not printer_name:
+            raise PrinterError("No printer is selected.")
+        return self.backend.get_capabilities(printer_name)
+
+    def validate_driver_settings(
+        self,
+        printer_name: str,
+        settings: Mapping[str, str],
+    ) -> dict[str, str]:
+        return validate_driver_settings(self.get_capabilities(printer_name), settings)
+
+    def open_driver_settings(self, printer_name: str) -> None:
+        if not printer_name:
+            raise PrinterError("No printer is selected.")
+        self.backend.open_driver_settings(printer_name)
+
+    def print_job(
+        self,
+        printer_name: str,
+        data: bytes,
+        mode: str = "raw",
+        driver_settings: Mapping[str, str] | None = None,
+        content_type: str = "application/octet-stream",
+        job_name: str = "Pridge Job",
+    ) -> None:
         if not printer_name:
             raise PrinterError("No printer is selected.")
         if not data:
             raise PrinterError("Print payload is empty.")
 
-        logger.info("Sending raw job to printer %s", printer_name)
-        if self.system == "Windows":
-            _print_windows_raw(printer_name, data, job_name)
-        elif self.system in {"Linux", "Darwin"}:
-            _print_posix_raw(printer_name, data, job_name)
-        else:
-            raise PrinterError(f"Unsupported platform: {self.system}")
+        if mode == "raw":
+            logger.info("Sending raw job to printer %s", printer_name)
+            self.backend.print_raw(printer_name, data, job_name)
+            return
+        if mode != "system_driver":
+            raise PrinterError("The configured printing mode is not supported.")
+
+        capabilities = self.get_capabilities(printer_name)
+        if not capabilities.system_driver_available:
+            raise PrinterError("The selected printer does not have an available system driver.")
+        settings = validate_driver_settings(capabilities, driver_settings or {})
+        logger.info("Submitting system-driver job to printer %s", printer_name)
+        self.backend.print_driver(printer_name, data, content_type, settings, job_name)
+
+    def print_raw(self, printer_name: str, data: bytes, job_name: str = "Pridge Job") -> None:
+        self.print_job(printer_name, data, mode="raw", job_name=job_name)
 
 
-def _list_windows_printers() -> list[Printer]:
-    try:
-        import win32print
-    except ImportError as exc:
-        raise PrinterError("Windows printer discovery requires pywin32.") from exc
-
-    default_name = ""
-    try:
-        default_name = win32print.GetDefaultPrinter()
-    except Exception:
-        pass
-
-    flags = win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
-    printers = []
-    for item in win32print.EnumPrinters(flags):
-        name = item[2]
-        if name:
-            printers.append(Printer(name=name, is_default=name == default_name))
-    return sorted(printers, key=lambda printer: printer.name.lower())
-
-
-def _list_linux_printers() -> list[Printer]:
-    try:
-        import cups
-    except ImportError:
-        return _list_posix_printers()
-
-    connection = cups.Connection()
-    default_name = connection.getDefault() or ""
-    printers = [
-        Printer(name=name, is_default=name == default_name)
-        for name in connection.getPrinters().keys()
-    ]
-    return sorted(printers, key=lambda printer: printer.name.lower())
-
-
-def _list_posix_printers() -> list[Printer]:
-    completed = subprocess.run(
-        ["lpstat", "-p", "-d"],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    if completed.returncode != 0:
-        raise PrinterError("Could not list printers with lpstat.")
-
-    default_name = ""
-    printers: list[Printer] = []
-    for line in completed.stdout.splitlines():
-        if line.startswith("system default destination:"):
-            default_name = line.split(":", 1)[1].strip()
-        elif line.startswith("printer "):
-            parts = line.split()
-            if len(parts) >= 2:
-                printers.append(Printer(name=parts[1]))
-
-    return sorted(
-        [Printer(name=printer.name, is_default=printer.name == default_name) for printer in printers],
-        key=lambda printer: printer.name.lower(),
-    )
-
-
-def _print_windows_raw(printer_name: str, data: bytes, job_name: str) -> None:
-    try:
-        import win32print
-    except ImportError as exc:
-        raise PrinterError("Windows RAW printing requires pywin32.") from exc
-
-    handle = win32print.OpenPrinter(printer_name)
-    try:
-        job_id = win32print.StartDocPrinter(handle, 1, (job_name, None, "RAW"))
-        try:
-            win32print.StartPagePrinter(handle)
-            win32print.WritePrinter(handle, data)
-            win32print.EndPagePrinter(handle)
-        finally:
-            win32print.EndDocPrinter(handle)
-        logger.info("Windows raw print job %s submitted", job_id)
-    finally:
-        win32print.ClosePrinter(handle)
-
-
-def _print_posix_raw(printer_name: str, data: bytes, job_name: str) -> None:
-    completed = subprocess.run(
-        ["lp", "-d", printer_name, "-t", job_name, "-o", "raw"],
-        input=data,
-        check=False,
-        capture_output=True,
-        timeout=60,
-    )
-    if completed.returncode != 0:
-        raise PrinterError("Could not submit raw print job.")
+def validate_driver_settings(
+    capabilities: PrinterCapabilities,
+    settings: Mapping[str, str],
+) -> dict[str, str]:
+    validated: dict[str, str] = {}
+    for option in capabilities.options:
+        allowed = {choice.id for choice in option.choices}
+        selected = str(settings.get(option.id, option.default)).strip()
+        if selected not in allowed:
+            selected = option.default if option.default in allowed else ""
+        if selected:
+            validated[option.id] = selected
+    return validated

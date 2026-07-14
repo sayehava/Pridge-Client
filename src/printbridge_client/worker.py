@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from printbridge_client.api import ApiError, PrintBridgeClient, ReservedJob
-from printbridge_client.config import ClientConfig, ServerConfig
+from printbridge_client.config import ClientConfig, PrinterProfile, ServerConfig
 from printbridge_client.models import JobHistoryEntry
 from printbridge_client.printers import PrinterError, PrinterManager
 
@@ -112,6 +112,7 @@ class PollingWorker:
     def _process_job(self, client: PrintBridgeClient, job: ReservedJob) -> None:
         server = self.config.servers[0] if self.config.servers else None
         printer_name = resolve_printer_name(server, job, self.config.selected_printer)
+        profile = self.config.printer_profiles.get(printer_name, PrinterProfile())
         self._record_job(job.job_id, "reserved")
         try:
             payload = decode_payload(job.payload_base64)
@@ -119,7 +120,14 @@ class PollingWorker:
             self._record_job(job.job_id, "printing")
             for copy_number in range(job.copies):
                 logger.info("Printing job %s copy %s of %s", job.job_id, copy_number + 1, job.copies)
-                self.printer_manager.print_raw(printer_name, payload, f"Pridge {job.job_id}")
+                self.printer_manager.print_job(
+                    printer_name,
+                    payload,
+                    mode=profile.mode,
+                    driver_settings=profile.driver_settings,
+                    content_type=job.content_type,
+                    job_name=f"Pridge {job.job_id}",
+                )
             client.report_printed(job.job_id)
             self._record_job(job.job_id, "printed")
         except (ApiError, PrinterError, ValueError) as exc:
