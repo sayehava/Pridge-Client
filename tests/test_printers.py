@@ -111,6 +111,15 @@ class PosixPrinterBackendTests(unittest.TestCase):
         )
 
     @patch("printbridge_client.printer_backends.subprocess.run")
+    def test_driverless_queue_remains_available_when_no_ppd_options_are_reported(self, run) -> None:
+        run.return_value = Mock(returncode=1, stdout="")
+
+        capabilities = self.backend.get_capabilities("Labels")
+
+        self.assertTrue(capabilities.system_driver_available)
+        self.assertEqual(capabilities.options, ())
+
+    @patch("printbridge_client.printer_backends.subprocess.run")
     def test_raw_submission_preserves_binary_payload(self, run) -> None:
         run.return_value = Mock(returncode=0)
         payload = b"\x1b@\x00\xff\r\n"

@@ -132,7 +132,8 @@ class PosixPrinterBackend:
         if completed.returncode != 0:
             return PrinterCapabilities(
                 printer_name=printer_name,
-                system_driver_available=False,
+                system_driver_available=True,
+                driver_name="System print service",
             )
         return PrinterCapabilities(
             printer_name=printer_name,
