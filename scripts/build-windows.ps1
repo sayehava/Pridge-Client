@@ -85,9 +85,11 @@ function Invoke-CodeSign {
 function Stop-ResidualProcesses {
     param([string]$Root)
     Get-Process -ErrorAction SilentlyContinue | Where-Object {
+        $ProcessPath = $null
+        try { $ProcessPath = $_.Path } catch { $ProcessPath = $null }
         $_.Name -eq "MicrosoftEdgeWebview2Setup" -or
         $_.Name -eq "Pridge Client" -or
-        ((try { $_.Path } catch { $null }) -and $_.Path.StartsWith($Root, [System.StringComparison]::OrdinalIgnoreCase))
+        ($ProcessPath -and $ProcessPath.StartsWith($Root, [System.StringComparison]::OrdinalIgnoreCase))
     } | ForEach-Object {
         try {
             $_.Kill()
