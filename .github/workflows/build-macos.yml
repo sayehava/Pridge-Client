@@ -205,8 +205,26 @@ jobs:
             "$mountpoint" \
             "$clean_home"
 
+          detach_mount() {
+            local attempts=5
+            local delay=3
+            local attempt
+            for ((attempt = 1; attempt <= attempts; attempt++)); do
+              if ! mount | grep -Fq " $mountpoint "; then
+                return 0
+              fi
+              if hdiutil detach "$mountpoint" -force >/dev/null 2>&1; then
+                return 0
+              fi
+              sleep "$delay"
+            done
+            echo "::warning::Could not detach $mountpoint after $attempts attempts; it may require manual cleanup."
+            return 0
+          }
+
           cleanup() {
-            hdiutil detach "$mountpoint" -force >/dev/null 2>&1 || true
+            pkill -KILL -f "$mountpoint" >/dev/null 2>&1 || true
+            detach_mount
           }
 
           trap cleanup EXIT
@@ -298,9 +316,6 @@ jobs:
             cat "$gui_log"
             exit 1
           fi
-
-          hdiutil detach "$mountpoint"
-          trap - EXIT
 
           echo "macOS package validation completed successfully."
 

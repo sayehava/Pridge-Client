@@ -73,11 +73,62 @@ TEMP_BASE="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 TEMP_ROOT="$(mktemp -d "$TEMP_BASE/Pridge-Client-macOS.XXXXXX")"
 LOG_PATH="$OUTPUT_DIR/build-macos-$VARIANT.log"
 
+stop_residual_processes() {
+    pkill -KILL -f "$TEMP_ROOT" >/dev/null 2>&1 || true
+}
+
+detach_stray_disk_images() {
+    command -v hdiutil >/dev/null 2>&1 || return 0
+    local mount_point
+    while IFS= read -r mount_point; do
+        [[ -n "$mount_point" ]] || continue
+        hdiutil detach "$mount_point" -force >/dev/null 2>&1 || true
+    done < <(python3 - "$TEMP_ROOT" <<'PY'
+import plistlib
+import subprocess
+import sys
+
+root = sys.argv[1]
+try:
+    result = subprocess.run(["hdiutil", "info", "-plist"], capture_output=True, check=True)
+    info = plistlib.loads(result.stdout)
+except Exception:
+    sys.exit(0)
+for image in info.get("images", []):
+    for entity in image.get("system-entities", []):
+        mount_point = entity.get("mount-point")
+        if mount_point and mount_point.startswith(root):
+            print(mount_point)
+PY
+)
+}
+
+remove_with_retry() {
+    local path="$1"
+    local attempts=5
+    local delay=2
+    local attempt
+    for ((attempt = 1; attempt <= attempts; attempt++)); do
+        if rm -rf "$path" 2>/dev/null && [[ ! -e "$path" ]]; then
+            return 0
+        fi
+        if [[ "$attempt" -eq "$attempts" ]]; then
+            echo "Warning: could not remove temporary build directory '$path' after $attempts attempts." >&2
+            return 0
+        fi
+        sleep "$delay"
+    done
+}
+
 cleanup() {
     local result=$?
-    rm -rf "$TEMP_ROOT"
+    set +e
+    stop_residual_processes
+    detach_stray_disk_images
+    remove_with_retry "$TEMP_ROOT"
     local final_status
     final_status="$(git -C "$REPOSITORY" status --porcelain --untracked-files=all)"
+    set -e
     if [[ "$final_status" != "$INITIAL_GIT_STATUS" ]]; then
         echo "The build changed the source repository:" >&2
         echo "$final_status" >&2

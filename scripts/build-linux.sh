@@ -45,11 +45,35 @@ TEMP_BASE="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 TEMP_ROOT="$(mktemp -d "$TEMP_BASE/Pridge-Client-Linux.XXXXXX")"
 LOG_PATH="$OUTPUT_DIR/build-linux-$VARIANT.log"
 
+stop_residual_processes() {
+    pkill -KILL -f "$TEMP_ROOT" >/dev/null 2>&1 || true
+}
+
+remove_with_retry() {
+    local path="$1"
+    local attempts=5
+    local delay=2
+    local attempt
+    for ((attempt = 1; attempt <= attempts; attempt++)); do
+        if rm -rf "$path" 2>/dev/null && [[ ! -e "$path" ]]; then
+            return 0
+        fi
+        if [[ "$attempt" -eq "$attempts" ]]; then
+            echo "Warning: could not remove temporary build directory '$path' after $attempts attempts." >&2
+            return 0
+        fi
+        sleep "$delay"
+    done
+}
+
 cleanup() {
     local result=$?
-    rm -rf "$TEMP_ROOT"
+    set +e
+    stop_residual_processes
+    remove_with_retry "$TEMP_ROOT"
     local final_status
     final_status="$(git -C "$REPOSITORY" status --porcelain --untracked-files=all)"
+    set -e
     if [[ "$final_status" != "$INITIAL_GIT_STATUS" ]]; then
         echo "The build changed the source repository:" >&2
         echo "$final_status" >&2
