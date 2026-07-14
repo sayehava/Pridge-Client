@@ -1,6 +1,6 @@
 # Pridge Client
 
-Pridge Client is the local desktop application that connects an office computer to PrintBridge Server, receives print jobs, and sends raw payloads to local printers.
+Pridge Client is the local desktop application that connects an office computer to PrintBridge Server, receives print jobs, and sends them to local printers as unchanged RAW data or through an installed system printer driver.
 
 This repository contains the first Python implementation. The server protocol is intentionally simple and language-neutral so future clients written in C++, Rust, C#, Go, or another language can reuse the same API.
 
@@ -16,7 +16,7 @@ python3 -m pip install -e .
 
 Optional platform packages:
 
-- Windows RAW printing: `python3 -m pip install -e ".[windows]"`
+- Windows printing: `python3 -m pip install -e ".[windows]"`
 - Linux CUPS integration: `python3 -m pip install -e ".[linux]"`
 - Secure token storage: `python3 -m pip install -e ".[secure]"`
 
@@ -55,9 +55,11 @@ Use the settings window to connect the client to one or more PrintBridge Server 
 5. Click `Test Connection` to verify the URL and token.
 6. Under `Remote Printer Mappings`, wait for all server endpoints and installed local printers to load automatically.
 7. Use each endpoint's dropdown to select a local printer. Leave `Disabled` selected when that endpoint should not be assigned to this client.
-8. Click `Add Server` to save the connection.
-9. Repeat for every server this office computer should serve.
-10. Use the Start and Stop buttons on each server card to control servers independently.
+8. Click `Configure` next to a selected local printer and choose `RAW data` or `System driver`.
+9. For System Driver mode, select the options reported by CUPS/macOS or open the installed driver's native preferences on Windows, then save the printer settings.
+10. Click `Add Server` to save the connection.
+11. Repeat for every server this office computer should serve.
+12. Use the Start and Stop buttons on each server card to control servers independently.
 
 The client starts one background polling worker for each enabled server profile. Printer mappings are independent per server, so different remote queues can target different local printers while still sharing the same client application.
 
@@ -71,6 +73,7 @@ The settings window stores:
 
 - server profiles
 - remote-to-local printer mappings per server
+- printing mode and driver settings per installed local printer
 - polling interval per server
 - heartbeat interval per server
 - start polling on launch
@@ -163,16 +166,29 @@ Printer discovery is platform-specific behind a shared interface:
 - Linux: `pycups` when installed, otherwise `lpstat`
 - macOS: `lpstat`
 
-Each server profile maps remote PrintBridge endpoint IDs to local printer names. The client reads `endpoint_id` from a reserved job and routes the raw payload through that server's mapping. A server endpoint whose selector is `Disabled` has no local mapping, so its job is reported as failed instead of being sent to an arbitrary printer.
+Each server profile maps remote PrintBridge endpoint IDs to local printer names. The client reads `endpoint_id` from a reserved job and routes the payload through that server's mapping. A server endpoint whose selector is `Disabled` has no local mapping, so its job is reported as failed instead of being sent to an arbitrary printer.
 
 The settings window loads all virtual printer endpoints from `GET /api/client/endpoints`. It also refreshes the operating system's local printer list whenever the server editor opens. Saving a server sends every non-disabled endpoint ID to `PUT /api/client/endpoints`, making the local printer dropdown the source of that client's server assignments. Older servers without the endpoint-list route fall back to discovering endpoints from their active job list.
 
-Printing sends raw bytes to the resolved local printer:
+## Printing Modes
+
+Printing mode and page/job settings are stored once per installed local printer, so mappings from multiple servers share the same printer profile. Existing configurations default to `raw`.
+
+`raw` mode sends the decoded payload bytes directly to the resolved printer:
 
 - Windows: `StartDocPrinter` with `RAW`
 - Linux/macOS: `lp -o raw`
 
-The client does not interpret or transform print payloads. Base64 is decoded to bytes and sent as received.
+The client does not interpret or transform RAW payloads. Base64 is decoded to bytes and sent as received, including null bytes, line endings, and printer-control commands. Generic page setup is intentionally unavailable in RAW mode.
+
+`system_driver` mode submits the document through the operating system printing path:
+
+- Windows: the registered `PrintTo` document handler and the installed printer driver; `Open Driver Settings` displays the driver's native preferences window, which owns and saves its supported options
+- Linux/macOS: CUPS `lp`; `lpoptions` supplies the exact option IDs, choices, display labels, and defaults shown in Pridge Client
+
+CUPS options can include media or label size, orientation, resolution, input source, media type, duplex, cutter behavior, and other driver-specific controls. Only options reported by the current driver are shown. Saved values are validated again before each system-driver job; removed or changed choices fall back to the driver's current default.
+
+System-driver payloads should include an accurate `content_type`, such as `application/pdf` or `image/png`. On Windows, the document type must also have an installed application that supports the operating system's `PrintTo` action. Rendering and conversion remain the responsibility of that application, the operating system, and the printer driver.
 
 ## Background Operation
 
@@ -182,7 +198,7 @@ The worker processes one job at a time:
 2. send heartbeat when due
 3. reserve one job
 4. report `printing`
-5. print raw bytes
+5. print through the local printer's saved RAW or system-driver profile
 6. report `printed` or `failed`
 
 Temporary network, server, authentication, and printer errors are retried with bounded backoff.
@@ -224,7 +240,9 @@ If jobs fail immediately, verify that:
 - the server URL is reachable
 - the client token is valid
 - every enabled remote endpoint is mapped to an installed local printer
-- the print server accepts raw payloads for that printer
+- RAW jobs contain printer-ready bytes supported by that printer
+- system-driver jobs have the correct content type and an installed document handler
+- the selected driver option still exists in the operating system's current printer configuration
 - optional platform packages are installed where required
 
 If authentication keeps failing, replace the token in the settings window. Stored tokens are hidden and cannot be inspected from the GUI.
