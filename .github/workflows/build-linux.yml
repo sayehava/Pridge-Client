@@ -51,6 +51,11 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
+          # Qt6's xcb platform plugin needs the full libxcb-* extension set
+          # below to load at all on a minimal runner; missing any one of them
+          # makes Qt call abort() (SIGABRT) instead of raising a catchable
+          # Python exception, so the packaged GUI smoke test must never run
+          # without all of these installed.
           sudo apt-get install --yes \
             libcups2-dev \
             libegl1 \
@@ -62,6 +67,18 @@ jobs:
             libxkbcommon-x11-0 \
             libxrandr2 \
             libxcb-cursor0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-render0 \
+            libxcb-shape0 \
+            libxcb-shm0 \
+            libxcb-sync1 \
+            libxcb-xfixes0 \
+            libxcb-xinerama0 \
+            libxcb-xkb1 \
             xauth \
             xvfb
 
