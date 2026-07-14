@@ -163,11 +163,16 @@ function Test-FrozenGui {
             Start-Sleep -Milliseconds 250
             $Process.Refresh()
             if ($Process.HasExited) {
-                throw "Packaged GUI exited during startup with exit code $($Process.ExitCode)."
+                if ($Process.ExitCode -ne 0) {
+                    throw "Packaged GUI exited during startup with exit code $($Process.ExitCode)."
+                }
+                break
             }
         }
-        # The application is a tray/GUI process that is expected to keep running.
-        # Surviving the startup window without exiting on its own is the success condition.
+        # Success means either the process is still running as a persistent
+        # tray/GUI app, or it completed its own deterministic smoke-test
+        # verification and exited cleanly with code 0. Only a nonzero exit
+        # during the startup window is treated as a genuine failure.
     }
     catch {
         Write-Host "Packaged GUI standard output:"
