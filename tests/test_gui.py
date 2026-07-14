@@ -3,6 +3,7 @@
 # SPDX-FileComment: Additional terms apply; see ADDITIONAL_TERMS.md.
 
 import logging
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -338,7 +339,8 @@ class ClientApiTests(unittest.TestCase):
         self.assertIn(state["build_variant"], {"Development", "Native", "PyInstaller"})
         self.assertIn(state["build_system"], {"Python", "Nuitka", "PyInstaller"})
 
-    def test_gui_smoke_notification_closes_test_window(self):
+    @patch("printbridge_client.gui.Timer")
+    def test_gui_smoke_notification_closes_test_window(self, timer):
         api = ClientApi(
             config_store=self.api.config_store,
             token_store=self.api.token_store,
@@ -351,6 +353,9 @@ class ClientApiTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         self.assertTrue(api.gui_ready.is_set())
+        timer.assert_called_once_with(1.0, os._exit, args=(0,))
+        self.assertTrue(timer.return_value.daemon)
+        timer.return_value.start.assert_called_once()
         api.window.destroy.assert_called_once()
 
     @patch("printbridge_client.gui.set_start_at_login")

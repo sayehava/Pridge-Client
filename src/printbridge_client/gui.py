@@ -6,11 +6,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import queue
 import uuid
 from logging import Handler, LogRecord
 from pathlib import Path
-from threading import Event
+from threading import Event, Timer
 from urllib.parse import urlencode
 
 import webview
@@ -133,8 +134,12 @@ class ClientApi:
         return {"ok": True, "error": None, "state": self._build_state()}
 
     def notify_gui_ready(self) -> dict:
+        logger.info("Desktop interface became ready")
         self.gui_ready.set()
         if self.gui_smoke_test and self.window is not None:
+            exit_fallback = Timer(1.0, os._exit, args=(0,))
+            exit_fallback.daemon = True
+            exit_fallback.start()
             self.window.destroy()
         return {"ok": True}
 
