@@ -10,6 +10,7 @@ import queue
 import uuid
 from logging import Handler, LogRecord
 from pathlib import Path
+from threading import Event
 from urllib.parse import urlencode
 
 import webview
@@ -93,6 +94,7 @@ class ClientApi:
         config_store: ConfigStore | None = None,
         token_store: ClientTokenStore | None = None,
         printer_manager: PrinterManager | None = None,
+        gui_smoke_test: bool = False,
     ) -> None:
         self.config_store = config_store or ConfigStore()
         self.token_store = token_store or ClientTokenStore()
@@ -106,6 +108,8 @@ class ClientApi:
         self._quitting = False
         self.events: queue.Queue[tuple[str, object]] = queue.Queue()
         self.printers: list[Printer] = []
+        self.gui_smoke_test = gui_smoke_test
+        self.gui_ready = Event()
 
         self.selected_server_id = self.config.servers[0].id if self.config.servers else ""
         self.selected_printer = self.config.selected_printer
@@ -127,6 +131,12 @@ class ClientApi:
     # ------------------------------------------------------------------
     def get_state(self) -> dict:
         return {"ok": True, "error": None, "state": self._build_state()}
+
+    def notify_gui_ready(self) -> dict:
+        self.gui_ready.set()
+        if self.gui_smoke_test and self.window is not None:
+            self.window.destroy()
+        return {"ok": True}
 
     def add_server(self, server: dict) -> dict:
         name = str(server.get("name", "")).strip()
@@ -823,9 +833,9 @@ class ClientApi:
             self.connection_status = STATUS_STOPPED
 
 
-def run_gui() -> None:
+def run_gui(gui_smoke_test: bool = False) -> None:
     configure_application_identity(APP_NAME)
-    api = ClientApi()
+    api = ClientApi(gui_smoke_test=gui_smoke_test)
     menu_actions = [
         (MENU_SETTINGS, api.open_settings_window),
         (MENU_ABOUT, api.open_about_window),
@@ -849,9 +859,10 @@ def run_gui() -> None:
         APP_NAME,
         [title for title, _action in menu_actions],
     )
-    api.start_tray()
+    if not gui_smoke_test:
+        api.start_tray()
 
-    if api.config.start_polling_on_launch:
+    if api.config.start_polling_on_launch and not gui_smoke_test:
         api.start_workers()
 
     webview.start(
@@ -860,6 +871,8 @@ def run_gui() -> None:
         gui=preferred_webview_gui(),
         icon=str(APP_ICON_PATH),
     )
+    if gui_smoke_test and not api.gui_ready.is_set():
+        raise RuntimeError("The desktop interface closed before it became ready.")
 
 
 def _window_effects() -> dict[str, bool]:

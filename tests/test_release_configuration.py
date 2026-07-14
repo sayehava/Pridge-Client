@@ -42,7 +42,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn('"--include-module=webview.platforms.edgechromium"', text)
         self.assertIn('"--nofollow-import-to=tkinter"', text)
         self.assertIn("function Test-FrozenGui", text)
-        self.assertIn("$Process.MainWindowHandle", text)
+        self.assertIn('ArgumentList "--gui-smoke-test"', text)
         self.assertIn('Test-FrozenGui $Executable', text)
         self.assertNotIn('"--onefile"', text)
 

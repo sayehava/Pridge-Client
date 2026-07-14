@@ -277,6 +277,10 @@
       };
     }, [applyResult]);
 
+    useEffect(() => {
+      if (state) callApi("notify_gui_ready");
+    }, [state]);
+
     if (!state) {
       return html`<div class="loading">${S.loading}</div>`;
     }

@@ -25,6 +25,17 @@ class ApplicationStartupTests(unittest.TestCase):
         self.assertIn("Desktop GUI startup failed", "\n".join(captured.output))
         show_error.assert_called_once_with(app.APP_NAME, app.MESSAGE_GUI_STARTUP_FAILED)
 
+    @patch("printbridge_client.gui.run_gui")
+    @patch("printbridge_client.app.configure_logging")
+    @patch("printbridge_client.app.ConfigStore")
+    @patch("sys.argv", ["pridge-client", "--gui-smoke-test"])
+    def test_starts_private_gui_smoke_mode(self, config_store, _configure_logging, run_gui):
+        config_store.return_value.load.return_value = Mock(servers=[], logging=Mock())
+
+        app.main()
+
+        run_gui.assert_called_once_with(gui_smoke_test=True)
+
 
 if __name__ == "__main__":
     unittest.main()

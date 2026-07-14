@@ -23,6 +23,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="pridge-client")
     parser.add_argument("--version", action="store_true", help="Show version and exit.")
     parser.add_argument("--headless", action="store_true", help="Start without opening the settings window.")
+    parser.add_argument("--gui-smoke-test", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     if args.version:
@@ -58,10 +59,11 @@ def main() -> None:
     try:
         from printbridge_client.gui import run_gui
 
-        run_gui()
+        run_gui(gui_smoke_test=args.gui_smoke_test)
     except Exception:
         logger.exception("Desktop GUI startup failed")
-        show_startup_error(APP_NAME, MESSAGE_GUI_STARTUP_FAILED)
+        if not args.gui_smoke_test:
+            show_startup_error(APP_NAME, MESSAGE_GUI_STARTUP_FAILED)
         raise SystemExit(1)
 
 

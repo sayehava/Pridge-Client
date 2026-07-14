@@ -338,6 +338,21 @@ class ClientApiTests(unittest.TestCase):
         self.assertIn(state["build_variant"], {"Development", "Native", "PyInstaller"})
         self.assertIn(state["build_system"], {"Python", "Nuitka", "PyInstaller"})
 
+    def test_gui_smoke_notification_closes_test_window(self):
+        api = ClientApi(
+            config_store=self.api.config_store,
+            token_store=self.api.token_store,
+            printer_manager=self.api.printer_manager,
+            gui_smoke_test=True,
+        )
+        api.window = Mock()
+
+        result = api.notify_gui_ready()
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(api.gui_ready.is_set())
+        api.window.destroy.assert_called_once()
+
     @patch("printbridge_client.gui.set_start_at_login")
     def test_updates_application_darkness_setting(self, set_start_at_login):
         self.api.window = Mock()

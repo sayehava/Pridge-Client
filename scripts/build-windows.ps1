@@ -114,19 +114,19 @@ function Test-FrozenGui {
     New-Item -ItemType Directory -Path $env:APPDATA, $env:LOCALAPPDATA -Force | Out-Null
     $Process = $null
     try {
-        $Process = Start-Process -FilePath $Executable -PassThru
-        $Deadline = [DateTime]::UtcNow.AddSeconds(20)
+        $Process = Start-Process -FilePath $Executable -ArgumentList "--gui-smoke-test" -PassThru
+        $Deadline = [DateTime]::UtcNow.AddSeconds(30)
         while ([DateTime]::UtcNow -lt $Deadline) {
             Start-Sleep -Milliseconds 250
             $Process.Refresh()
             if ($Process.HasExited) {
-                throw "Packaged GUI exited during startup with exit code $($Process.ExitCode)."
-            }
-            if ($Process.MainWindowHandle -ne [IntPtr]::Zero -and $Process.MainWindowTitle -eq "Pridge Client") {
+                if ($Process.ExitCode -ne 0) {
+                    throw "Packaged GUI smoke test failed with exit code $($Process.ExitCode)."
+                }
                 return
             }
         }
-        throw "Packaged GUI did not create a visible Pridge Client window within 20 seconds."
+        throw "Packaged GUI did not render and close its smoke-test window within 30 seconds."
     }
     catch {
         $ClientLog = Join-Path $env:LOCALAPPDATA "Pridge Client\Logs\client.log"
@@ -250,6 +250,7 @@ try {
     $env:CCACHE_DIR = Join-Path $TemporaryRoot "ccache"
     $Bootstrapper = Join-Path $TemporaryRoot "MicrosoftEdgeWebview2Setup.exe"
     Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile $Bootstrapper
+    Invoke-CheckedCommand $Bootstrapper @("/silent", "/install")
     if ($Variant -in @("Native", "All")) { Build-Native $Bootstrapper }
     if ($Variant -in @("PyInstaller", "All")) { Build-PyInstaller $Bootstrapper }
     $env:PRINTBRIDGE_RELEASE_DIR = $OutputDir
