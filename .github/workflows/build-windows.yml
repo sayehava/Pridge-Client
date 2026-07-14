@@ -76,6 +76,12 @@ jobs:
             throw "Inno Setup was not installed successfully."
           }
 
+      - name: Run tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -B -m unittest discover -s tests
+
       - name: Build ${{ matrix.variant }} packages
         shell: pwsh
         run: |
