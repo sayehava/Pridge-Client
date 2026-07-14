@@ -3,7 +3,6 @@
 # SPDX-FileComment: Additional terms apply; see ADDITIONAL_TERMS.md.
 
 import logging
-import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,7 +10,7 @@ from unittest.mock import Mock, patch
 
 from printbridge_client.api import RemotePrinter
 from printbridge_client.config import ConfigStore
-from printbridge_client.gui import ClientApi, _window_effects
+from printbridge_client.gui import ClientApi, _shutdown_smoke_test, _window_effects
 from printbridge_client.printers import DriverChoice, DriverOption, Printer, PrinterCapabilities
 
 
@@ -339,8 +338,11 @@ class ClientApiTests(unittest.TestCase):
         self.assertIn(state["build_variant"], {"Development", "Native", "PyInstaller"})
         self.assertIn(state["build_system"], {"Python", "Nuitka", "PyInstaller"})
 
-    @patch("printbridge_client.gui.Timer")
-    def test_gui_smoke_notification_closes_test_window(self, timer):
+    def test_gui_ready_notification_does_not_drive_smoke_test_shutdown(self):
+        # Smoke-test shutdown is now driven deterministically from Python via
+        # webview.start's `func` callback, not from the JS-triggered
+        # notify_gui_ready round trip, so this call must be a no-op beyond
+        # marking readiness.
         api = ClientApi(
             config_store=self.api.config_store,
             token_store=self.api.token_store,
@@ -353,10 +355,20 @@ class ClientApiTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         self.assertTrue(api.gui_ready.is_set())
-        timer.assert_called_once_with(1.0, os._exit, args=(0,))
-        self.assertTrue(timer.return_value.daemon)
-        timer.return_value.start.assert_called_once()
-        api.window.destroy.assert_called_once()
+        api.window.destroy.assert_not_called()
+
+    def test_smoke_test_printer_refresh_is_bounded_and_warning_only(self):
+        manager = Mock()
+        manager.list_printers.side_effect = RuntimeError("no print service")
+
+        api = ClientApi(
+            config_store=self.api.config_store,
+            token_store=self.api.token_store,
+            printer_manager=manager,
+            gui_smoke_test=True,
+        )
+
+        self.assertEqual(api.printers, [])
 
     @patch("printbridge_client.gui.logger.info")
     def test_gui_ready_notification_is_handled_once(self, info):
@@ -398,6 +410,32 @@ class ClientApiTests(unittest.TestCase):
 
     def test_native_transparency_is_always_disabled(self):
         self.assertEqual(_window_effects(), {"transparent": False, "vibrancy": False})
+
+    def test_smoke_test_shutdown_stops_tray_workers_and_windows(self):
+        api = Mock()
+        tray = Mock()
+        api.tray = tray
+        worker = Mock()
+        api.workers = {"srv": worker}
+        server_window = Mock()
+        api.server_windows = {"srv": server_window}
+        utility_window = Mock()
+        api.utility_windows = {"settings": utility_window}
+        main_window = Mock()
+        api.window = main_window
+
+        _shutdown_smoke_test(api)
+
+        tray.stop.assert_called_once()
+        self.assertIsNone(api.tray)
+        worker.stop.assert_called_once()
+        worker.join.assert_called_once_with(timeout=2)
+        self.assertEqual(api.workers, {})
+        server_window.destroy.assert_called_once()
+        self.assertEqual(api.server_windows, {})
+        utility_window.destroy.assert_called_once()
+        self.assertEqual(api.utility_windows, {})
+        main_window.destroy.assert_called_once()
 
 
 if __name__ == "__main__":

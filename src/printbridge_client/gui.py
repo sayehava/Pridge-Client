@@ -7,11 +7,13 @@ from __future__ import annotations
 import json
 import logging
 import os
+import platform
 import queue
+import sys
 import uuid
 from logging import Handler, LogRecord
 from pathlib import Path
-from threading import Event, Timer
+from threading import Event, Thread, Timer
 from urllib.parse import urlencode
 
 import webview
@@ -77,6 +79,20 @@ TRAY_ICON_PATH = ASSET_DIR / "IconTray.png"
 MAX_RECENT_JOBS = 50
 MAX_LOG_LINES = 300
 
+# The smoke test must never depend on a JS round trip to decide when the
+# native GUI has finished initializing: pywebview's `func` callback runs on a
+# background thread once the platform GUI loop has actually started, so the
+# whole verify-then-shutdown sequence is driven from Python and bounded by a
+# watchdog that fires even if window/webview creation itself hangs.
+SMOKE_TEST_WATCHDOG_SECONDS = 20
+SMOKE_TEST_WINDOW_SHOWN_TIMEOUT_SECONDS = 15
+SMOKE_TEST_PRINTER_TIMEOUT_SECONDS = 5
+SMOKE_TEST_EXIT_DELAY_SECONDS = 1.0
+
+
+def _log_stage(stage: str, detail: str) -> None:
+    logger.info("[smoke-test] %s: %s", stage, detail)
+
 
 class QueueLogHandler(Handler):
     def __init__(self, events: queue.Queue[tuple[str, object]]) -> None:
@@ -123,7 +139,10 @@ class ClientApi:
         self.logs: list[str] = ["Pridge Client GUI loaded"]
 
         self._install_log_handler()
-        self.refresh_printers()
+        if self.gui_smoke_test:
+            self._smoke_test_refresh_printers()
+        else:
+            self.refresh_printers()
 
     # ------------------------------------------------------------------
     # JS-exposed API (methods below are callable from the frontend as
@@ -136,15 +155,8 @@ class ClientApi:
     def notify_gui_ready(self) -> dict:
         first_notification = not self.gui_ready.is_set()
         self.gui_ready.set()
-        if not first_notification:
-            return {"ok": True}
-
-        logger.info("Desktop interface became ready")
-        if self.gui_smoke_test and self.window is not None:
-            exit_fallback = Timer(1.0, os._exit, args=(0,))
-            exit_fallback.daemon = True
-            exit_fallback.start()
-            self.window.destroy()
+        if first_notification:
+            logger.info("Desktop interface became ready")
         return {"ok": True}
 
     def add_server(self, server: dict) -> dict:
@@ -342,6 +354,40 @@ class ClientApi:
         if not names:
             self.selected_printer = ""
         return self._ok()
+
+    def _smoke_test_refresh_printers(self) -> None:
+        """Bounded, non-blocking printer check used only by --gui-smoke-test.
+
+        A missing or unresponsive system print service must never block or
+        fail the smoke test, so enumeration runs on a daemon thread with a
+        strict timeout and any outcome other than a clean list is treated as
+        a warning.
+        """
+        _log_stage("printer test", "starting bounded printer enumeration")
+        discovered: list[Printer] = []
+        failure: list[BaseException] = []
+
+        def worker() -> None:
+            try:
+                discovered.extend(self.printer_manager.list_printers())
+            except BaseException as exc:  # noqa: BLE001 - reported, never raised
+                failure.append(exc)
+
+        thread = Thread(target=worker, name="printbridge-smoke-printer-check", daemon=True)
+        thread.start()
+        thread.join(timeout=SMOKE_TEST_PRINTER_TIMEOUT_SECONDS)
+
+        self.printers = []
+        if thread.is_alive():
+            logger.warning(
+                "Printer test: enumeration did not finish within %ss; continuing without printers",
+                SMOKE_TEST_PRINTER_TIMEOUT_SECONDS,
+            )
+        elif failure:
+            logger.warning("Printer test: printer enumeration failed: %s", failure[0])
+        else:
+            self.printers = discovered
+        _log_stage("printer test", f"complete, discovered {len(self.printers)} printer(s)")
 
     def select_printer(self, name: str) -> dict:
         self.selected_printer = str(name)
@@ -843,8 +889,16 @@ class ClientApi:
 
 
 def run_gui(gui_smoke_test: bool = False) -> None:
+    if gui_smoke_test:
+        _log_stage("argument detection", "--gui-smoke-test recognized before normal startup")
+        _run_gui_smoke_test()
+        return
+    _run_gui_normal()
+
+
+def _run_gui_normal() -> None:
     configure_application_identity(APP_NAME)
-    api = ClientApi(gui_smoke_test=gui_smoke_test)
+    api = ClientApi(gui_smoke_test=False)
     menu_actions = [
         (MENU_SETTINGS, api.open_settings_window),
         (MENU_ABOUT, api.open_about_window),
@@ -868,10 +922,9 @@ def run_gui(gui_smoke_test: bool = False) -> None:
         APP_NAME,
         [title for title, _action in menu_actions],
     )
-    if not gui_smoke_test:
-        api.start_tray()
+    api.start_tray()
 
-    if api.config.start_polling_on_launch and not gui_smoke_test:
+    if api.config.start_polling_on_launch:
         api.start_workers()
 
     webview.start(
@@ -880,8 +933,135 @@ def run_gui(gui_smoke_test: bool = False) -> None:
         gui=preferred_webview_gui(),
         icon=str(APP_ICON_PATH),
     )
-    if gui_smoke_test and not api.gui_ready.is_set():
-        raise RuntimeError("The desktop interface closed before it became ready.")
+
+
+def _validate_smoke_test_resources() -> None:
+    """Verify bundled resources and platform GUI bindings before any window
+    or webview backend work starts, so a packaging defect is reported as a
+    clear import/resource error instead of an unexplained hang later on.
+    """
+    logger.info(
+        "[smoke-test] resource validation: sys.frozen=%s build_variant=%s build_system=%s python=%s",
+        bool(getattr(sys, "frozen", False)),
+        BUILD_VARIANT,
+        BUILD_SYSTEM,
+        sys.version.split()[0],
+    )
+    missing = [path for path in (WEBUI_DIR / "index.html", APP_ICON_PATH, TRAY_ICON_PATH) if not path.exists()]
+    if missing:
+        raise RuntimeError("Missing packaged resource(s): " + ", ".join(str(path) for path in missing))
+
+    try:
+        import pystray  # noqa: F401
+        import keyring  # noqa: F401
+        from PIL import Image  # noqa: F401
+    except ImportError as exc:
+        raise RuntimeError(f"A required packaged dependency could not be imported: {exc}") from exc
+
+    if platform.system() == "Darwin":
+        try:
+            import AppKit  # noqa: F401
+            import Foundation  # noqa: F401
+            import objc  # noqa: F401
+            import WebKit  # noqa: F401
+        except ImportError as exc:
+            raise RuntimeError(f"A required macOS GUI framework binding could not be imported: {exc}") from exc
+
+
+def _smoke_test_watchdog_expired() -> None:
+    logger.critical(
+        "[smoke-test] final smoke-test exit: watchdog expired after %ss without completing "
+        "GUI backend initialization or shutdown",
+        SMOKE_TEST_WATCHDOG_SECONDS,
+    )
+    os._exit(1)
+
+
+def _shutdown_smoke_test(api: ClientApi) -> None:
+    if api.tray is not None:
+        api.tray.stop()
+        api.tray = None
+    for worker in list(api.workers.values()):
+        worker.stop()
+    for worker in list(api.workers.values()):
+        worker.join(timeout=2)
+    api.workers.clear()
+    for window in list(api.server_windows.values()):
+        window.destroy()
+    api.server_windows.clear()
+    for window in list(api.utility_windows.values()):
+        window.destroy()
+    api.utility_windows.clear()
+    if api.window is not None:
+        api.window.destroy()
+
+
+def _run_gui_smoke_test() -> None:
+    _log_stage("resource validation", "checking bundled resources and GUI framework imports")
+    _validate_smoke_test_resources()
+    _log_stage("resource validation", "complete")
+
+    configure_application_identity(APP_NAME)
+    api = ClientApi(gui_smoke_test=True)
+
+    _log_stage("GUI backend selection", "selecting the platform webview backend")
+    gui_backend = preferred_webview_gui()
+    _log_stage("GUI backend selection", f"selected backend {gui_backend!r}")
+
+    _log_stage("window creation", "registering the smoke-test window")
+    window = webview.create_window(
+        WINDOW_TITLE,
+        url=str(WEBUI_DIR / "index.html"),
+        js_api=api,
+        width=1120,
+        height=760,
+        min_size=(980, 640),
+        background_color="#111827",
+        **_window_effects(),
+    )
+    api.window = window
+    _log_stage("window creation", "smoke-test window registered")
+
+    watchdog = Timer(SMOKE_TEST_WATCHDOG_SECONDS, _smoke_test_watchdog_expired)
+    watchdog.daemon = True
+    watchdog.start()
+
+    def on_started() -> None:
+        # pywebview starts this callback's thread immediately, before the
+        # native window is actually created on the main thread, so wait for
+        # the window's own "shown" signal instead of assuming readiness -
+        # destroying a window mid-construction is unsafe.
+        try:
+            _log_stage("webview initialization", "GUI backend loop started, waiting for the window to show")
+            if not window.events.shown.wait(SMOKE_TEST_WINDOW_SHOWN_TIMEOUT_SECONDS):
+                raise RuntimeError(
+                    f"The smoke-test window did not finish showing within "
+                    f"{SMOKE_TEST_WINDOW_SHOWN_TIMEOUT_SECONDS}s."
+                )
+            _log_stage("webview initialization", "window shown")
+            api.gui_ready.set()
+
+            _log_stage("tray initialization", "skipped during smoke test by design")
+
+            _log_stage("thread shutdown", "stopping tray, workers, and destroying windows")
+            _shutdown_smoke_test(api)
+            _log_stage("thread shutdown", "complete")
+        except BaseException:
+            logger.exception("Smoke test failed during GUI backend verification")
+            os._exit(1)
+        else:
+            watchdog.cancel()
+            _log_stage("final smoke-test exit", "success, exiting with code 0")
+            exit_timer = Timer(SMOKE_TEST_EXIT_DELAY_SECONDS, os._exit, args=(0,))
+            exit_timer.daemon = True
+            exit_timer.start()
+
+    webview.start(
+        on_started,
+        debug=False,
+        gui=gui_backend,
+        icon=str(APP_ICON_PATH),
+    )
 
 
 def _window_effects() -> dict[str, bool]:
