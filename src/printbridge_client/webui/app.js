@@ -248,6 +248,7 @@
     const [error, setError] = useState(null);
     const [serverToRemove, setServerToRemove] = useState(null);
     const stateSignature = useRef("");
+    const readyNotified = useRef(false);
 
     const applyResult = useCallback((result) => {
       if (!result) return;
@@ -278,7 +279,10 @@
     }, [applyResult]);
 
     useEffect(() => {
-      if (state) callApi("notify_gui_ready");
+      if (state && !readyNotified.current) {
+        readyNotified.current = true;
+        callApi("notify_gui_ready");
+      }
     }, [state]);
 
     if (!state) {

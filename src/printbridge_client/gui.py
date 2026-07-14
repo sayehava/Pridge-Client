@@ -134,8 +134,12 @@ class ClientApi:
         return {"ok": True, "error": None, "state": self._build_state()}
 
     def notify_gui_ready(self) -> dict:
-        logger.info("Desktop interface became ready")
+        first_notification = not self.gui_ready.is_set()
         self.gui_ready.set()
+        if not first_notification:
+            return {"ok": True}
+
+        logger.info("Desktop interface became ready")
         if self.gui_smoke_test and self.window is not None:
             exit_fallback = Timer(1.0, os._exit, args=(0,))
             exit_fallback.daemon = True

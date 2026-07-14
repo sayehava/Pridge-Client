@@ -358,6 +358,16 @@ class ClientApiTests(unittest.TestCase):
         timer.return_value.start.assert_called_once()
         api.window.destroy.assert_called_once()
 
+    @patch("printbridge_client.gui.logger.info")
+    def test_gui_ready_notification_is_handled_once(self, info):
+        first = self.api.notify_gui_ready()
+        second = self.api.notify_gui_ready()
+
+        self.assertTrue(first["ok"])
+        self.assertTrue(second["ok"])
+        self.assertTrue(self.api.gui_ready.is_set())
+        info.assert_called_once_with("Desktop interface became ready")
+
     @patch("printbridge_client.gui.set_start_at_login")
     def test_updates_application_darkness_setting(self, set_start_at_login):
         self.api.window = Mock()
