@@ -4,7 +4,7 @@ Pridge Client is the local desktop application that connects an office computer 
 
 This repository contains the first Python implementation. The server protocol is intentionally simple and language-neutral so future clients written in C++, Rust, C#, Go, or another language can reuse the same API.
 
-Self-contained Native (Nuitka) and PyInstaller release builds for Windows and macOS are documented in [BUILDING.md](BUILDING.md).
+Self-contained Native (Nuitka) and PyInstaller release builds for Windows, macOS, and Linux desktop are documented in [BUILDING.md](BUILDING.md).
 
 ## Installation
 

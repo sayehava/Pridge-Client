@@ -23,7 +23,7 @@ Build system: PyInstaller
 
 ## Output and temporary directories
 
-Local builds write final packages, checksums, release notes, compiler reports, and logs to the repository's `build` directory by default on Windows and macOS. The directory is present in a fresh checkout and is created automatically if it is missing. Generated files inside it are ignored by Git; [build/README.md](build/README.md) remains tracked to explain its purpose.
+Local builds write final packages, checksums, release notes, compiler reports, and logs to the repository's `build` directory by default on Windows, macOS, and Linux. The directory is present in a fresh checkout and is created automatically if it is missing. Generated files inside it are ignored by Git; [build/README.md](build/README.md) remains tracked to explain its purpose.
 
 To choose another location interactively, use the platform folder selector:
 
@@ -38,6 +38,8 @@ macOS:
 ```bash
 bash scripts/build-macos.sh All --select-output-dir
 ```
+
+Linux has no graphical build-output selector. Pass `--output-dir` or set `PRINTBRIDGE_RELEASE_DIR`.
 
 The selector opens before compilation begins. Cancelling it stops the build without producing packages. For automated or repeatable builds, set `PRINTBRIDGE_RELEASE_DIR` or pass an explicit output path instead.
 
@@ -64,6 +66,8 @@ Use a native CPython 3.12 installation for the build machine. Python is a build-
 Create the virtual environment outside the repository. Install the build tools from [requirements-release.txt](requirements-release.txt) and install Pridge Client with the platform extras.
 
 Do not build from a general-purpose Python environment containing unrelated GUI frameworks. Pywebview discovers installed renderers dynamically, so a clean release environment keeps each package reliable and small.
+
+Release environments use pywebview `6.2.1`. Windows pins pythonnet `3.0.5` and explicitly bundles the WinForms, Edge Chromium, CLR, and WebView2 interop components. Linux uses the Qt 6 WebEngine renderer. These versions and backends are deliberate release inputs; update them only with packaged GUI smoke tests on every platform.
 
 ## Windows prerequisites
 
@@ -121,6 +125,8 @@ To provide an explicit output directory for one command:
 ```
 
 Both setup packages use the shared Inno Setup definition at [Pridge-Client.iss](packaging/windows/Pridge-Client.iss). The installer checks Microsoft's WebView2 Runtime `pv` registry value for both per-machine and per-user installations. It runs the embedded official Evergreen bootstrapper with `/silent /install` only when a valid runtime is missing. The portable packages require the Microsoft WebView2 Runtime already provided by or installed on Windows; they never require Python.
+
+Each Windows build also runs the packaged executable with its private GUI smoke mode. A build succeeds only when WebView2 renders the frontend, React obtains state through the Python bridge, and the application closes cleanly with exit code zero.
 
 ## macOS prerequisites
 
@@ -183,6 +189,46 @@ bash scripts/build-macos.sh All --output-dir "$HOME/Pridge Builds"
 
 The DMG contains the `.app`, an `/Applications` shortcut, the GPL license, and the additional attribution terms. A custom volume icon, application name, version, identifier, author, copyright, description, build variant, and build system are embedded during packaging.
 
+Each macOS build and mounted-DMG validation runs the same rendered-GUI smoke mode against the packaged executable.
+
+## Linux desktop prerequisites
+
+Linux x86_64 releases use Qt 6 and Qt WebEngine so the packaged renderer is deterministic and does not depend on a distribution-provided GTK WebKit version. Build on a native GNU/Linux x86_64 system with CPython 3.12, CUPS development headers, and the X11/Qt runtime libraries required by Qt WebEngine.
+
+On Ubuntu 24.04, prepare the system packages with:
+
+```bash
+sudo apt-get update
+sudo apt-get install --yes libcups2-dev libegl1 libgbm1 libgl1 libnss3 \
+  libxcomposite1 libxdamage1 libxkbcommon-x11-0 libxrandr2 \
+  libxcb-cursor0 xauth xvfb
+```
+
+Prepare an external virtual environment:
+
+```bash
+python3.12 -m venv /tmp/pridge-release-venv
+source /tmp/pridge-release-venv/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements-release.txt -e ".[linux,secure,tray]"
+python3 -B -m unittest discover -s tests
+```
+
+Build either package or both:
+
+```bash
+bash scripts/build-linux.sh Native
+bash scripts/build-linux.sh PyInstaller
+bash scripts/build-linux.sh All --output-dir "$HOME/Pridge Builds"
+```
+
+The outputs are:
+
+- `Pridge-Client-Native-Linux-x86_64.tar.gz`
+- `Pridge-Client-PyInstaller-Linux-x86_64.tar.gz`
+
+The build runs the packaged frontend under the current desktop display or `xvfb-run`. It fails if the Qt window, React application, or Python bridge does not become ready.
+
 ## Optional Windows code signing
 
 Windows signing is disabled when signing variables are absent. To sign the primary executables and setup packages, set:
@@ -244,7 +290,7 @@ The corresponding local environment variables add the `PRINTBRIDGE_` prefix, for
 The packages expose the same application behavior and resources. They differ only in the compiler/packager and internal layout:
 
 - **Native** compiles Python modules with Nuitka and distributes a standalone directory or app bundle. User-facing package names use `Native`; package filenames never use `Nuitka`.
-- **PyInstaller** freezes modules with PyInstaller and distributes an onedir directory or app bundle. It uses the maintained spec file shared by Windows and macOS.
+- **PyInstaller** freezes modules with PyInstaller and distributes an onedir directory or app bundle. It uses the maintained spec file shared by Windows, macOS, and Linux.
 
 Keeping both targets provides an independent packaging fallback and makes runtime issues easier to isolate. Neither target currently uses onefile extraction.
 
@@ -252,14 +298,15 @@ Keeping both targets provides an independent packaging fallback and makes runtim
 
 Every local build performs an executable version smoke check before packaging. The GitHub workflows add clean-runner tests:
 
-- Windows expands each portable ZIP, launches the GUI, silently installs each Inno package into a temporary directory, and launches the installed GUI.
-- macOS mounts each DMG read-only, verifies app metadata, architecture, code signature, frontend and legal files, and launches the GUI with a fresh temporary home directory.
+- Windows requires the packaged WebView2 GUI and JavaScript-Python bridge to become ready before either package is accepted.
+- macOS runs the rendered-GUI smoke mode before creating each DMG, then repeats it from the mounted final DMG.
+- Linux runs each Qt WebEngine package under Xvfb and requires the rendered GUI bridge to complete.
 
-The frozen application is launched directly from its package. It does not use the build environment's Python interpreter or installed Python packages. Test signed production packages on the oldest supported clean Windows and macOS versions before broad deployment, especially after changing pywebview, Python, signing, or operating-system targets.
+The frozen application is launched directly from its package. It does not use the build environment's Python interpreter or installed Python packages. Test signed production packages on the oldest supported clean Windows, macOS, and Linux versions before broad deployment, especially after changing pywebview, Python, signing, or operating-system targets.
 
 ## Release notes and checksums
 
-Platform builds create `SHA256SUMS.txt` for every final package currently present in the output directory. The tag workflow downloads all eight packages and regenerates the canonical file with `--require-all`.
+Platform builds create `SHA256SUMS.txt` for every final package currently present in the output directory. The tag workflow downloads all ten packages and regenerates the canonical file with `--require-all`.
 
 `scripts/generate_release_notes.py` creates `Pridge-Client-Release-Notes.txt` and a Markdown rendering used as the GitHub Release description. It reads non-merge commits since the previous `v*` tag, or all relevant history when no previous tag exists. It filters common dependency, formatting, merge, and generated-file noise and groups entries into features, fixes, improvements, documentation, build and packaging, and internal changes.
 
@@ -278,6 +325,7 @@ The platform workflows can be started manually from GitHub Actions to validate p
 
 - `Build Windows packages`
 - `Build macOS packages`
+- `Build Linux packages`
 
 To publish a release:
 
@@ -293,7 +341,7 @@ git tag -a v1.0.0 -m "Release Pridge Client 1.0.0"
 git push origin v1.0.0
 ```
 
-The `Build and publish release` workflow calls both native platform workflows, embeds the tag version, builds six native runner jobs, verifies each package, collects final output in the checked-out repository's ignored `build` directory, generates release notes and checksums, uploads the complete set as a GitHub Actions artifact, and creates the GitHub Release. The plain-text release notes are uploaded as a release asset, and the Markdown rendering of the same content becomes the release description.
+The `Build and publish release` workflow calls all three platform workflows, embeds the tag version, builds eight runner jobs, verifies each package, collects final output in the checked-out repository's ignored `build` directory, generates release notes and checksums, uploads the complete set as a GitHub Actions artifact, and creates the GitHub Release. The plain-text release notes are uploaded as a release asset, and the Markdown rendering of the same content becomes the release description.
 
 ## Expected final filenames
 
@@ -306,6 +354,8 @@ Pridge-Client-PyInstaller-Setup-x64.exe
 Pridge-Client-PyInstaller-Windows-x64-Portable.zip
 Pridge-Client-PyInstaller-macOS-arm64.dmg
 Pridge-Client-PyInstaller-macOS-x86_64.dmg
+Pridge-Client-Native-Linux-x86_64.tar.gz
+Pridge-Client-PyInstaller-Linux-x86_64.tar.gz
 SHA256SUMS.txt
 Pridge-Client-Release-Notes.txt
 ```
