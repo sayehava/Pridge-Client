@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 from printbridge_client.api import RemotePrinter
 from printbridge_client.config import ConfigStore
 from printbridge_client.gui import ClientApi, _window_effects
+from printbridge_client.printers import DriverChoice, DriverOption, Printer, PrinterCapabilities
 
 
 class MemoryTokenStore:
@@ -108,6 +109,69 @@ class ClientApiTests(unittest.TestCase):
         self.assertEqual(server["heartbeat_interval_seconds"], 41)
         self.assertEqual(server["default_printer"], "Backup Printer")
         self.assertEqual(server["printer_mappings"][0]["local_printer_name"], "EPSON TM-T88")
+
+    def test_saves_validated_system_driver_profile(self):
+        manager = Mock()
+        manager.list_printers.return_value = [Printer("Office Driver", system_driver_available=True)]
+        capabilities = PrinterCapabilities(
+            printer_name="Office Driver",
+            system_driver_available=True,
+            options=(
+                DriverOption(
+                    id="PageSize",
+                    label="Media Size",
+                    choices=(DriverChoice("A4", "A4"), DriverChoice("Letter", "Letter")),
+                    default="A4",
+                ),
+            ),
+        )
+        manager.get_capabilities.return_value = capabilities
+        self.api.printer_manager = manager
+        self.api.refresh_printers()
+
+        result = self.api.update_printer_profile(
+            "Office Driver",
+            {"mode": "system_driver", "driver_settings": {"PageSize": "Removed"}},
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["profile"], {"mode": "system_driver", "driver_settings": {"PageSize": "A4"}})
+        self.assertEqual(self.api.config_store.load().printer_profiles["Office Driver"].mode, "system_driver")
+
+    def test_exposes_driver_capabilities_with_saved_profile(self):
+        manager = Mock()
+        manager.list_printers.return_value = [Printer("Office Driver", system_driver_available=True)]
+        capabilities = PrinterCapabilities(
+            printer_name="Office Driver",
+            system_driver_available=True,
+            driver_name="Office Driver 2",
+            supports_native_dialog=True,
+        )
+        manager.get_capabilities.return_value = capabilities
+        self.api.printer_manager = manager
+        self.api.refresh_printers()
+
+        result = self.api.get_printer_capabilities("Office Driver")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["capabilities"]["driver_name"], "Office Driver 2")
+        self.assertTrue(result["capabilities"]["supports_native_dialog"])
+
+    def test_opens_native_driver_settings(self):
+        manager = Mock()
+        manager.list_printers.return_value = [Printer("Office Driver", system_driver_available=True)]
+        manager.get_capabilities.return_value = PrinterCapabilities(
+            printer_name="Office Driver",
+            system_driver_available=True,
+            supports_native_dialog=True,
+        )
+        self.api.printer_manager = manager
+        self.api.refresh_printers()
+
+        result = self.api.open_printer_driver_settings("Office Driver")
+
+        self.assertTrue(result["ok"])
+        manager.open_driver_settings.assert_called_once_with("Office Driver")
 
     def test_starts_and_stops_one_server(self):
         result = self.api.add_server({"name": "Office", "server_url": "https://office.example.test"})

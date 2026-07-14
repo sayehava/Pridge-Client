@@ -1252,6 +1252,129 @@ button.stone-option.selected {
   font-size: 12px;
 }
 
+.mapping-local-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.printer-configure-button {
+  min-height: 28px;
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.printer-setup-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(3, 7, 18, 0.76);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.printer-setup-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(560px, 100%);
+  max-height: min(720px, calc(100vh - 48px));
+  padding: 20px;
+  overflow: hidden;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-card);
+  background: linear-gradient(145deg, var(--panel-top), var(--panel-bottom));
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.printer-setup-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.printer-setup-header h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.printer-setup-header p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.dialog-close {
+  min-width: 32px;
+  padding: 4px 8px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.driver-loading,
+.driver-mode-note {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--text-muted);
+  background: var(--control-bg);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.driver-mode-note strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-dim);
+}
+
+.native-driver-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--control-bg);
+}
+
+.native-driver-row strong,
+.native-driver-row small {
+  display: block;
+}
+
+.native-driver-row small {
+  margin-top: 3px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.driver-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-height: 0;
+  padding-right: 5px;
+  overflow-y: auto;
+}
+
+.driver-option {
+  min-width: 0;
+}
+
+.printer-setup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
 .mapping-empty {
   display: flex;
   flex: 1 1 auto;

@@ -55,6 +55,12 @@
     const [remotePrinters, setRemotePrinters] = useState([]);
     const [message, setMessage] = useState("");
     const [error, setError] = useState("");
+    const [setupPrinter, setSetupPrinter] = useState("");
+    const [printerCapabilities, setPrinterCapabilities] = useState(null);
+    const [printerProfile, setPrinterProfile] = useState({ mode: "raw", driver_settings: {} });
+    const [profileBusy, setProfileBusy] = useState(false);
+    const [profileError, setProfileError] = useState("");
+    const [profileMessage, setProfileMessage] = useState("");
 
     useEffect(() => {
       const boot = () => callApi("get_state").then((result) => {
@@ -180,6 +186,80 @@
       }));
     };
 
+    const openPrinterSetup = (printerName) => {
+      if (!printerName) return;
+      setSetupPrinter(printerName);
+      setPrinterCapabilities(null);
+      setPrinterProfile({ mode: "raw", driver_settings: {} });
+      setProfileError("");
+      setProfileMessage("");
+      setProfileBusy(true);
+      callApi("get_printer_capabilities", printerName).then((result) => {
+        setProfileBusy(false);
+        if (!result) return;
+        if (!result.ok) {
+          setProfileError(result.error || S.driver_capabilities_failed);
+          return;
+        }
+        setPrinterCapabilities(result.capabilities || null);
+        setPrinterProfile(result.profile || { mode: "raw", driver_settings: {} });
+      });
+    };
+
+    const closePrinterSetup = () => {
+      if (profileBusy) return;
+      setSetupPrinter("");
+      setPrinterCapabilities(null);
+      setProfileError("");
+      setProfileMessage("");
+    };
+
+    const setPrintingMode = (event) => {
+      setPrinterProfile((current) => ({ ...current, mode: event.target.value }));
+      setProfileError("");
+      setProfileMessage("");
+    };
+
+    const setDriverOption = (optionId, valueId) => {
+      setPrinterProfile((current) => ({
+        ...current,
+        driver_settings: { ...(current.driver_settings || {}), [optionId]: valueId },
+      }));
+    };
+
+    const savePrinterProfile = () => {
+      setProfileBusy(true);
+      setProfileError("");
+      setProfileMessage("");
+      callApi("update_printer_profile", setupPrinter, printerProfile).then((result) => {
+        setProfileBusy(false);
+        if (!result) return;
+        if (!result.ok) {
+          setProfileError(result.error || S.printer_profile_save_failed);
+          return;
+        }
+        setPrinterProfile(result.profile || printerProfile);
+        setProfileMessage(result.message || S.settings_saved);
+      });
+    };
+
+    const openNativeDriverSettings = () => {
+      setProfileBusy(true);
+      setProfileError("");
+      setProfileMessage("");
+      callApi("open_printer_driver_settings", setupPrinter).then((result) => {
+        setProfileBusy(false);
+        if (!result) return;
+        if (!result.ok) {
+          setProfileError(result.error || S.native_driver_settings_failed);
+          return;
+        }
+        setPrinterCapabilities(result.capabilities || printerCapabilities);
+        setPrinterProfile(result.profile || printerProfile);
+        setProfileMessage(S.driver_settings_updated);
+      });
+    };
+
     if (!loaded) return html`<div class="loading">${S.loading}</div>`;
 
     document.title = serverId ? S.edit_server : S.add_server;
@@ -270,14 +350,24 @@
                         </div>
                       </div>
                       <div class="mapping-local">
-                        <select
-                          aria-label=${S.local_printer}
-                          value=${mapping.local_printer_name}
-                          onChange=${(event) => mapEndpoint(mapping.remote_printer_id, event.target.value)}
-                        >
-                          <option value="">${S.mapping_disabled}</option>
-                          ${printers.map((name) => html`<option value=${name} key=${name}>${name}</option>`)}
-                        </select>
+                        <div class="mapping-local-controls">
+                          <select
+                            aria-label=${S.local_printer}
+                            value=${mapping.local_printer_name}
+                            onChange=${(event) => mapEndpoint(mapping.remote_printer_id, event.target.value)}
+                          >
+                            <option value="">${S.mapping_disabled}</option>
+                            ${printers.map((name) => html`<option value=${name} key=${name}>${name}</option>`)}
+                          </select>
+                          <button
+                            type="button"
+                            class="ghost printer-configure-button"
+                            disabled=${!mapping.local_printer_name}
+                            onClick=${() => openPrinterSetup(mapping.local_printer_name)}
+                          >
+                            ${S.configure}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   `;
@@ -285,6 +375,111 @@
                 )}
               </div>`}
         </div>
+
+        ${setupPrinter
+          ? html`
+              <div class="printer-setup-backdrop" role="presentation" onMouseDown=${closePrinterSetup}>
+                <div
+                  class="printer-setup-dialog"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label=${S.printer_setup}
+                  onMouseDown=${(event) => event.stopPropagation()}
+                >
+                  <div class="printer-setup-header">
+                    <div>
+                      <h2>${S.printer_setup}</h2>
+                      <p>${setupPrinter}</p>
+                    </div>
+                    <button type="button" class="ghost dialog-close" onClick=${closePrinterSetup} disabled=${profileBusy}>×</button>
+                  </div>
+
+                  ${profileBusy && !printerCapabilities
+                    ? html`<div class="driver-loading">${S.loading_driver_capabilities}</div>`
+                    : html`
+                        <div class="field">
+                          <label class="field-label">${S.printing_mode}</label>
+                          <select value=${printerProfile.mode} onChange=${setPrintingMode}>
+                            <option value="raw">${S.raw_mode}</option>
+                            <option
+                              value="system_driver"
+                              disabled=${printerCapabilities && !printerCapabilities.system_driver_available}
+                            >
+                              ${S.system_driver_mode}
+                            </option>
+                          </select>
+                        </div>
+
+                        ${printerProfile.mode === "raw"
+                          ? html`<div class="driver-mode-note">${S.raw_mode_hint}</div>`
+                          : printerCapabilities && !printerCapabilities.system_driver_available
+                          ? html`<div class="connection-result error-result">${S.system_driver_unavailable}</div>`
+                          : html`
+                              <div class="driver-mode-note">
+                                ${S.system_driver_mode_hint}
+                                ${printerCapabilities && printerCapabilities.driver_name
+                                  ? html`<strong>${printerCapabilities.driver_name}</strong>`
+                                  : null}
+                              </div>
+
+                              ${printerCapabilities && printerCapabilities.supports_native_dialog
+                                ? html`
+                                    <div class="native-driver-row">
+                                      <div>
+                                        <strong>${S.native_driver_settings}</strong>
+                                        <small>${S.native_driver_settings_hint}</small>
+                                      </div>
+                                      <button type="button" class="ghost" onClick=${openNativeDriverSettings} disabled=${profileBusy}>
+                                        ${S.open_driver_settings}
+                                      </button>
+                                    </div>
+                                  `
+                                : null}
+
+                              ${printerCapabilities && printerCapabilities.options.length
+                                ? html`
+                                    <div class="driver-options">
+                                      ${printerCapabilities.options.map(
+                                        (option) => html`
+                                          <div class="field driver-option" key=${option.id}>
+                                            <label class="field-label">${option.label}</label>
+                                            <select
+                                              value=${printerProfile.driver_settings[option.id] || option.default}
+                                              onChange=${(event) => setDriverOption(option.id, event.target.value)}
+                                            >
+                                              ${option.choices.map(
+                                                (choice) => html`<option value=${choice.id} key=${choice.id}>${choice.label}</option>`
+                                              )}
+                                            </select>
+                                          </div>
+                                        `
+                                      )}
+                                    </div>
+                                  `
+                                : printerCapabilities && !printerCapabilities.supports_native_dialog
+                                ? html`<div class="driver-mode-note">${S.no_driver_options}</div>`
+                                : null}
+                            `}
+                      `}
+
+                  ${profileMessage ? html`<div class="connection-result success-result">${profileMessage}</div>` : null}
+                  ${profileError ? html`<div class="connection-result error-result">${profileError}</div>` : null}
+
+                  <div class="printer-setup-actions">
+                    <button type="button" onClick=${closePrinterSetup} disabled=${profileBusy}>${S.close}</button>
+                    <button
+                      type="button"
+                      class="primary"
+                      onClick=${savePrinterProfile}
+                      disabled=${profileBusy || !printerCapabilities}
+                    >
+                      ${profileBusy ? S.saving_settings : S.save_printer_settings}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            `
+          : null}
 
         ${message ? html`<div class="connection-result success-result">${message}</div>` : null}
         ${error ? html`<div class="connection-result error-result">${error}</div>` : null}

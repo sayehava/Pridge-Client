@@ -19,10 +19,12 @@ from printbridge_client.autostart import AutoStartError, set_start_at_login
 from printbridge_client.build_info import BUILD_SYSTEM, BUILD_VARIANT
 from printbridge_client.config import (
     DARKNESS_GRADES,
+    PRINT_MODES,
     ClientTokenStore,
     ConfigStore,
     ClientConfig,
     PrinterMapping,
+    PrinterProfile,
     ServerConfig,
 )
 from printbridge_client.models import JobHistoryEntry
@@ -32,7 +34,7 @@ from printbridge_client.platform_window import (
     configure_utility_window,
     create_application_menu,
 )
-from printbridge_client.printers import Printer, PrinterError, PrinterManager
+from printbridge_client.printers import Printer, PrinterError, PrinterManager, validate_driver_settings
 from printbridge_client.strings import (
     APP_NAME,
     MESSAGE_READY,
@@ -323,6 +325,74 @@ class ClientApi:
         self.selected_printer = str(name)
         return self._ok()
 
+    def get_printer_capabilities(self, printer_name: str) -> dict:
+        name = str(printer_name).strip()
+        if name not in {printer.name for printer in self.printers}:
+            return self._error("The selected printer is no longer available.")
+        profile = self.config.printer_profiles.get(name, PrinterProfile())
+        try:
+            capabilities = self.printer_manager.get_capabilities(name)
+        except PrinterError as exc:
+            return self._error(str(exc))
+
+        validated = validate_driver_settings(capabilities, profile.driver_settings)
+        if capabilities.system_driver_available and validated != profile.driver_settings:
+            profile.driver_settings = validated
+            self.config.printer_profiles[name] = profile
+            self.config_store.save(self._current_config())
+        return {
+            "ok": True,
+            "error": None,
+            "capabilities": capabilities.public(validated),
+            "profile": self._printer_profile_public(profile),
+            "state": self._build_state(),
+        }
+
+    def update_printer_profile(self, printer_name: str, fields: dict) -> dict:
+        name = str(printer_name).strip()
+        if name not in {printer.name for printer in self.printers}:
+            return self._error("The selected printer is no longer available.")
+        mode = str(fields.get("mode", "raw")).strip().lower()
+        if mode not in PRINT_MODES:
+            return self._error("The selected printing mode is not supported.")
+
+        existing = self.config.printer_profiles.get(name, PrinterProfile())
+        raw_settings = fields.get("driver_settings", existing.driver_settings)
+        settings = self._driver_settings(raw_settings)
+        capabilities = None
+        if mode == "system_driver":
+            try:
+                capabilities = self.printer_manager.get_capabilities(name)
+            except PrinterError as exc:
+                return self._error(str(exc))
+            if not capabilities.system_driver_available:
+                return self._error("The selected printer does not have an available system driver.")
+            settings = validate_driver_settings(capabilities, settings)
+
+        profile = PrinterProfile(mode=mode, driver_settings=settings)
+        self.config.printer_profiles[name] = profile
+        self.config = self._current_config()
+        self.config_store.save(self.config)
+        logger.info("Updated printing mode for printer %s", name)
+        return {
+            "ok": True,
+            "error": None,
+            "message": MESSAGE_SETTINGS_SAVED,
+            "capabilities": capabilities.public(settings) if capabilities else None,
+            "profile": self._printer_profile_public(profile),
+            "state": self._build_state(),
+        }
+
+    def open_printer_driver_settings(self, printer_name: str) -> dict:
+        name = str(printer_name).strip()
+        if name not in {printer.name for printer in self.printers}:
+            return self._error("The selected printer is no longer available.")
+        try:
+            self.printer_manager.open_driver_settings(name)
+        except PrinterError as exc:
+            return self._error(str(exc))
+        return self.get_printer_capabilities(name)
+
     def set_start_polling_on_launch(self, value: bool) -> dict:
         self.start_polling_on_launch = bool(value)
         return self._ok()
@@ -487,6 +557,18 @@ class ClientApi:
             "servers": [self._server_public(server) for server in self.config.servers],
             "selected_server_id": self.selected_server_id,
             "printers": [printer.name for printer in self.printers],
+            "printer_details": [
+                {
+                    "name": printer.name,
+                    "is_default": printer.is_default,
+                    "system_driver_available": printer.system_driver_available,
+                }
+                for printer in self.printers
+            ],
+            "printer_profiles": {
+                name: self._printer_profile_public(profile)
+                for name, profile in self.config.printer_profiles.items()
+            },
             "selected_printer": self.selected_printer,
             "start_polling_on_launch": self.start_polling_on_launch,
             "start_at_login": self.start_at_login,
@@ -628,6 +710,23 @@ class ClientApi:
             )
             seen.add(remote_printer_id)
         return mappings
+
+    def _driver_settings(self, value: object) -> dict[str, str]:
+        if not isinstance(value, dict):
+            return {}
+        return {
+            str(option_id).strip(): str(value_id).strip()
+            for option_id, value_id in value.items()
+            if str(option_id).strip()
+            and isinstance(value_id, (str, int, float, bool))
+            and str(value_id).strip()
+        }
+
+    def _printer_profile_public(self, profile: PrinterProfile) -> dict[str, object]:
+        return {
+            "mode": profile.mode,
+            "driver_settings": dict(profile.driver_settings),
+        }
 
     def _server_by_id(self, server_id: str) -> ServerConfig | None:
         return next((server for server in self.config.servers if server.id == server_id), None)
