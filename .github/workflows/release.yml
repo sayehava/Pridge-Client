@@ -73,8 +73,8 @@ jobs:
           test -f Pridge-Client-PyInstaller-Windows-x64-Portable.zip
           test -f Pridge-Client-PyInstaller-macOS-arm64.dmg
           test -f Pridge-Client-PyInstaller-macOS-x86_64.dmg
-          test -f Pridge-Client-Native-Linux-x86_64.tar.gz
-          test -f Pridge-Client-PyInstaller-Linux-x86_64.tar.gz
+          test -f Pridge-Client-Native-Linux-x86_64-Ubuntu22.04+.tar.gz
+          test -f Pridge-Client-PyInstaller-Linux-x86_64-Ubuntu22.04+.tar.gz
           test -f SHA256SUMS.txt
           test -f Pridge-Client-Release-Notes.txt
 
@@ -91,8 +91,8 @@ jobs:
             ${{ github.workspace }}/build/Pridge-Client-PyInstaller-Windows-x64-Portable.zip
             ${{ github.workspace }}/build/Pridge-Client-PyInstaller-macOS-arm64.dmg
             ${{ github.workspace }}/build/Pridge-Client-PyInstaller-macOS-x86_64.dmg
-            ${{ github.workspace }}/build/Pridge-Client-Native-Linux-x86_64.tar.gz
-            ${{ github.workspace }}/build/Pridge-Client-PyInstaller-Linux-x86_64.tar.gz
+            ${{ github.workspace }}/build/Pridge-Client-Native-Linux-x86_64-Ubuntu22.04+.tar.gz
+            ${{ github.workspace }}/build/Pridge-Client-PyInstaller-Linux-x86_64-Ubuntu22.04+.tar.gz
             ${{ github.workspace }}/build/SHA256SUMS.txt
             ${{ github.workspace }}/build/Pridge-Client-Release-Notes.txt
           if-no-files-found: error
@@ -112,7 +112,7 @@ jobs:
             ${{ github.workspace }}/build/Pridge-Client-PyInstaller-Windows-x64-Portable.zip
             ${{ github.workspace }}/build/Pridge-Client-PyInstaller-macOS-arm64.dmg
             ${{ github.workspace }}/build/Pridge-Client-PyInstaller-macOS-x86_64.dmg
-            ${{ github.workspace }}/build/Pridge-Client-Native-Linux-x86_64.tar.gz
-            ${{ github.workspace }}/build/Pridge-Client-PyInstaller-Linux-x86_64.tar.gz
+            ${{ github.workspace }}/build/Pridge-Client-Native-Linux-x86_64-Ubuntu22.04+.tar.gz
+            ${{ github.workspace }}/build/Pridge-Client-PyInstaller-Linux-x86_64-Ubuntu22.04+.tar.gz
             ${{ github.workspace }}/build/SHA256SUMS.txt
             ${{ github.workspace }}/build/Pridge-Client-Release-Notes.txt

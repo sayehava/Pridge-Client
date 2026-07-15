@@ -101,8 +101,8 @@ class ReleaseConfigurationTests(unittest.TestCase):
             "Pridge-Client-PyInstaller-Windows-x64-Portable.zip",
             "Pridge-Client-PyInstaller-macOS-arm64.dmg",
             "Pridge-Client-PyInstaller-macOS-x86_64.dmg",
-            "Pridge-Client-Native-Linux-x86_64.tar.gz",
-            "Pridge-Client-PyInstaller-Linux-x86_64.tar.gz",
+            "Pridge-Client-Native-Linux-x86_64-Ubuntu22.04+.tar.gz",
+            "Pridge-Client-PyInstaller-Linux-x86_64-Ubuntu22.04+.tar.gz",
             "SHA256SUMS.txt",
             "Pridge-Client-Release-Notes.txt",
         )

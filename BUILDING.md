@@ -195,7 +195,7 @@ Each macOS build and mounted-DMG validation runs the same rendered-GUI smoke mod
 
 Linux x86_64 releases use Qt 6 and Qt WebEngine so the packaged renderer is deterministic and does not depend on a distribution-provided GTK WebKit version. Build on a native GNU/Linux x86_64 system with CPython 3.12, CUPS development headers, and the X11/Qt runtime libraries required by Qt WebEngine.
 
-On Ubuntu 24.04, prepare the system packages with:
+Packaged releases require Ubuntu 22.04 LTS or later (or an equivalent distribution). On Ubuntu 22.04, prepare the system packages with:
 
 ```bash
 sudo apt-get update
@@ -224,8 +224,8 @@ bash scripts/build-linux.sh All --output-dir "$HOME/Pridge Builds"
 
 The outputs are:
 
-- `Pridge-Client-Native-Linux-x86_64.tar.gz`
-- `Pridge-Client-PyInstaller-Linux-x86_64.tar.gz`
+- `Pridge-Client-Native-Linux-x86_64-Ubuntu22.04+.tar.gz`
+- `Pridge-Client-PyInstaller-Linux-x86_64-Ubuntu22.04+.tar.gz`
 
 The build runs the packaged frontend under the current desktop display or `xvfb-run`. It fails if the Qt window, React application, or Python bridge does not become ready.
 
@@ -354,8 +354,8 @@ Pridge-Client-PyInstaller-Setup-x64.exe
 Pridge-Client-PyInstaller-Windows-x64-Portable.zip
 Pridge-Client-PyInstaller-macOS-arm64.dmg
 Pridge-Client-PyInstaller-macOS-x86_64.dmg
-Pridge-Client-Native-Linux-x86_64.tar.gz
-Pridge-Client-PyInstaller-Linux-x86_64.tar.gz
+Pridge-Client-Native-Linux-x86_64-Ubuntu22.04+.tar.gz
+Pridge-Client-PyInstaller-Linux-x86_64-Ubuntu22.04+.tar.gz
 SHA256SUMS.txt
 Pridge-Client-Release-Notes.txt
 ```

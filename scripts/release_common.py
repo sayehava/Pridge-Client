@@ -55,8 +55,8 @@ MACOS_PACKAGES = {
 }
 
 LINUX_PACKAGES = {
-    "Native": "Pridge-Client-Native-Linux-x86_64.tar.gz",
-    "PyInstaller": "Pridge-Client-PyInstaller-Linux-x86_64.tar.gz",
+    "Native": "Pridge-Client-Native-Linux-x86_64-Ubuntu22.04+.tar.gz",
+    "PyInstaller": "Pridge-Client-PyInstaller-Linux-x86_64-Ubuntu22.04+.tar.gz",
 }
 
 

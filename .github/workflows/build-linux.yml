@@ -103,7 +103,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: pridge-linux-${{ matrix.variant }}
-          path: ${{ github.workspace }}/build/Pridge-Client-${{ matrix.variant }}-Linux-x86_64.tar.gz
+          path: ${{ github.workspace }}/build/Pridge-Client-${{ matrix.variant }}-Linux-x86_64-Ubuntu22.04+.tar.gz
           if-no-files-found: warn
           retention-days: 30
 
