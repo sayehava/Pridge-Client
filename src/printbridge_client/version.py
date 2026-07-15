@@ -5,4 +5,4 @@
 from printbridge_client.build_info import embedded_version
 
 
-__version__ = embedded_version("1.1.2")
+__version__ = embedded_version("1.2.0")
