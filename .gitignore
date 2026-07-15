@@ -4,6 +4,7 @@ __pycache__/
 .Python
 .venv/
 venv/
+.venv-test/
 /build/*
 !/build/README.md
 dist/
@@ -16,3 +17,6 @@ Release/
 *.onefile-build/
 *.spec.tmp
 *.egg-info/
+
+
+
