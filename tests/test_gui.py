@@ -274,7 +274,7 @@ class ClientApiTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(create_window.call_args.args[0], "Add Server")
         self.assertIn("server.html?", create_window.call_args.kwargs["url"])
-        self.assertEqual(len(self.api.server_windows), 1)
+        self.assertEqual(len(self.api._server_windows), 1)
 
     @patch("printbridge_client.gui.webview.create_window")
     def test_opens_settings_in_one_separate_window(self, create_window):
@@ -302,7 +302,7 @@ class ClientApiTests(unittest.TestCase):
 
         self.assertTrue(reopened["ok"])
         self.assertEqual(create_window.call_count, 2)
-        self.assertIs(self.api.utility_windows["settings"], second_window)
+        self.assertIs(self.api._utility_windows["settings"], second_window)
 
     @patch("printbridge_client.gui.webview.create_window")
     def test_opens_about_window_at_fixed_size(self, create_window):
@@ -320,9 +320,9 @@ class ClientApiTests(unittest.TestCase):
         main_window = Mock()
         server_window = Mock()
         utility_window = Mock()
-        self.api.window = main_window
-        self.api.server_windows["server"] = server_window
-        self.api.utility_windows["settings"] = utility_window
+        self.api._window = main_window
+        self.api._server_windows["server"] = server_window
+        self.api._utility_windows["settings"] = utility_window
 
         result = self.api.quit_application()
 
@@ -349,13 +349,13 @@ class ClientApiTests(unittest.TestCase):
             printer_manager=self.api.printer_manager,
             gui_smoke_test=True,
         )
-        api.window = Mock()
+        api._window = Mock()
 
         result = api.notify_gui_ready()
 
         self.assertTrue(result["ok"])
         self.assertTrue(api.gui_ready.is_set())
-        api.window.destroy.assert_not_called()
+        api._window.destroy.assert_not_called()
 
     def test_smoke_test_printer_refresh_is_bounded_and_warning_only(self):
         manager = Mock()
@@ -382,12 +382,12 @@ class ClientApiTests(unittest.TestCase):
 
     @patch("printbridge_client.gui.set_start_at_login")
     def test_updates_application_darkness_setting(self, set_start_at_login):
-        self.api.window = Mock()
+        self.api._window = Mock()
         server_window = Mock()
         about_window = Mock()
         settings_window = Mock()
-        self.api.server_windows["server"] = server_window
-        self.api.utility_windows.update({"about": about_window, "settings": settings_window})
+        self.api._server_windows["server"] = server_window
+        self.api._utility_windows.update({"about": about_window, "settings": settings_window})
 
         result = self.api.update_application_settings(
             {
@@ -402,7 +402,7 @@ class ClientApiTests(unittest.TestCase):
         self.assertEqual(result["state"]["appearance"]["darkness_grade"], "Obsidian")
         self.assertEqual(self.api.config.appearance.darkness_grade, "Obsidian")
         expected_script = 'document.documentElement.dataset.darkness = "obsidian";'
-        self.api.window.evaluate_js.assert_called_once_with(expected_script)
+        self.api._window.evaluate_js.assert_called_once_with(expected_script)
         server_window.evaluate_js.assert_called_once_with(expected_script)
         about_window.evaluate_js.assert_called_once_with(expected_script)
         settings_window.evaluate_js.assert_not_called()
@@ -425,27 +425,27 @@ class ClientApiTests(unittest.TestCase):
     def test_smoke_test_shutdown_stops_tray_workers_and_windows(self):
         api = Mock()
         tray = Mock()
-        api.tray = tray
+        api._tray = tray
         worker = Mock()
         api.workers = {"srv": worker}
         server_window = Mock()
-        api.server_windows = {"srv": server_window}
+        api._server_windows = {"srv": server_window}
         utility_window = Mock()
-        api.utility_windows = {"settings": utility_window}
+        api._utility_windows = {"settings": utility_window}
         main_window = Mock()
-        api.window = main_window
+        api._window = main_window
 
         _shutdown_smoke_test(api)
 
         tray.stop.assert_called_once()
-        self.assertIsNone(api.tray)
+        self.assertIsNone(api._tray)
         worker.stop.assert_called_once()
         worker.join.assert_called_once_with(timeout=2)
         self.assertEqual(api.workers, {})
         server_window.destroy.assert_called_once()
-        self.assertEqual(api.server_windows, {})
+        self.assertEqual(api._server_windows, {})
         utility_window.destroy.assert_called_once()
-        self.assertEqual(api.utility_windows, {})
+        self.assertEqual(api._utility_windows, {})
         main_window.destroy.assert_called_once()
 
 

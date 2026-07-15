@@ -118,10 +118,10 @@ class ClientApi:
         self.printer_manager = printer_manager or PrinterManager()
         self.config = self.config_store.load()
         self.workers: dict[str, PollingWorker] = {}
-        self.server_windows: dict[str, webview.Window] = {}
-        self.utility_windows: dict[str, webview.Window] = {}
-        self.tray: TrayController | None = None
-        self.window: webview.Window | None = None
+        self._server_windows: dict[str, webview.Window] = {}
+        self._utility_windows: dict[str, webview.Window] = {}
+        self._tray: TrayController | None = None
+        self._window: webview.Window | None = None
         self._quitting = False
         self.events: queue.Queue[tuple[str, object]] = queue.Queue()
         self.printers: list[Printer] = []
@@ -255,11 +255,11 @@ class ClientApi:
             background_color="#111827",
             **_window_effects(),
         )
-        self.server_windows[window_key] = window
+        self._server_windows[window_key] = window
         return self._ok()
 
     def close_server_window(self, window_key: str) -> dict:
-        window = self.server_windows.pop(window_key, None)
+        window = self._server_windows.pop(window_key, None)
         if window is not None:
             window.destroy()
         return self._ok()
@@ -283,7 +283,7 @@ class ClientApi:
         )
 
     def close_utility_window(self, key: str) -> dict:
-        window = self.utility_windows.pop(str(key), None)
+        window = self._utility_windows.pop(str(key), None)
         if window is not None:
             window.destroy()
         return self._ok()
@@ -555,47 +555,47 @@ class ClientApi:
 
     def quit_application(self) -> dict:
         self._quitting = True
-        if self.tray:
-            self.tray.stop()
+        if self._tray:
+            self._tray.stop()
         for server_id in list(self.workers.keys()):
             self.stop_worker(server_id)
-        for window in list(self.server_windows.values()):
+        for window in list(self._server_windows.values()):
             window.destroy()
-        for window in list(self.utility_windows.values()):
+        for window in list(self._utility_windows.values()):
             window.destroy()
-        if self.window is not None:
-            self.window.destroy()
+        if self._window is not None:
+            self._window.destroy()
         return self._ok()
 
     # ------------------------------------------------------------------
     # Window / tray lifecycle
     # ------------------------------------------------------------------
     def start_tray(self) -> None:
-        self.tray = TrayController(
+        self._tray = TrayController(
             on_show=self.show_window,
             on_quit=self.quit_application,
             icon_path=TRAY_ICON_PATH,
         )
         try:
-            self.tray.start()
+            self._tray.start()
         except TrayUnavailableError as exc:
-            self.tray = None
+            self._tray = None
             logger.warning("%s %s", MESSAGE_TRAY_UNAVAILABLE, exc)
 
     def hide_window(self) -> None:
-        if self.tray is None:
+        if self._tray is None:
             logger.warning(MESSAGE_TRAY_UNAVAILABLE)
-            if self.window is not None:
-                self.window.minimize()
+            if self._window is not None:
+                self._window.minimize()
             logger.info(MESSAGE_WINDOW_MINIMIZED)
             return
         logger.info(MESSAGE_WINDOW_HIDDEN)
-        if self.window is not None:
-            self.window.hide()
+        if self._window is not None:
+            self._window.hide()
 
     def show_window(self) -> None:
-        if self.window is not None:
-            self.window.show()
+        if self._window is not None:
+            self._window.show()
 
     def on_closing(self) -> bool:
         if self._quitting:
@@ -736,13 +736,13 @@ class ClientApi:
         width: int,
         height: int,
     ) -> dict:
-        existing = self.utility_windows.get(key)
+        existing = self._utility_windows.get(key)
         if existing is not None:
             try:
                 existing.show()
                 return self._ok()
             except Exception:
-                self.utility_windows.pop(key, None)
+                self._utility_windows.pop(key, None)
         window = webview.create_window(
             title,
             url=str(WEBUI_DIR / page),
@@ -753,22 +753,22 @@ class ClientApi:
             background_color="#111827",
             **_window_effects(),
         )
-        self.utility_windows[key] = window
+        self._utility_windows[key] = window
         window.events.closed += lambda window: self._forget_utility_window(key, window)
         configure_utility_window(window)
         return self._ok()
 
     def _forget_utility_window(self, key: str, window: webview.Window) -> None:
-        if self.utility_windows.get(key) is window:
-            self.utility_windows.pop(key, None)
+        if self._utility_windows.get(key) is window:
+            self._utility_windows.pop(key, None)
 
     def _broadcast_appearance(self) -> None:
         grade = self.config.appearance.darkness_grade.lower()
         script = f"document.documentElement.dataset.darkness = {json.dumps(grade)};"
         targets = [
-            self.window,
-            *self.server_windows.values(),
-            *(window for key, window in self.utility_windows.items() if key != "settings"),
+            self._window,
+            *self._server_windows.values(),
+            *(window for key, window in self._utility_windows.items() if key != "settings"),
         ]
         seen: set[int] = set()
         for window in targets:
@@ -915,7 +915,7 @@ def _run_gui_normal() -> None:
         menu=create_application_menu(menu_actions),
         **_window_effects(),
     )
-    api.window = window
+    api._window = window
     window.events.closing += api.on_closing
     install_application_menu = configure_application_menu(
         window,
@@ -978,22 +978,22 @@ def _smoke_test_watchdog_expired() -> None:
 
 
 def _shutdown_smoke_test(api: ClientApi) -> None:
-    if api.tray is not None:
-        api.tray.stop()
-        api.tray = None
+    if api._tray is not None:
+        api._tray.stop()
+        api._tray = None
     for worker in list(api.workers.values()):
         worker.stop()
     for worker in list(api.workers.values()):
         worker.join(timeout=2)
     api.workers.clear()
-    for window in list(api.server_windows.values()):
+    for window in list(api._server_windows.values()):
         window.destroy()
-    api.server_windows.clear()
-    for window in list(api.utility_windows.values()):
+    api._server_windows.clear()
+    for window in list(api._utility_windows.values()):
         window.destroy()
-    api.utility_windows.clear()
-    if api.window is not None:
-        api.window.destroy()
+    api._utility_windows.clear()
+    if api._window is not None:
+        api._window.destroy()
 
 
 def _run_gui_smoke_test() -> None:
@@ -1019,7 +1019,7 @@ def _run_gui_smoke_test() -> None:
         background_color="#111827",
         **_window_effects(),
     )
-    api.window = window
+    api._window = window
     _log_stage("window creation", "smoke-test window registered")
 
     watchdog = Timer(SMOKE_TEST_WATCHDOG_SECONDS, _smoke_test_watchdog_expired)
