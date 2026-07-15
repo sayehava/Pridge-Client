@@ -23,7 +23,7 @@ permissions:
 jobs:
   build:
     name: Linux x86_64 ${{ matrix.variant }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
 
     strategy:
       fail-fast: false
