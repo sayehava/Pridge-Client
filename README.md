@@ -209,7 +209,7 @@ Each server runs in its own worker and has independent polling and heartbeat int
 
 ## Desktop Interface
 
-The GUI uses a bundled pywebview interface with glossy layered panels over an opaque native window on every platform. Appearance settings offer six named stone palettes—Quartz, Moonstone, Labradorite, Onyx, Obsidian, and Jet. Each palette changes the full workspace color system, including its base, ambient glows, sidebar, cards, controls, borders, and accent color.
+The GUI uses a bundled pywebview interface with glossy layered panels over an opaque native window on every platform. Appearance settings offer six named stone palettes Quartz, Moonstone, Labradorite, Onyx, Obsidian, and Jet. Each palette changes the full workspace color system, including its base, ambient glows, sidebar, cards, controls, borders, and accent color.
 
 Confirmations use branded in-app dialogs with the Pridge application icon instead of browser or Python-native message boxes.
 
