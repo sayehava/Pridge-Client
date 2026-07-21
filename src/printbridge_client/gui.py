@@ -9,8 +9,10 @@ import logging
 import os
 import platform
 import queue
+import shutil
 import sys
 import uuid
+from datetime import datetime
 from logging import Handler, LogRecord
 from pathlib import Path
 from threading import Event, Thread, Timer
@@ -29,6 +31,7 @@ from printbridge_client.config import (
     ClientConfig,
     PrinterMapping,
     PrinterProfile,
+    default_log_dir,
     ServerConfig,
 )
 from printbridge_client.models import JobHistoryEntry
@@ -46,6 +49,9 @@ from printbridge_client.strings import (
     MESSAGE_READY,
     MESSAGE_CONNECTION_FAILED,
     MESSAGE_CONNECTION_SUCCESS,
+    MESSAGE_LOG_EXPORTED,
+    MESSAGE_LOG_EXPORT_FAILED,
+    MESSAGE_NO_LOG_FILE,
     MESSAGE_SERVER_NOT_FOUND,
     MESSAGE_SERVER_REQUIRED,
     MESSAGE_SETTINGS_SAVED,
@@ -524,6 +530,35 @@ class ClientApi:
             "restart_required": False,
             "state": self._build_state(),
         }
+
+    def export_log(self) -> dict:
+        log_path = default_log_dir() / "client.log"
+        if not log_path.is_file():
+            return self._error(MESSAGE_NO_LOG_FILE)
+
+        window = self._utility_windows.get("settings") or self._window
+        if window is None:
+            return self._error(MESSAGE_LOG_EXPORT_FAILED)
+
+        default_name = f"pridge-client-{datetime.now().strftime('%Y%m%d-%H%M%S')}.log"
+        try:
+            selection = window.create_file_dialog(webview.SAVE_DIALOG, save_filename=default_name)
+        except Exception as exc:
+            logger.warning("Could not open the log export dialog: %s", exc)
+            return self._error(MESSAGE_LOG_EXPORT_FAILED)
+
+        if not selection:
+            return self._ok()
+        destination = selection[0] if isinstance(selection, (list, tuple)) else selection
+
+        try:
+            shutil.copyfile(log_path, destination)
+        except OSError as exc:
+            logger.warning("Could not export the run log: %s", exc)
+            return self._error(MESSAGE_LOG_EXPORT_FAILED)
+
+        logger.info("Run log exported to %s", destination)
+        return {"ok": True, "error": None, "message": MESSAGE_LOG_EXPORTED, "state": self._build_state()}
 
     def start_workers(self) -> dict:
         self.save_settings()

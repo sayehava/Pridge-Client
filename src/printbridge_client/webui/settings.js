@@ -31,6 +31,7 @@
   function Settings() {
     const [form, setForm] = useState(null);
     const [message, setMessage] = useState("");
+    const [exporting, setExporting] = useState(false);
     const saveSequence = useRef(0);
 
     useEffect(() => {
@@ -57,6 +58,16 @@
       callApi("update_application_settings", next).then((result) => {
         if (!result || sequence !== saveSequence.current) return;
         setMessage(result.ok ? S.settings_saved_automatically : (result.error || S.save_failed));
+      });
+    };
+
+    const exportLog = () => {
+      setExporting(true);
+      setMessage(S.exporting_log);
+      callApi("export_log").then((result) => {
+        setExporting(false);
+        if (!result) return;
+        setMessage(result.ok ? S.log_exported : (result.error || S.log_export_failed));
       });
     };
 
@@ -94,6 +105,13 @@
           <div class="setting-row">
             <div class="setting-copy"><strong>${S.start_at_login}</strong></div>
             <input class="setting-check" type="checkbox" checked=${form.start_at_login} onChange=${(event) => change("start_at_login", event.target.checked)} />
+          </div>
+        </section>
+        <section class="settings-section">
+          <h2>${S.diagnostics}</h2>
+          <div class="setting-row">
+            <div class="setting-copy"><strong>${S.export_log}</strong><small>${S.export_log_hint}</small></div>
+            <button onClick=${exportLog} disabled=${exporting}>${exporting ? S.exporting_log : S.export_log}</button>
           </div>
         </section>
         ${message ? html`<div class="settings-message">${message}</div>` : null}

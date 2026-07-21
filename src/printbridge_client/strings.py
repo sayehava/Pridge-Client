@@ -30,3 +30,6 @@ MESSAGE_WINDOW_HIDDEN = "Window hidden. Pridge Client keeps running from the tra
 MESSAGE_TRAY_UNAVAILABLE = "Tray support requires installing the tray optional dependencies."
 MESSAGE_GUI_STARTUP_FAILED = "Pridge Client could not start its desktop interface. Check the application log for details."
 MESSAGE_READY = "Ready"
+MESSAGE_LOG_EXPORTED = "Run log exported."
+MESSAGE_LOG_EXPORT_FAILED = "Could not export the run log."
+MESSAGE_NO_LOG_FILE = "No log file was found to export yet."

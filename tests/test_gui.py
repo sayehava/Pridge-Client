@@ -408,6 +408,61 @@ class ClientApiTests(unittest.TestCase):
         settings_window.evaluate_js.assert_not_called()
         set_start_at_login.assert_called_once_with(True)
 
+    def test_exports_the_current_run_log_to_a_chosen_destination(self):
+        log_dir = Path(self.temporary_directory.name) / "logs"
+        log_dir.mkdir()
+        (log_dir / "client.log").write_text("2026-07-21 hello world\n", encoding="utf-8")
+        destination = Path(self.temporary_directory.name) / "exported.log"
+        window = Mock()
+        window.create_file_dialog.return_value = (str(destination),)
+        self.api._window = window
+
+        with patch("printbridge_client.gui.default_log_dir", return_value=log_dir):
+            result = self.api.export_log()
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(destination.read_text(encoding="utf-8"), "2026-07-21 hello world\n")
+
+    def test_export_log_prefers_the_open_settings_window_for_the_dialog(self):
+        log_dir = Path(self.temporary_directory.name) / "logs"
+        log_dir.mkdir()
+        (log_dir / "client.log").write_text("data", encoding="utf-8")
+        destination = Path(self.temporary_directory.name) / "exported.log"
+        main_window = Mock()
+        settings_window = Mock()
+        settings_window.create_file_dialog.return_value = (str(destination),)
+        self.api._window = main_window
+        self.api._utility_windows["settings"] = settings_window
+
+        with patch("printbridge_client.gui.default_log_dir", return_value=log_dir):
+            self.api.export_log()
+
+        settings_window.create_file_dialog.assert_called_once()
+        main_window.create_file_dialog.assert_not_called()
+
+    def test_export_log_reports_an_error_when_no_log_file_exists_yet(self):
+        log_dir = Path(self.temporary_directory.name) / "empty-logs"
+        log_dir.mkdir()
+        self.api._window = Mock()
+
+        with patch("printbridge_client.gui.default_log_dir", return_value=log_dir):
+            result = self.api.export_log()
+
+        self.assertFalse(result["ok"])
+
+    def test_export_log_leaves_state_unchanged_when_dialog_is_cancelled(self):
+        log_dir = Path(self.temporary_directory.name) / "logs"
+        log_dir.mkdir()
+        (log_dir / "client.log").write_text("data", encoding="utf-8")
+        window = Mock()
+        window.create_file_dialog.return_value = None
+        self.api._window = window
+
+        with patch("printbridge_client.gui.default_log_dir", return_value=log_dir):
+            result = self.api.export_log()
+
+        self.assertTrue(result["ok"])
+
     def test_native_transparency_is_always_disabled(self):
         self.assertEqual(_window_effects(), {"transparent": False, "vibrancy": False})
 
