@@ -54,10 +54,13 @@ def tag_exists(tag: str) -> bool:
     ).returncode == 0
 
 
+VERSION_TAG = re.compile(r"^v?\d+\.\d+\.\d+$")
+
+
 def previous_tag(tag: str) -> str | None:
     reference = f"{tag}^" if tag_exists(tag) else "HEAD"
     tags = git("tag", "--merged", reference, "--sort=-version:refname", check=False).splitlines()
-    return next((value for value in tags if value.startswith("v") and value != tag), None)
+    return next((value for value in tags if VERSION_TAG.match(value) and value != tag), None)
 
 
 def relevant_commits(tag: str) -> list[str]:
@@ -99,6 +102,25 @@ def render(tag: str, markdown: bool) -> str:
         f"Release date: {dt.datetime.now(dt.timezone.utc).date().isoformat()}",
         f"Git tag: {tag}",
         "Supported platforms: Windows x64, macOS arm64, macOS x86_64, Linux x86_64",
+        "",
+        heading("About Pridge Client"),
+        "Pridge Client is the desktop half of the Pridge printing ecosystem: a tray/GUI "
+        "application that connects to one or more Pridge Server instances, pulls print jobs "
+        "assigned to it, and sends them to a local printer using the operating system's own "
+        "printing facilities.",
+        "",
+        heading("Feature overview"),
+        bullet + "Multiple server profiles, each with its own token and printer mappings.",
+        bullet + "Background polling per server: heartbeat plus job reservation, with automatic reauthentication on session expiry.",
+        bullet + "Headless mode (--headless) for running without a GUI, e.g. as a background service.",
+        bullet + "Remote endpoint discovery with per-endpoint local printer mapping.",
+        bullet + "Printer profiles: RAW mode and System Driver mode, with driver capability discovery and saved settings.",
+        bullet + "Test print, straight from the Settings UI.",
+        bullet + "Auto-start at login, using each platform's native mechanism.",
+        bullet + "System tray icon and menu; a Settings window for appearance, start-on-launch, and start-at-login.",
+        bullet + "Rotating log file with automatic secret redaction, and a one-click Export Run Log for support/troubleshooting.",
+        bullet + "Secure token storage via the OS keyring, with a permission-restricted file fallback.",
+        bullet + "Self-contained native packaging: no Python or pip required on the destination machine.",
         "",
         heading("Available Native packages"),
         *[bullet + name for name in package_list("Native")],
