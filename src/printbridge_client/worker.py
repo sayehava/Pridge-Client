@@ -91,6 +91,9 @@ class PollingWorker:
 
                 job = client.reserve_job(self.config.selected_printer or None)
                 self._apply_server_instructions(client)
+                if self.state.status != "Running":
+                    self.state.last_error = ""
+                    self._set_status("Running")
                 if job is None:
                     backoff_seconds = self.config.polling_interval_seconds
                     self._stop_event.wait(self.config.polling_interval_seconds)

@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileComment: Additional terms apply; see ADDITIONAL_TERMS.md.
 
+import time
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
-from printbridge_client.api import ReservedJob, parse_server_instructions
+from printbridge_client.api import ApiError, ReservedJob, ServerInstructions, parse_server_instructions
 from printbridge_client.config import ClientConfig, PrinterMapping, PrinterProfile, ServerConfig
 from printbridge_client.worker import PollingWorker, decode_payload, resolve_printer_name
 
@@ -115,6 +116,50 @@ class WorkerPrintingModeTests(unittest.TestCase):
             job_name="Pridge 42",
         )
         client.report_printed.assert_called_once_with("42")
+
+
+class WorkerStatusRecoveryTests(unittest.TestCase):
+    @patch("printbridge_client.worker.PrintBridgeClient")
+    def test_status_recovers_after_a_transient_error(self, client_cls) -> None:
+        call_count = {"heartbeat": 0}
+
+        def heartbeat_side_effect(*_args, **_kwargs):
+            call_count["heartbeat"] += 1
+            if call_count["heartbeat"] == 1:
+                raise ApiError("HTTP 401 returned for /api/client/heartbeat.")
+
+        client = Mock()
+        client.heartbeat.side_effect = heartbeat_side_effect
+        client.reserve_job.return_value = None
+        client.last_instructions = ServerInstructions()
+        client_cls.return_value = client
+
+        config = ClientConfig(
+            server_url="https://example.test",
+            polling_interval_seconds=0,
+            heartbeat_interval_seconds=0,
+        )
+        statuses: list[str] = []
+        worker = PollingWorker(config, "token", on_status=statuses.append)
+
+        worker.start()
+        try:
+            deadline = time.monotonic() + 2
+            saw_error = False
+            recovered = False
+            while time.monotonic() < deadline:
+                saw_error = saw_error or any(status.startswith("Retrying after error") for status in statuses)
+                if saw_error and worker.state.status == "Running":
+                    recovered = True
+                    break
+                time.sleep(0.01)
+        finally:
+            worker.stop()
+            worker.join(timeout=1)
+
+        self.assertTrue(saw_error, "worker never recorded the injected heartbeat failure")
+        self.assertTrue(recovered, "worker status never recovered to Running after the transient error cleared")
+        self.assertEqual(worker.state.last_error, "")
 
 
 if __name__ == "__main__":
