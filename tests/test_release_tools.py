@@ -18,7 +18,7 @@ from release_common import ROOT, default_release_dir, ensure_release_dir, write_
 
 class ReleaseToolTests(unittest.TestCase):
     def test_defaults_output_to_project_build_directory(self):
-        with patch.dict(os.environ, {"PRINTBRIDGE_RELEASE_DIR": ""}):
+        with patch.dict(os.environ, {"PRIDGE_RELEASE_DIR": ""}):
             self.assertEqual(default_release_dir(), ROOT / "build")
             self.assertEqual(ensure_release_dir(), (ROOT / "build").resolve())
 

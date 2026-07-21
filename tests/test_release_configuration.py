@@ -29,7 +29,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
         text = (ROOT / "scripts" / "build-windows.ps1").read_text(encoding="utf-8")
 
         self.assertIn("[IO.Path]::GetTempPath()", text)
-        self.assertIn("PRINTBRIDGE_RELEASE_DIR", text)
+        self.assertIn("PRIDGE_RELEASE_DIR", text)
         self.assertIn('Join-Path $Repository "build"', text)
         self.assertIn("[switch]$SelectOutputDir", text)
         self.assertIn("System.Windows.Forms.FolderBrowserDialog", text)
@@ -62,12 +62,12 @@ class ReleaseConfigurationTests(unittest.TestCase):
     def test_macos_build_creates_native_app_bundles_and_dmgs(self):
         text = (ROOT / "scripts" / "build-macos.sh").read_text(encoding="utf-8")
 
-        self.assertIn("${PRINTBRIDGE_RELEASE_DIR:-$REPOSITORY/build}", text)
+        self.assertIn("${PRIDGE_RELEASE_DIR:-$REPOSITORY/build}", text)
         self.assertIn("--select-output-dir", text)
         self.assertIn("choose folder", text)
         self.assertIn("--macos-create-app-bundle", text)
         self.assertIn("hdiutil create", text)
-        self.assertIn("PRINTBRIDGE_MACOS_SIGNING_IDENTITY", text)
+        self.assertIn("PRIDGE_MACOS_SIGNING_IDENTITY", text)
         self.assertIn("notarytool submit", text)
         self.assertIn('"$app/Contents/MacOS/$executable" --gui-smoke-test', text)
         self.assertNotIn("--include-package=webview", text)

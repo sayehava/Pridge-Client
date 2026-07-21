@@ -39,20 +39,20 @@ macOS:
 bash scripts/build-macos.sh All --select-output-dir
 ```
 
-Linux has no graphical build-output selector. Pass `--output-dir` or set `PRINTBRIDGE_RELEASE_DIR`.
+Linux has no graphical build-output selector. Pass `--output-dir` or set `PRIDGE_RELEASE_DIR`.
 
-The selector opens before compilation begins. Cancelling it stops the build without producing packages. For automated or repeatable builds, set `PRINTBRIDGE_RELEASE_DIR` or pass an explicit output path instead.
+The selector opens before compilation begins. Cancelling it stops the build without producing packages. For automated or repeatable builds, set `PRIDGE_RELEASE_DIR` or pass an explicit output path instead.
 
 Windows PowerShell:
 
 ```powershell
-$env:PRINTBRIDGE_RELEASE_DIR = "D:\Pridge Builds"
+$env:PRIDGE_RELEASE_DIR = "D:\Pridge Builds"
 ```
 
 macOS:
 
 ```bash
-export PRINTBRIDGE_RELEASE_DIR="$HOME/Pridge Builds"
+export PRIDGE_RELEASE_DIR="$HOME/Pridge Builds"
 ```
 
 All intermediate compiler output, PyInstaller work/dist files, Nuitka output, Python bytecode, compiler caches, installer staging, signing credentials, and DMG staging use a unique operating-system temporary directory. The build scripts delete their temporary directory on exit and fail if tracked or non-ignored repository state changes during a build. Only final release files and build logs are copied into `build`.
@@ -83,8 +83,8 @@ Windows x64 builds require:
 Prepare an external virtual environment from PowerShell:
 
 ```powershell
-py -3.12 -m venv "$env:TEMP\printbridge-release-venv"
-& "$env:TEMP\printbridge-release-venv\Scripts\Activate.ps1"
+py -3.12 -m venv "$env:TEMP\pridge-release-venv"
+& "$env:TEMP\pridge-release-venv\Scripts\Activate.ps1"
 python -m pip install --upgrade pip
 python -m pip install -r requirements-release.txt -e ".[windows,secure,tray]"
 python -B -m unittest discover -s tests
@@ -146,8 +146,8 @@ Do not use Apple's `/usr/bin/python3` for Nuitka standalone releases. Nuitka ide
 Prepare an external virtual environment:
 
 ```bash
-python3.12 -m venv /tmp/printbridge-release-venv
-source /tmp/printbridge-release-venv/bin/activate
+python3.12 -m venv /tmp/pridge-release-venv
+source /tmp/pridge-release-venv/bin/activate
 python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements-release.txt -e ".[secure,tray]"
 python3 -B -m unittest discover -s tests
@@ -234,9 +234,9 @@ The build runs the packaged frontend under the current desktop display or `xvfb-
 Windows signing is disabled when signing variables are absent. To sign the primary executables and setup packages, set:
 
 ```text
-PRINTBRIDGE_WINDOWS_CERTIFICATE_BASE64
-PRINTBRIDGE_WINDOWS_CERTIFICATE_PASSWORD
-PRINTBRIDGE_WINDOWS_TIMESTAMP_URL (optional)
+PRIDGE_WINDOWS_CERTIFICATE_BASE64
+PRIDGE_WINDOWS_CERTIFICATE_PASSWORD
+PRIDGE_WINDOWS_TIMESTAMP_URL (optional)
 ```
 
 The certificate value is a Base64-encoded PFX/PKCS#12 file. The timestamp URL defaults to DigiCert's timestamp service.
@@ -254,7 +254,7 @@ WINDOWS_TIMESTAMP_URL
 Without a Developer ID secret, app bundles receive an ad-hoc signature so they remain structurally valid. Trusted distribution signing is enabled with:
 
 ```text
-PRINTBRIDGE_MACOS_SIGNING_IDENTITY
+PRIDGE_MACOS_SIGNING_IDENTITY
 ```
 
 GitHub Actions imports the signing certificate from:
@@ -283,7 +283,7 @@ NOTARY_TEAM_ID
 NOTARY_PASSWORD
 ```
 
-The corresponding local environment variables add the `PRINTBRIDGE_` prefix, for example `PRINTBRIDGE_NOTARY_KEY_ID`. A Developer ID signing identity is required before notarization. Successful notarization is stapled to the DMG.
+The corresponding local environment variables add the `PRIDGE_` prefix, for example `PRIDGE_NOTARY_KEY_ID`. A Developer ID signing identity is required before notarization. Successful notarization is stapled to the DMG.
 
 ## Native and PyInstaller package differences
 
@@ -317,7 +317,7 @@ python3 -B scripts/generate_release_notes.py --tag v1.0.0
 python3 -B scripts/generate_checksums.py
 ```
 
-Both commands honor `PRINTBRIDGE_RELEASE_DIR` and default to the repository's `build` directory.
+Both commands honor `PRIDGE_RELEASE_DIR` and default to the repository's `build` directory.
 
 ## GitHub tag release process
 

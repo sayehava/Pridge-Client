@@ -33,7 +33,7 @@ jobs:
           - PyInstaller
 
     env:
-      PRINTBRIDGE_VERSION: ${{ inputs.version }}
+      PRIDGE_VERSION: ${{ inputs.version }}
 
     steps:
       - name: Check out source

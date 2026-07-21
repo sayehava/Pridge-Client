@@ -46,7 +46,7 @@ class RemotePrinter:
     assigned: bool = False
 
 
-class PrintBridgeClient:
+class PridgeClient:
     def __init__(self, server_url: str, client_token: str, timeout_seconds: int = 15) -> None:
         self.server_url = _normalize_server_url(server_url)
         self.client_token = client_token.strip()

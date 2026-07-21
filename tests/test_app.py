@@ -5,19 +5,19 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from printbridge_client import app
+from pridge_client import app
 
 
 class ApplicationStartupTests(unittest.TestCase):
-    @patch("printbridge_client.gui.run_gui", side_effect=RuntimeError("renderer failed"))
-    @patch("printbridge_client.app.show_startup_error")
-    @patch("printbridge_client.app.configure_logging")
-    @patch("printbridge_client.app.ConfigStore")
+    @patch("pridge_client.gui.run_gui", side_effect=RuntimeError("renderer failed"))
+    @patch("pridge_client.app.show_startup_error")
+    @patch("pridge_client.app.configure_logging")
+    @patch("pridge_client.app.ConfigStore")
     @patch("sys.argv", ["pridge-client"])
     def test_reports_gui_startup_failure(self, config_store, _configure_logging, show_error, _run_gui):
         config_store.return_value.load.return_value = Mock(servers=[], logging=Mock())
 
-        with self.assertLogs("printbridge_client.app", level="ERROR") as captured:
+        with self.assertLogs("pridge_client.app", level="ERROR") as captured:
             with self.assertRaises(SystemExit) as raised:
                 app.main()
 
@@ -25,9 +25,9 @@ class ApplicationStartupTests(unittest.TestCase):
         self.assertIn("Desktop GUI startup failed", "\n".join(captured.output))
         show_error.assert_called_once_with(app.APP_NAME, app.MESSAGE_GUI_STARTUP_FAILED)
 
-    @patch("printbridge_client.gui.run_gui")
-    @patch("printbridge_client.app.configure_logging")
-    @patch("printbridge_client.app.ConfigStore")
+    @patch("pridge_client.gui.run_gui")
+    @patch("pridge_client.app.configure_logging")
+    @patch("pridge_client.app.ConfigStore")
     @patch("sys.argv", ["pridge-client", "--gui-smoke-test"])
     def test_starts_private_gui_smoke_mode(self, config_store, _configure_logging, run_gui):
         config_store.return_value.load.return_value = Mock(servers=[], logging=Mock())

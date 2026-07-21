@@ -5,7 +5,7 @@
 import unittest
 from unittest.mock import patch
 
-from printbridge_client import build_info
+from pridge_client import build_info
 
 
 class BuildInfoTests(unittest.TestCase):

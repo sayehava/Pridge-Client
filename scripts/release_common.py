@@ -16,7 +16,7 @@ from typing import Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOT = ROOT / "src"
-PACKAGE_ROOT = SOURCE_ROOT / "printbridge_client"
+PACKAGE_ROOT = SOURCE_ROOT / "pridge_client"
 ENTRY_POINT = PACKAGE_ROOT / "__main__.py"
 WEBUI_ROOT = PACKAGE_ROOT / "webui"
 ICON_PNG = WEBUI_ROOT / "assets" / "Icon.png"
@@ -26,7 +26,7 @@ EXECUTABLE_NAME = "Pridge Client"
 AUTHOR = "Sayeh Ava Pazouki"
 COMPANY_NAME = "Sayeh Ava Pazouki"
 COPYRIGHT = "Copyright (c) 2026 Sayeh Ava Pazouki"
-DESCRIPTION = "Desktop printing client for PrintBridge"
+DESCRIPTION = "Desktop printing client for Pridge"
 IDENTIFIER = "com.pridge.client"
 LICENSE_NAME = "GPL-3.0-or-later"
 RELEASE_NOTES_NAME = "Pridge-Client-Release-Notes.txt"
@@ -61,7 +61,7 @@ LINUX_PACKAGES = {
 
 
 def application_version() -> str:
-    override = os.environ.get("PRINTBRIDGE_VERSION", "").strip()
+    override = os.environ.get("PRIDGE_VERSION", "").strip()
     if override:
         version = override.removeprefix("v") if hasattr(override, "removeprefix") else override.lstrip("v")
     else:
@@ -81,7 +81,7 @@ def numeric_file_version(version: str | None = None) -> str:
 
 
 def default_release_dir() -> Path:
-    configured = os.environ.get("PRINTBRIDGE_RELEASE_DIR", "").strip()
+    configured = os.environ.get("PRIDGE_RELEASE_DIR", "").strip()
     if configured:
         return Path(configured).expanduser()
     return ROOT / "build"

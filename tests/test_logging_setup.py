@@ -4,7 +4,7 @@
 
 import unittest
 
-from printbridge_client.logging_setup import redact
+from pridge_client.logging_setup import redact
 
 
 class RedactionTests(unittest.TestCase):

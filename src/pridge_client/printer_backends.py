@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Mapping
 
-from printbridge_client.printers import (
+from pridge_client.printers import (
     DriverChoice,
     DriverOption,
     Printer,

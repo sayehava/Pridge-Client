@@ -32,7 +32,7 @@ def set_start_at_login(enabled: bool) -> None:
 
 
 def command() -> list[str]:
-    return [sys.executable, "-m", "printbridge_client", "--headless"]
+    return [sys.executable, "-m", "pridge_client", "--headless"]
 
 
 def _set_macos_launch_agent(enabled: bool) -> None:

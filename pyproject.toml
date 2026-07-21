@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pridge-client"
 version = "1.2.1"
-description = "Desktop printing client for PrintBridge"
+description = "Desktop printing client for Pridge"
 readme = "README.md"
 license = { text = "GPL-3.0-or-later" }
 requires-python = ">=3.9"
@@ -43,13 +43,13 @@ linux = [
 ]
 
 [project.scripts]
-pridge-client = "printbridge_client.__main__:main"
+pridge-client = "pridge_client.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-printbridge_client = ["py.typed", "webui/*.html", "webui/*.css", "webui/*.js", "webui/vendor/*.js", "webui/assets/*.png"]
+pridge_client = ["py.typed", "webui/*.html", "webui/*.css", "webui/*.js", "webui/vendor/*.js", "webui/assets/*.png"]
 
 [tool.setuptools]
 license-files = ["LICENSE", "ADDITIONAL_TERMS.md"]

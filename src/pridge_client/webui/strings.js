@@ -4,13 +4,13 @@
  * SPDX-FileComment: Additional terms apply; see ADDITIONAL_TERMS.md.
  */
 
-window.PrintBridgeStrings = Object.freeze({
+window.PridgeStrings = Object.freeze({
   status: "Status",
   settings: "Settings",
   about: "About",
   quit: "Quit",
   server_connections: "Server Connections",
-  server_connections_hint: "Configured PrintBridge servers",
+  server_connections_hint: "Configured Pridge servers",
   add_server: "Add Server",
   server_pages: "Server pages",
   previous_page: "Previous page",
@@ -130,7 +130,7 @@ window.PrintBridgeStrings = Object.freeze({
   no_log_file: "No log file was found to export yet.",
   close: "Close",
   about_title: "Pridge Client",
-  about_description: "A secure desktop bridge that connects PrintBridge servers to local printers, receives print jobs, and sends their original data safely to the selected printer.",
+  about_description: "A secure desktop bridge that connects Pridge servers to local printers, receives print jobs, and sends their original data safely to the selected printer.",
   original_author: "Original author",
   version: "Version",
   build_variant: "Build variant",

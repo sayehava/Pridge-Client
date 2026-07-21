@@ -9,7 +9,7 @@
 
   const { useEffect, useState } = React;
   const html = htm.bind(React.createElement);
-  const S = window.PrintBridgeStrings;
+  const S = window.PridgeStrings;
 
   function callApi(name, ...args) {
     if (!window.pywebview || !window.pywebview.api || !window.pywebview.api[name]) return Promise.resolve(null);

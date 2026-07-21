@@ -8,10 +8,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from printbridge_client.api import RemotePrinter
-from printbridge_client.config import ConfigStore
-from printbridge_client.gui import APP_ICON_PATH, ClientApi, _shutdown_smoke_test, _webview_start_icon, _window_effects
-from printbridge_client.printers import DriverChoice, DriverOption, Printer, PrinterCapabilities
+from pridge_client.api import RemotePrinter
+from pridge_client.config import ConfigStore
+from pridge_client.gui import APP_ICON_PATH, ClientApi, _shutdown_smoke_test, _webview_start_icon, _window_effects
+from pridge_client.printers import DriverChoice, DriverOption, Printer, PrinterCapabilities
 
 
 class MemoryTokenStore:
@@ -73,7 +73,7 @@ class ClientApiTests(unittest.TestCase):
         logging.getLogger().handlers = self.previous_handlers
         self.temporary_directory.cleanup()
 
-    @patch("printbridge_client.gui.PrintBridgeClient")
+    @patch("pridge_client.gui.PridgeClient")
     def test_adds_multiple_server_profiles(self, _client_class):
         first = self.api.add_server(
             {"name": "Office", "server_url": "https://office.example.test", "token": "office-token"}
@@ -214,7 +214,7 @@ class ClientApiTests(unittest.TestCase):
         stop_worker.assert_called_once_with(server_id)
         start_worker.assert_not_called()
 
-    @patch("printbridge_client.gui.PrintBridgeClient")
+    @patch("pridge_client.gui.PridgeClient")
     def test_discovers_remote_printers_for_mapping(self, client_class):
         client_class.return_value.list_remote_printers.return_value = [RemotePrinter("12", "Receipts")]
 
@@ -236,7 +236,7 @@ class ClientApiTests(unittest.TestCase):
             ],
         )
 
-    @patch("printbridge_client.gui.PrintBridgeClient")
+    @patch("pridge_client.gui.PridgeClient")
     def test_syncs_selected_endpoints_when_updating_server(self, client_class):
         created = self.api.add_server({"name": "Office", "server_url": "https://office.example.test"})
         server_id = created["state"]["servers"][0]["id"]
@@ -265,7 +265,7 @@ class ClientApiTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         client_class.return_value.sync_remote_printers.assert_called_once_with(["12"])
 
-    @patch("printbridge_client.gui.webview.create_window")
+    @patch("pridge_client.gui.webview.create_window")
     def test_opens_add_server_in_separate_window(self, create_window):
         create_window.return_value = Mock()
 
@@ -276,7 +276,7 @@ class ClientApiTests(unittest.TestCase):
         self.assertIn("server.html?", create_window.call_args.kwargs["url"])
         self.assertEqual(len(self.api._server_windows), 1)
 
-    @patch("printbridge_client.gui.webview.create_window")
+    @patch("pridge_client.gui.webview.create_window")
     def test_opens_settings_in_one_separate_window(self, create_window):
         create_window.return_value = FakeWindow()
 
@@ -290,7 +290,7 @@ class ClientApiTests(unittest.TestCase):
         self.assertFalse(create_window.call_args.kwargs["resizable"])
         create_window.return_value.show.assert_called_once()
 
-    @patch("printbridge_client.gui.webview.create_window")
+    @patch("pridge_client.gui.webview.create_window")
     def test_reopens_settings_after_native_window_close(self, create_window):
         first_window = FakeWindow()
         second_window = FakeWindow()
@@ -304,7 +304,7 @@ class ClientApiTests(unittest.TestCase):
         self.assertEqual(create_window.call_count, 2)
         self.assertIs(self.api._utility_windows["settings"], second_window)
 
-    @patch("printbridge_client.gui.webview.create_window")
+    @patch("pridge_client.gui.webview.create_window")
     def test_opens_about_window_at_fixed_size(self, create_window):
         create_window.return_value = FakeWindow()
 
@@ -370,7 +370,7 @@ class ClientApiTests(unittest.TestCase):
 
         self.assertEqual(api.printers, [])
 
-    @patch("printbridge_client.gui.logger.info")
+    @patch("pridge_client.gui.logger.info")
     def test_gui_ready_notification_is_handled_once(self, info):
         first = self.api.notify_gui_ready()
         second = self.api.notify_gui_ready()
@@ -380,7 +380,7 @@ class ClientApiTests(unittest.TestCase):
         self.assertTrue(self.api.gui_ready.is_set())
         info.assert_called_once_with("Desktop interface became ready")
 
-    @patch("printbridge_client.gui.set_start_at_login")
+    @patch("pridge_client.gui.set_start_at_login")
     def test_updates_application_darkness_setting(self, set_start_at_login):
         self.api._window = Mock()
         server_window = Mock()
@@ -417,7 +417,7 @@ class ClientApiTests(unittest.TestCase):
         window.create_file_dialog.return_value = (str(destination),)
         self.api._window = window
 
-        with patch("printbridge_client.gui.default_log_dir", return_value=log_dir):
+        with patch("pridge_client.gui.default_log_dir", return_value=log_dir):
             result = self.api.export_log()
 
         self.assertTrue(result["ok"])
@@ -434,7 +434,7 @@ class ClientApiTests(unittest.TestCase):
         self.api._window = main_window
         self.api._utility_windows["settings"] = settings_window
 
-        with patch("printbridge_client.gui.default_log_dir", return_value=log_dir):
+        with patch("pridge_client.gui.default_log_dir", return_value=log_dir):
             self.api.export_log()
 
         settings_window.create_file_dialog.assert_called_once()
@@ -445,7 +445,7 @@ class ClientApiTests(unittest.TestCase):
         log_dir.mkdir()
         self.api._window = Mock()
 
-        with patch("printbridge_client.gui.default_log_dir", return_value=log_dir):
+        with patch("pridge_client.gui.default_log_dir", return_value=log_dir):
             result = self.api.export_log()
 
         self.assertFalse(result["ok"])
@@ -458,7 +458,7 @@ class ClientApiTests(unittest.TestCase):
         window.create_file_dialog.return_value = None
         self.api._window = window
 
-        with patch("printbridge_client.gui.default_log_dir", return_value=log_dir):
+        with patch("pridge_client.gui.default_log_dir", return_value=log_dir):
             result = self.api.export_log()
 
         self.assertTrue(result["ok"])
@@ -466,14 +466,14 @@ class ClientApiTests(unittest.TestCase):
     def test_native_transparency_is_always_disabled(self):
         self.assertEqual(_window_effects(), {"transparent": False, "vibrancy": False})
 
-    @patch("printbridge_client.gui.platform.system", return_value="Windows")
+    @patch("pridge_client.gui.platform.system", return_value="Windows")
     def test_webview_start_icon_is_skipped_on_windows(self, _system):
         # pywebview's winforms backend builds a raw System.Drawing.Icon from
         # this path, which requires an actual .ico file; passing the
         # bundled PNG there crashes with an unhandled CLR exception.
         self.assertIsNone(_webview_start_icon())
 
-    @patch("printbridge_client.gui.platform.system", return_value="Darwin")
+    @patch("pridge_client.gui.platform.system", return_value="Darwin")
     def test_webview_start_icon_is_used_off_windows(self, _system):
         self.assertEqual(_webview_start_icon(), str(APP_ICON_PATH))
 

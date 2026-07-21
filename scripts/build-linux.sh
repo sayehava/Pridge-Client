@@ -8,7 +8,7 @@ set -euo pipefail
 REPOSITORY="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 VARIANT="${1:-All}"
 if [[ $# -gt 0 ]]; then shift; fi
-OUTPUT_DIR="${PRINTBRIDGE_RELEASE_DIR:-$REPOSITORY/build}"
+OUTPUT_DIR="${PRIDGE_RELEASE_DIR:-$REPOSITORY/build}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -155,10 +155,10 @@ build_native() {
         --output-dir="$compile_root" \
         --output-filename="$(context_value "$context" executable_name)" \
         --enable-plugin=pyqt6 \
-        --include-data-dir="$REPOSITORY/src/printbridge_client/webui=printbridge_client/webui" \
+        --include-data-dir="$REPOSITORY/src/pridge_client/webui=pridge_client/webui" \
         --include-data-files="$REPOSITORY/LICENSE=LICENSE" \
         --include-data-files="$REPOSITORY/ADDITIONAL_TERMS.md=ADDITIONAL_TERMS.md" \
-        --include-data-files="$(context_value "$context" metadata)=printbridge_client/_build.json" \
+        --include-data-files="$(context_value "$context" metadata)=pridge_client/_build.json" \
         --include-package-data=webview \
         --include-module=webview.platforms.qt \
         --include-package=qtpy \
@@ -169,7 +169,7 @@ build_native() {
         --nofollow-import-to=tkinter \
         --nofollow-import-to=_tkinter \
         --report="$OUTPUT_DIR/native-linux-x86_64-compilation-report.xml" \
-        "$REPOSITORY/src/printbridge_client/__main__.py"
+        "$REPOSITORY/src/pridge_client/__main__.py"
     local distribution
     distribution="$(find "$compile_root" -maxdepth 2 -type d -name '*.dist' -print -quit)"
     [[ -n "$distribution" ]] || { echo "Could not find the Nuitka standalone directory." >&2; exit 1; }
@@ -180,7 +180,7 @@ build_pyinstaller() {
     local context
     context="$(prepare_context PyInstaller)"
     local compile_root="$TEMP_ROOT/pyinstaller"
-    export PRINTBRIDGE_BUILD_CONTEXT="$context"
+    export PRIDGE_BUILD_CONTEXT="$context"
     python3 -m PyInstaller --noconfirm --clean \
         --distpath "$compile_root/dist" \
         --workpath "$compile_root/work" \

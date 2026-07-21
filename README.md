@@ -1,6 +1,6 @@
 # Pridge Client
 
-Pridge Client is the local desktop application that connects an office computer to PrintBridge Server, receives print jobs, and sends them to local printers as unchanged RAW data or through an installed system printer driver.
+Pridge Client is the local desktop application that connects an office computer to Pridge Server, receives print jobs, and sends them to local printers as unchanged RAW data or through an installed system printer driver.
 
 This repository contains the first Python implementation. The server protocol is intentionally simple and language-neutral so future clients written in C++, Rust, C#, Go, or another language can reuse the same API.
 
@@ -27,26 +27,26 @@ The application can run without the optional secure storage package. If `keyring
 Open the settings window:
 
 ```bash
-python3 -m printbridge_client
+python3 -m pridge_client
 ```
 
 Run in background/headless mode:
 
 ```bash
-python3 -m printbridge_client --headless
+python3 -m pridge_client --headless
 ```
 
 Show the installed version:
 
 ```bash
-python3 -m printbridge_client --version
+python3 -m pridge_client --version
 ```
 
 When running from a source checkout without installing, set `PYTHONPATH=src`.
 
 ## Connect to Servers
 
-Use the settings window to connect the client to one or more PrintBridge Server instances:
+Use the settings window to connect the client to one or more Pridge Server instances:
 
 1. Click `Add Server` in the `Server Connections` list.
 2. Enter a server name, server URL, and client token in the separate server settings window.
@@ -93,7 +93,7 @@ When the new configuration does not exist, the client copies existing PrintBridg
 
 ## Authentication
 
-The client authenticates with the client token issued by PrintBridge Server. A successful authentication response must include:
+The client authenticates with the client token issued by Pridge Server. A successful authentication response must include:
 
 ```http
 POST /api/client/auth
@@ -166,7 +166,7 @@ Printer discovery is platform-specific behind a shared interface:
 - Linux: `pycups` when installed, otherwise `lpstat`
 - macOS: `lpstat`
 
-Each server profile maps remote PrintBridge endpoint IDs to local printer names. The client reads `endpoint_id` from a reserved job and routes the payload through that server's mapping. A server endpoint whose selector is `Disabled` has no local mapping, so its job is reported as failed instead of being sent to an arbitrary printer.
+Each server profile maps remote Pridge endpoint IDs to local printer names. The client reads `endpoint_id` from a reserved job and routes the payload through that server's mapping. A server endpoint whose selector is `Disabled` has no local mapping, so its job is reported as failed instead of being sent to an arbitrary printer.
 
 The settings window loads all virtual printer endpoints from `GET /api/client/endpoints`. It also refreshes the operating system's local printer list whenever the server editor opens. Saving a server sends every non-disabled endpoint ID to `PUT /api/client/endpoints`, making the local printer dropdown the source of that client's server assignments. Older servers without the endpoint-list route fall back to discovering endpoints from their active job list.
 
@@ -284,7 +284,7 @@ Then validate the source:
 
 ```bash
 PYTHONPATH=src python3 -m unittest discover -s tests
-PYTHONPYCACHEPREFIX=/tmp/printbridge_pycache python3 -m compileall src tests
+PYTHONPYCACHEPREFIX=/tmp/pridge_pycache python3 -m compileall src tests
 ```
 ---
 

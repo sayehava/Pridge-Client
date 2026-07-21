@@ -57,7 +57,7 @@ class TrayController:
         if hasattr(self.icon, "run_detached"):
             self.icon.run_detached()
             return
-        threading.Thread(target=self.icon.run, name="printbridge-tray", daemon=True).start()
+        threading.Thread(target=self.icon.run, name="pridge-tray", daemon=True).start()
 
     def stop(self) -> None:
         if self.icon is not None:

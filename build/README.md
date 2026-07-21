@@ -6,4 +6,4 @@ Generated installers, portable archives, DMGs, checksums, release notes, compile
 
 Temporary compiler output and caches continue to use the operating system's temporary directory and are removed after each build.
 
-To save packages elsewhere, use `-SelectOutputDir` on Windows or `--select-output-dir` on macOS. Explicit path arguments and `PRINTBRIDGE_RELEASE_DIR` are also supported; see [BUILDING.md](../BUILDING.md).
+To save packages elsewhere, use `-SelectOutputDir` on Windows or `--select-output-dir` on macOS. Explicit path arguments and `PRIDGE_RELEASE_DIR` are also supported; see [BUILDING.md](../BUILDING.md).

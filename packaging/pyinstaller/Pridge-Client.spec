@@ -11,19 +11,19 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 
-context_path = os.environ.get("PRINTBRIDGE_BUILD_CONTEXT")
+context_path = os.environ.get("PRIDGE_BUILD_CONTEXT")
 if not context_path:
-    raise RuntimeError("PRINTBRIDGE_BUILD_CONTEXT must point to a generated build-context.json file")
+    raise RuntimeError("PRIDGE_BUILD_CONTEXT must point to a generated build-context.json file")
 context = json.loads(Path(context_path).read_text(encoding="utf-8"))
 root = Path(context["root"])
 source_root = root / "src"
-package_root = source_root / "printbridge_client"
+package_root = source_root / "pridge_client"
 
 datas = [
-    (str(package_root / "webui"), "printbridge_client/webui"),
+    (str(package_root / "webui"), "pridge_client/webui"),
     (str(root / "LICENSE"), "."),
     (str(root / "ADDITIONAL_TERMS.md"), "."),
-    (context["metadata"], "printbridge_client"),
+    (context["metadata"], "pridge_client"),
 ]
 binaries = []
 hiddenimports = []
@@ -33,7 +33,7 @@ for package in ("webview", "keyring", "pystray", "PIL"):
     binaries += package_binaries
     hiddenimports += package_hiddenimports
 
-hiddenimports += collect_submodules("printbridge_client")
+hiddenimports += collect_submodules("pridge_client")
 if sys.platform == "win32":
     for package in ("pythonnet", "clr_loader"):
         package_datas, package_binaries, package_hiddenimports = collect_all(package)

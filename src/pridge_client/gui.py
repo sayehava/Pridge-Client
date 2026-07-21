@@ -20,10 +20,10 @@ from urllib.parse import urlencode
 
 import webview
 
-from printbridge_client.api import ApiError, PrintBridgeClient
-from printbridge_client.autostart import AutoStartError, set_start_at_login
-from printbridge_client.build_info import BUILD_SYSTEM, BUILD_VARIANT
-from printbridge_client.config import (
+from pridge_client.api import ApiError, PridgeClient
+from pridge_client.autostart import AutoStartError, set_start_at_login
+from pridge_client.build_info import BUILD_SYSTEM, BUILD_VARIANT
+from pridge_client.config import (
     DARKNESS_GRADES,
     PRINT_MODES,
     ClientTokenStore,
@@ -34,8 +34,8 @@ from printbridge_client.config import (
     default_log_dir,
     ServerConfig,
 )
-from printbridge_client.models import JobHistoryEntry
-from printbridge_client.platform_window import (
+from pridge_client.models import JobHistoryEntry
+from pridge_client.platform_window import (
     configure_application_identity,
     configure_application_menu,
     configure_utility_window,
@@ -43,8 +43,8 @@ from printbridge_client.platform_window import (
     ensure_webview2_runtime,
     preferred_webview_gui,
 )
-from printbridge_client.printers import Printer, PrinterError, PrinterManager, validate_driver_settings
-from printbridge_client.strings import (
+from pridge_client.printers import Printer, PrinterError, PrinterManager, validate_driver_settings
+from pridge_client.strings import (
     APP_NAME,
     MESSAGE_READY,
     MESSAGE_CONNECTION_FAILED,
@@ -72,9 +72,9 @@ from printbridge_client.strings import (
     WINDOW_SETTINGS,
     WINDOW_TITLE,
 )
-from printbridge_client.tray import TrayController, TrayUnavailableError
-from printbridge_client.version import __version__
-from printbridge_client.worker import PollingWorker
+from pridge_client.tray import TrayController, TrayUnavailableError
+from pridge_client.version import __version__
+from pridge_client.worker import PollingWorker
 
 
 logger = logging.getLogger(__name__)
@@ -306,7 +306,7 @@ class ClientApi:
             return self._error(MESSAGE_TOKEN_REQUIRED)
 
         try:
-            PrintBridgeClient(server_url, token).authenticate()
+            PridgeClient(server_url, token).authenticate()
         except ApiError as exc:
             return self._error(str(exc))
         except Exception as exc:
@@ -325,7 +325,7 @@ class ClientApi:
             return self._error(MESSAGE_TOKEN_REQUIRED)
 
         try:
-            client = PrintBridgeClient(server_url, token)
+            client = PridgeClient(server_url, token)
             printers = client.list_remote_printers()
         except ApiError as exc:
             return self._error(str(exc))
@@ -380,7 +380,7 @@ class ClientApi:
             except BaseException as exc:  # noqa: BLE001 - reported, never raised
                 failure.append(exc)
 
-        thread = Thread(target=worker, name="printbridge-smoke-printer-check", daemon=True)
+        thread = Thread(target=worker, name="pridge-smoke-printer-check", daemon=True)
         thread.start()
         thread.join(timeout=SMOKE_TEST_PRINTER_TIMEOUT_SECONDS)
 
@@ -865,7 +865,7 @@ class ClientApi:
         mappings: list[PrinterMapping],
     ) -> str | None:
         try:
-            PrintBridgeClient(server_url, token).sync_remote_printers(
+            PridgeClient(server_url, token).sync_remote_printers(
                 [mapping.remote_printer_id for mapping in mappings]
             )
         except ApiError as exc:

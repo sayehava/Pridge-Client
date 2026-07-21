@@ -7,13 +7,13 @@ import logging
 import signal
 import threading
 
-from printbridge_client.config import ClientTokenStore, ConfigStore, ClientConfig, ServerConfig
-from printbridge_client.logging_setup import configure_logging
-from printbridge_client.platform_window import show_startup_error
-from printbridge_client.strings import APP_NAME
-from printbridge_client.strings import MESSAGE_GUI_STARTUP_FAILED
-from printbridge_client.version import __version__
-from printbridge_client.worker import PollingWorker
+from pridge_client.config import ClientTokenStore, ConfigStore, ClientConfig, ServerConfig
+from pridge_client.logging_setup import configure_logging
+from pridge_client.platform_window import show_startup_error
+from pridge_client.strings import APP_NAME
+from pridge_client.strings import MESSAGE_GUI_STARTUP_FAILED
+from pridge_client.version import __version__
+from pridge_client.worker import PollingWorker
 
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ def main() -> None:
         return
 
     try:
-        from printbridge_client.gui import run_gui
+        from pridge_client.gui import run_gui
 
         run_gui(gui_smoke_test=args.gui_smoke_test)
     except Exception:

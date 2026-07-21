@@ -4,6 +4,6 @@
 
 """Pridge Client."""
 
-from printbridge_client.version import __version__
+from pridge_client.version import __version__
 
 __all__ = ["__version__"]

@@ -70,7 +70,7 @@ class PrinterCapabilities:
 
 class PrinterManager:
     def __init__(self, system: str | None = None) -> None:
-        from printbridge_client.printer_backends import create_backend
+        from pridge_client.printer_backends import create_backend
 
         self.system = system or platform.system()
         self.backend = create_backend(self.system)

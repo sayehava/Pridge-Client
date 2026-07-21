@@ -37,7 +37,7 @@ jobs:
     needs: [windows, macos, linux]
     runs-on: ubuntu-24.04
     env:
-      PRINTBRIDGE_VERSION: ${{ inputs.version || github.ref_name }}
+      PRIDGE_VERSION: ${{ inputs.version || github.ref_name }}
       RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
       PYTHONDONTWRITEBYTECODE: "1"
 

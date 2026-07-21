@@ -66,14 +66,14 @@ jobs:
     runs-on: ${{ matrix.runner }}
 
     env:
-      PRINTBRIDGE_VERSION: ${{ inputs.version }}
-      PRINTBRIDGE_MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
-      PRINTBRIDGE_NOTARY_KEY_BASE64: ${{ secrets.NOTARY_KEY_BASE64 }}
-      PRINTBRIDGE_NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
-      PRINTBRIDGE_NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
-      PRINTBRIDGE_NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
-      PRINTBRIDGE_NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
-      PRINTBRIDGE_NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
+      PRIDGE_VERSION: ${{ inputs.version }}
+      PRIDGE_MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+      PRIDGE_NOTARY_KEY_BASE64: ${{ secrets.NOTARY_KEY_BASE64 }}
+      PRIDGE_NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+      PRIDGE_NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+      PRIDGE_NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
+      PRIDGE_NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+      PRIDGE_NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
       MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
 
     steps:
@@ -105,8 +105,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          export KEYCHAIN_PATH="$RUNNER_TEMP/printbridge-signing.keychain-db"
-          export KEYCHAIN_PASSWORD="printbridge-ci-keychain"
+          export KEYCHAIN_PATH="$RUNNER_TEMP/pridge-signing.keychain-db"
+          export KEYCHAIN_PASSWORD="pridge-ci-keychain"
 
           python3 -c '
           import base64
@@ -248,11 +248,11 @@ jobs:
             runtime_root="$app/Contents/Resources"
           fi
 
-          test -f "$runtime_root/printbridge_client/webui/index.html"
+          test -f "$runtime_root/pridge_client/webui/index.html"
 
           build_variant="$(
             /usr/libexec/PlistBuddy \
-              -c "Print :PrintBridgeBuildVariant" \
+              -c "Print :PridgeBuildVariant" \
               "$app/Contents/Info.plist"
           )"
 
@@ -278,7 +278,7 @@ jobs:
             tr ' ' '\n' |
             grep -Fxq "$arch"
 
-          if [[ -n "${PRINTBRIDGE_MACOS_SIGNING_IDENTITY:-}" ]]; then
+          if [[ -n "${PRIDGE_MACOS_SIGNING_IDENTITY:-}" ]]; then
             codesign \
               --verify \
               --deep \
@@ -344,4 +344,4 @@ jobs:
         if: ${{ always() && env.MACOS_CERTIFICATE_BASE64 != '' }}
         run: |
           security delete-keychain \
-            "$RUNNER_TEMP/printbridge-signing.keychain-db" || true
+            "$RUNNER_TEMP/pridge-signing.keychain-db" || true

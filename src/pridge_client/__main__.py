@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileComment: Additional terms apply; see ADDITIONAL_TERMS.md.
 
-from printbridge_client.app import main
+from pridge_client.app import main
 
 
 if __name__ == "__main__":

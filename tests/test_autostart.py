@@ -7,12 +7,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from printbridge_client.autostart import APP_ID, LEGACY_APP_IDS, _set_macos_launch_agent, command
+from pridge_client.autostart import APP_ID, LEGACY_APP_IDS, _set_macos_launch_agent, command
 
 
 class AutoStartTests(unittest.TestCase):
     def test_headless_command_uses_client_package(self) -> None:
-        self.assertEqual(command()[1:], ["-m", "printbridge_client", "--headless"])
+        self.assertEqual(command()[1:], ["-m", "pridge_client", "--headless"])
 
     def test_macos_launch_agent_replaces_legacy_identifier(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -23,13 +23,13 @@ class AutoStartTests(unittest.TestCase):
             for legacy_path in legacy_paths:
                 legacy_path.write_text("legacy", encoding="utf-8")
 
-            with patch("printbridge_client.autostart.Path.home", return_value=home):
+            with patch("pridge_client.autostart.Path.home", return_value=home):
                 _set_macos_launch_agent(True)
 
             client_path = launch_agents / f"{APP_ID}.plist"
             self.assertTrue(client_path.exists())
             self.assertFalse(any(legacy_path.exists() for legacy_path in legacy_paths))
-            self.assertIn("printbridge_client", client_path.read_text(encoding="utf-8"))
+            self.assertIn("pridge_client", client_path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

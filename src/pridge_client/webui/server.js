@@ -9,7 +9,7 @@
 
   const { useEffect, useState } = React;
   const html = htm.bind(React.createElement);
-  const S = window.PrintBridgeStrings;
+  const S = window.PridgeStrings;
   const params = new URLSearchParams(window.location.search);
   const serverId = params.get("server_id") || "";
   const windowKey = params.get("window_key") || "";

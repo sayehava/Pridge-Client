@@ -12,10 +12,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from printbridge_client.api import ApiError, PrintBridgeClient, ReservedJob
-from printbridge_client.config import ClientConfig, PrinterProfile, ServerConfig
-from printbridge_client.models import JobHistoryEntry
-from printbridge_client.printers import PrinterError, PrinterManager
+from pridge_client.api import ApiError, PridgeClient, ReservedJob
+from pridge_client.config import ClientConfig, PrinterProfile, ServerConfig
+from pridge_client.models import JobHistoryEntry
+from pridge_client.printers import PrinterError, PrinterManager
 
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ class PollingWorker:
             return
         self._stop_event.clear()
         self.state.running = True
-        self._thread = threading.Thread(target=self._run, name="printbridge-polling-worker", daemon=True)
+        self._thread = threading.Thread(target=self._run, name="pridge-polling-worker", daemon=True)
         self._thread.start()
         self._set_status("Running")
 
@@ -76,7 +76,7 @@ class PollingWorker:
             self._thread.join(timeout=timeout)
 
     def _run(self) -> None:
-        client = PrintBridgeClient(self.config.server_url, self.client_token)
+        client = PridgeClient(self.config.server_url, self.client_token)
         next_heartbeat = datetime.min.replace(tzinfo=timezone.utc)
         backoff_seconds = self.config.polling_interval_seconds
 
@@ -112,7 +112,7 @@ class PollingWorker:
         self.state.running = False
         self._set_status("Stopped")
 
-    def _process_job(self, client: PrintBridgeClient, job: ReservedJob) -> None:
+    def _process_job(self, client: PridgeClient, job: ReservedJob) -> None:
         server = self.config.servers[0] if self.config.servers else None
         printer_name = resolve_printer_name(server, job, self.config.selected_printer)
         profile = self.config.printer_profiles.get(printer_name, PrinterProfile())
@@ -152,7 +152,7 @@ class PollingWorker:
         if self.on_job:
             self.on_job(entry)
 
-    def _apply_server_instructions(self, client: PrintBridgeClient) -> None:
+    def _apply_server_instructions(self, client: PridgeClient) -> None:
         instructions = client.last_instructions
         changed = False
         if instructions.polling_interval_seconds and instructions.polling_interval_seconds != self.config.polling_interval_seconds:

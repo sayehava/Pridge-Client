@@ -9,7 +9,7 @@
 
   const { useState, useEffect, useCallback, useRef } = React;
   const html = htm.bind(React.createElement);
-  const S = window.PrintBridgeStrings;
+  const S = window.PridgeStrings;
   const POLL_MS = 2000;
 
   function callApi(name, ...args) {

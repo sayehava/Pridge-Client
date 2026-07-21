@@ -7,7 +7,7 @@ set -euo pipefail
 
 REPOSITORY="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 VARIANT="all"
-OUTPUT_DIR="${PRINTBRIDGE_RELEASE_DIR:-$REPOSITORY/build}"
+OUTPUT_DIR="${PRIDGE_RELEASE_DIR:-$REPOSITORY/build}"
 OUTPUT_DIR_ARGUMENT_SET=0
 SELECT_OUTPUT_DIR=0
 
@@ -137,7 +137,7 @@ cleanup() {
     exit "$result"
 }
 trap cleanup EXIT
-if [[ -n "${PRINTBRIDGE_BUILD_LOG_ONLY:-}" ]]; then
+if [[ -n "${PRIDGE_BUILD_LOG_ONLY:-}" ]]; then
     exec > "$LOG_PATH" 2>&1
 else
     exec > >(tee "$LOG_PATH") 2>&1
@@ -211,8 +211,8 @@ finalize_app() {
 
 sign_app() {
     local app="$1"
-    if [[ -n "${PRINTBRIDGE_MACOS_SIGNING_IDENTITY:-}" ]]; then
-        codesign --force --deep --options runtime --timestamp --sign "$PRINTBRIDGE_MACOS_SIGNING_IDENTITY" "$app"
+    if [[ -n "${PRIDGE_MACOS_SIGNING_IDENTITY:-}" ]]; then
+        codesign --force --deep --options runtime --timestamp --sign "$PRIDGE_MACOS_SIGNING_IDENTITY" "$app"
     else
         codesign --force --deep --sign - "$app"
     fi
@@ -221,29 +221,29 @@ sign_app() {
 
 notarize_dmg() {
     local dmg="$1"
-    if [[ -z "${PRINTBRIDGE_MACOS_SIGNING_IDENTITY:-}" ]]; then
-        if [[ -n "${PRINTBRIDGE_NOTARY_KEY_BASE64:-}${PRINTBRIDGE_NOTARY_APPLE_ID:-}" ]]; then
+    if [[ -z "${PRIDGE_MACOS_SIGNING_IDENTITY:-}" ]]; then
+        if [[ -n "${PRIDGE_NOTARY_KEY_BASE64:-}${PRIDGE_NOTARY_APPLE_ID:-}" ]]; then
             echo "A Developer ID signing identity is required for notarization." >&2
             exit 1
         fi
         return
     fi
-    codesign --force --timestamp --sign "$PRINTBRIDGE_MACOS_SIGNING_IDENTITY" "$dmg"
-    if [[ -n "${PRINTBRIDGE_NOTARY_KEY_BASE64:-}" ]]; then
-        if [[ -z "${PRINTBRIDGE_NOTARY_KEY_ID:-}" || -z "${PRINTBRIDGE_NOTARY_ISSUER_ID:-}" ]]; then
+    codesign --force --timestamp --sign "$PRIDGE_MACOS_SIGNING_IDENTITY" "$dmg"
+    if [[ -n "${PRIDGE_NOTARY_KEY_BASE64:-}" ]]; then
+        if [[ -z "${PRIDGE_NOTARY_KEY_ID:-}" || -z "${PRIDGE_NOTARY_ISSUER_ID:-}" ]]; then
             echo "Notary key ID and issuer ID are required with an API key." >&2
             exit 1
         fi
-        local key_path="$TEMP_ROOT/AuthKey_${PRINTBRIDGE_NOTARY_KEY_ID}.p8"
-        python3 -c 'import base64, pathlib, sys; pathlib.Path(sys.argv[2]).write_bytes(base64.b64decode(sys.argv[1]))' "$PRINTBRIDGE_NOTARY_KEY_BASE64" "$key_path"
-        xcrun notarytool submit "$dmg" --key "$key_path" --key-id "$PRINTBRIDGE_NOTARY_KEY_ID" --issuer "$PRINTBRIDGE_NOTARY_ISSUER_ID" --wait
+        local key_path="$TEMP_ROOT/AuthKey_${PRIDGE_NOTARY_KEY_ID}.p8"
+        python3 -c 'import base64, pathlib, sys; pathlib.Path(sys.argv[2]).write_bytes(base64.b64decode(sys.argv[1]))' "$PRIDGE_NOTARY_KEY_BASE64" "$key_path"
+        xcrun notarytool submit "$dmg" --key "$key_path" --key-id "$PRIDGE_NOTARY_KEY_ID" --issuer "$PRIDGE_NOTARY_ISSUER_ID" --wait
         xcrun stapler staple "$dmg"
-    elif [[ -n "${PRINTBRIDGE_NOTARY_APPLE_ID:-}" ]]; then
-        if [[ -z "${PRINTBRIDGE_NOTARY_TEAM_ID:-}" || -z "${PRINTBRIDGE_NOTARY_PASSWORD:-}" ]]; then
+    elif [[ -n "${PRIDGE_NOTARY_APPLE_ID:-}" ]]; then
+        if [[ -z "${PRIDGE_NOTARY_TEAM_ID:-}" || -z "${PRIDGE_NOTARY_PASSWORD:-}" ]]; then
             echo "Notary team ID and app-specific password are required with an Apple ID." >&2
             exit 1
         fi
-        xcrun notarytool submit "$dmg" --apple-id "$PRINTBRIDGE_NOTARY_APPLE_ID" --team-id "$PRINTBRIDGE_NOTARY_TEAM_ID" --password "$PRINTBRIDGE_NOTARY_PASSWORD" --wait
+        xcrun notarytool submit "$dmg" --apple-id "$PRIDGE_NOTARY_APPLE_ID" --team-id "$PRIDGE_NOTARY_TEAM_ID" --password "$PRIDGE_NOTARY_PASSWORD" --wait
         xcrun stapler staple "$dmg"
     fi
 }
@@ -294,10 +294,10 @@ build_native() {
         --copyright="$(context_value "$context" copyright)" \
         --file-version="$(context_value "$context" numeric_file_version)" \
         --product-version="$(context_value "$context" numeric_file_version)" \
-        --include-data-dir="$REPOSITORY/src/printbridge_client/webui=printbridge_client/webui" \
+        --include-data-dir="$REPOSITORY/src/pridge_client/webui=pridge_client/webui" \
         --include-data-files="$REPOSITORY/LICENSE=LICENSE" \
         --include-data-files="$REPOSITORY/ADDITIONAL_TERMS.md=ADDITIONAL_TERMS.md" \
-        --include-data-files="$(context_value "$context" metadata)=printbridge_client/_build.json" \
+        --include-data-files="$(context_value "$context" metadata)=pridge_client/_build.json" \
         --include-package-data=webview \
         --include-module=pystray._darwin \
         --include-package=keyring \
@@ -306,7 +306,7 @@ build_native() {
         --nofollow-import-to=tkinter \
         --nofollow-import-to=_tkinter \
         --report="$OUTPUT_DIR/native-macos-$ARCH-compilation-report.xml" \
-        "$REPOSITORY/src/printbridge_client/__main__.py"
+        "$REPOSITORY/src/pridge_client/__main__.py"
     local app
     app="$(find "$compile_root" -maxdepth 3 -type d -name '*.app' -print -quit)"
     if [[ -z "$app" ]]; then echo "Could not find the Nuitka app bundle." >&2; exit 1; fi
@@ -319,7 +319,7 @@ build_pyinstaller() {
     local context
     context="$(prepare_context PyInstaller)"
     local compile_root="$TEMP_ROOT/pyinstaller"
-    export PRINTBRIDGE_BUILD_CONTEXT="$context"
+    export PRIDGE_BUILD_CONTEXT="$context"
     python3 -m PyInstaller --noconfirm --clean \
         --distpath "$compile_root/dist" \
         --workpath "$compile_root/work" \

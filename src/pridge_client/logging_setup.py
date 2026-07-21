@@ -9,7 +9,7 @@ import re
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from printbridge_client.config import ClientConfig, default_log_dir
+from pridge_client.config import ClientConfig, default_log_dir
 
 
 TOKEN_PATTERN = re.compile(r"(Bearer\s+)[A-Za-z0-9._~+/=-]+|([A-Za-z0-9_-]{8})[A-Za-z0-9._~+/=-]{12,}")

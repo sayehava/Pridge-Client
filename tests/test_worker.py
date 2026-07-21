@@ -6,9 +6,9 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-from printbridge_client.api import ApiError, ReservedJob, ServerInstructions, parse_server_instructions
-from printbridge_client.config import ClientConfig, PrinterMapping, PrinterProfile, ServerConfig
-from printbridge_client.worker import PollingWorker, decode_payload, resolve_printer_name
+from pridge_client.api import ApiError, ReservedJob, ServerInstructions, parse_server_instructions
+from pridge_client.config import ClientConfig, PrinterMapping, PrinterProfile, ServerConfig
+from pridge_client.worker import PollingWorker, decode_payload, resolve_printer_name
 
 
 class DecodePayloadTests(unittest.TestCase):
@@ -119,7 +119,7 @@ class WorkerPrintingModeTests(unittest.TestCase):
 
 
 class WorkerStatusRecoveryTests(unittest.TestCase):
-    @patch("printbridge_client.worker.PrintBridgeClient")
+    @patch("pridge_client.worker.PridgeClient")
     def test_status_recovers_after_a_transient_error(self, client_cls) -> None:
         call_count = {"heartbeat": 0}
 

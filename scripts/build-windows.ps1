@@ -31,7 +31,7 @@ if ($SelectOutputDir) {
         $FolderDialog.Dispose()
     }
 } elseif (-not $OutputDir) {
-    $OutputDir = $env:PRINTBRIDGE_RELEASE_DIR
+    $OutputDir = $env:PRIDGE_RELEASE_DIR
 }
 if (-not $OutputDir) {
     $OutputDir = Join-Path $Repository "build"
@@ -68,17 +68,17 @@ function Invoke-CheckedCommand {
 
 function Invoke-CodeSign {
     param([string]$Path)
-    if (-not $env:PRINTBRIDGE_WINDOWS_CERTIFICATE_BASE64) { return }
-    if (-not $env:PRINTBRIDGE_WINDOWS_CERTIFICATE_PASSWORD) {
-        throw "PRINTBRIDGE_WINDOWS_CERTIFICATE_PASSWORD is required when Windows signing is enabled."
+    if (-not $env:PRIDGE_WINDOWS_CERTIFICATE_BASE64) { return }
+    if (-not $env:PRIDGE_WINDOWS_CERTIFICATE_PASSWORD) {
+        throw "PRIDGE_WINDOWS_CERTIFICATE_PASSWORD is required when Windows signing is enabled."
     }
     $SignTool = (Get-Command signtool.exe -ErrorAction Stop).Source
     $Certificate = Join-Path $TemporaryRoot "windows-signing-certificate.pfx"
-    [IO.File]::WriteAllBytes($Certificate, [Convert]::FromBase64String($env:PRINTBRIDGE_WINDOWS_CERTIFICATE_BASE64))
-    $TimestampUrl = if ($env:PRINTBRIDGE_WINDOWS_TIMESTAMP_URL) { $env:PRINTBRIDGE_WINDOWS_TIMESTAMP_URL } else { "http://timestamp.digicert.com" }
+    [IO.File]::WriteAllBytes($Certificate, [Convert]::FromBase64String($env:PRIDGE_WINDOWS_CERTIFICATE_BASE64))
+    $TimestampUrl = if ($env:PRIDGE_WINDOWS_TIMESTAMP_URL) { $env:PRIDGE_WINDOWS_TIMESTAMP_URL } else { "http://timestamp.digicert.com" }
     Invoke-CheckedCommand $SignTool @(
         "sign", "/fd", "SHA256", "/td", "SHA256", "/tr", $TimestampUrl,
-        "/f", $Certificate, "/p", $env:PRINTBRIDGE_WINDOWS_CERTIFICATE_PASSWORD, $Path
+        "/f", $Certificate, "/p", $env:PRIDGE_WINDOWS_CERTIFICATE_PASSWORD, $Path
     )
 }
 
@@ -255,10 +255,10 @@ function Build-Native {
         "--company-name=$($Context.company_name)", "--product-name=$($Context.app_name)",
         "--file-description=$($Context.description)", "--copyright=$($Context.copyright)",
         "--file-version=$($Context.numeric_file_version)", "--product-version=$($Context.numeric_file_version)",
-        "--include-data-dir=$(Join-Path $Repository 'src\printbridge_client\webui')=printbridge_client/webui",
+        "--include-data-dir=$(Join-Path $Repository 'src\pridge_client\webui')=pridge_client/webui",
         "--include-data-files=$(Join-Path $Repository 'LICENSE')=LICENSE",
         "--include-data-files=$(Join-Path $Repository 'ADDITIONAL_TERMS.md')=ADDITIONAL_TERMS.md",
-        "--include-data-files=$($Context.metadata)=printbridge_client/_build.json",
+        "--include-data-files=$($Context.metadata)=pridge_client/_build.json",
         "--include-package-data=webview",
         "--include-module=pystray._win32", "--include-package=keyring",
         "--nofollow-import-to=PIL.ImageTk", "--nofollow-import-to=PIL._tkinter_finder",
@@ -272,7 +272,7 @@ function Build-Native {
         "--include-module=webview.platforms.mshtml",
         "--include-module=webview.platforms.cef",
         "--report=$(Join-Path $OutputDir 'native-windows-compilation-report.xml')",
-        (Join-Path $Repository "src\printbridge_client")
+        (Join-Path $Repository "src\pridge_client")
     )
     Invoke-CheckedCommand python $Arguments
     $Distribution = Get-ChildItem $CompileRoot -Directory -Recurse | Where-Object {
@@ -292,7 +292,7 @@ function Build-PyInstaller {
     param([string]$Bootstrapper)
     $Context = New-BuildContext "PyInstaller"
     $CompileRoot = Join-Path $TemporaryRoot "pyinstaller"
-    $env:PRINTBRIDGE_BUILD_CONTEXT = Join-Path (Split-Path $Context.metadata -Parent) "build-context.json"
+    $env:PRIDGE_BUILD_CONTEXT = Join-Path (Split-Path $Context.metadata -Parent) "build-context.json"
     Invoke-CheckedCommand python @(
         "-m", "PyInstaller", "--noconfirm", "--clean",
         "--distpath", (Join-Path $CompileRoot "dist"),
@@ -324,7 +324,7 @@ try {
     Invoke-CheckedCommand $Bootstrapper @("/silent", "/install")
     if ($Variant -in @("Native", "All")) { Build-Native $Bootstrapper }
     if ($Variant -in @("PyInstaller", "All")) { Build-PyInstaller $Bootstrapper }
-    $env:PRINTBRIDGE_RELEASE_DIR = $OutputDir
+    $env:PRIDGE_RELEASE_DIR = $OutputDir
     Invoke-CheckedCommand python @((Join-Path $Repository "scripts\generate_release_notes.py"), "--output-dir", $OutputDir)
     Invoke-CheckedCommand python @((Join-Path $Repository "scripts\generate_checksums.py"), "--output-dir", $OutputDir)
 }

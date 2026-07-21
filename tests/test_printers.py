@@ -5,8 +5,8 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from printbridge_client.printer_backends import PosixPrinterBackend, parse_lpoptions
-from printbridge_client.printers import (
+from pridge_client.printer_backends import PosixPrinterBackend, parse_lpoptions
+from pridge_client.printers import (
     DriverChoice,
     DriverOption,
     Printer,
@@ -137,7 +137,7 @@ class PosixPrinterBackendTests(unittest.TestCase):
             return_value=[Printer("Labels", system_driver_available=True)]
         )
 
-    @patch("printbridge_client.printer_backends.subprocess.run")
+    @patch("pridge_client.printer_backends.subprocess.run")
     def test_driverless_queue_remains_available_when_no_ppd_options_are_reported(self, run) -> None:
         run.return_value = Mock(returncode=1, stdout="")
 
@@ -146,7 +146,7 @@ class PosixPrinterBackendTests(unittest.TestCase):
         self.assertTrue(capabilities.system_driver_available)
         self.assertEqual(capabilities.options, ())
 
-    @patch("printbridge_client.printer_backends.subprocess.run")
+    @patch("pridge_client.printer_backends.subprocess.run")
     def test_raw_submission_preserves_binary_payload(self, run) -> None:
         run.return_value = Mock(returncode=0)
         payload = b"\x1b@\x00\xff\r\n"
@@ -156,7 +156,7 @@ class PosixPrinterBackendTests(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs["input"], payload)
         self.assertEqual(run.call_args.args[0][-2:], ["-o", "raw"])
 
-    @patch("printbridge_client.printer_backends.subprocess.run")
+    @patch("pridge_client.printer_backends.subprocess.run")
     def test_driver_submission_uses_exact_validated_option_ids(self, run) -> None:
         run.return_value = Mock(returncode=0)
 
