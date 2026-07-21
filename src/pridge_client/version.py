@@ -5,4 +5,4 @@
 from pridge_client.build_info import embedded_version
 
 
-__version__ = embedded_version("1.2.1")
+__version__ = embedded_version("1.3.0")

@@ -146,6 +146,9 @@
                         <${Badge} text=${server.status} active=${server.running} />
                       </div>
                       <div class="server-url">${server.server_url}</div>
+                      ${server.compatibility_warning
+                        ? html`<div class="server-compat-warning">${server.compatibility_warning}</div>`
+                        : null}
                       <div class="server-meta">
                         <span>${server.enabled ? S.enabled : S.disabled}</span>
                         <span>${server.has_token ? S.token_saved : S.token_missing}</span>

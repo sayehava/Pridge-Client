@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote, urljoin
 
+from pridge_client.version import __version__
+
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,8 @@ class PridgeClient:
         self.timeout_seconds = timeout_seconds
         self.session_token = ""
         self.last_instructions = ServerInstructions()
+        self.server_version = ""
+        self.compatibility_warning: str | None = None
         self.requests = _load_requests()
         self.session = self.requests.Session()
 
@@ -68,7 +72,7 @@ class PridgeClient:
 
         response = self.session.post(
             self._url("/api/client/auth"),
-            json={"token": self.client_token},
+            json={"token": self.client_token, "client_version": __version__},
             timeout=self.timeout_seconds,
         )
         if response.status_code != 200:
@@ -82,6 +86,13 @@ class PridgeClient:
             raise AuthenticationError("Authentication response did not include a session token.")
 
         self.session_token = session_token.strip()
+        server_version = body.get("server_version")
+        if isinstance(server_version, str):
+            self.server_version = server_version
+        warning = body.get("compatibility_warning")
+        self.compatibility_warning = warning if isinstance(warning, str) and warning else None
+        if self.compatibility_warning:
+            logger.warning("%s", self.compatibility_warning)
         logger.info("Client authenticated successfully")
 
     def heartbeat(self, printer_name: str | None = None) -> None:

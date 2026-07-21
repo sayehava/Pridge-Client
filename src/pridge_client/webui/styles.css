@@ -36,6 +36,7 @@
   --success-hover: #15803d;
   --danger: #ef4444;
   --danger-hover: #b91c1c;
+  --warning: #f59e0b;
   --badge-bg: #2c313c;
   --radius-card: 14px;
   --radius-control: 8px;
@@ -606,6 +607,12 @@ button.danger-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.server-compat-warning {
+  color: var(--warning);
+  font-size: 11px;
+  margin-top: 5px;
 }
 
 .server-meta {

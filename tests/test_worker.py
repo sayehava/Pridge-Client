@@ -162,5 +162,34 @@ class WorkerStatusRecoveryTests(unittest.TestCase):
         self.assertEqual(worker.state.last_error, "")
 
 
+class WorkerCompatibilityWarningTests(unittest.TestCase):
+    @patch("pridge_client.worker.PridgeClient")
+    def test_compatibility_warning_is_copied_from_the_client_onto_worker_state(self, client_cls) -> None:
+        client = Mock()
+        client.heartbeat.return_value = None
+        client.reserve_job.return_value = None
+        client.last_instructions = ServerInstructions()
+        client.compatibility_warning = "This client (v1.2.1) is older than this server (v2.0.0). Please update the client."
+        client_cls.return_value = client
+
+        config = ClientConfig(
+            server_url="https://example.test",
+            polling_interval_seconds=0,
+            heartbeat_interval_seconds=0,
+        )
+        worker = PollingWorker(config, "token")
+
+        worker.start()
+        try:
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline and not worker.state.compatibility_warning:
+                time.sleep(0.01)
+        finally:
+            worker.stop()
+            worker.join(timeout=1)
+
+        self.assertEqual(worker.state.compatibility_warning, client.compatibility_warning)
+
+
 if __name__ == "__main__":
     unittest.main()

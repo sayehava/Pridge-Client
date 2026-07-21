@@ -727,6 +727,7 @@ class ClientApi:
             "has_token": bool(self.token_store.get(server.id)),
             "running": bool(worker and worker.state.running),
             "status": worker.state.status if worker else STATUS_STOPPED,
+            "compatibility_warning": worker.state.compatibility_warning if worker else "",
         }
 
     def _current_config(self) -> ClientConfig:

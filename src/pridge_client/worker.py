@@ -35,6 +35,7 @@ class WorkerState:
     status: str = "Stopped"
     last_heartbeat_at: datetime | None = None
     last_error: str = ""
+    compatibility_warning: str = ""
 
 
 class PollingWorker:
@@ -91,6 +92,7 @@ class PollingWorker:
 
                 job = client.reserve_job(self.config.selected_printer or None)
                 self._apply_server_instructions(client)
+                self.state.compatibility_warning = client.compatibility_warning or ""
                 if self.state.status != "Running":
                     self.state.last_error = ""
                     self._set_status("Running")

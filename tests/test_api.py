@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from pridge_client.api import PridgeClient
+from pridge_client.version import __version__
 
 
 class FakeResponse:
@@ -55,7 +56,37 @@ class PridgeClientTests(unittest.TestCase):
 
         self.assertEqual(client.session_token, "session-secret")
         self.assertEqual(session.calls[0][1], "https://example.test/pridge/api/client/auth")
-        self.assertEqual(session.calls[0][2]["json"], {"token": "client-secret"})
+        self.assertEqual(session.calls[0][2]["json"], {"token": "client-secret", "client_version": __version__})
+
+    def test_records_server_version_and_no_warning_when_compatible(self):
+        client, _session = self.client_with_responses(
+            FakeResponse(200, {"token": "session-secret", "server_version": "1.2.1"})
+        )
+
+        client.authenticate()
+
+        self.assertEqual(client.server_version, "1.2.1")
+        self.assertIsNone(client.compatibility_warning)
+
+    def test_records_compatibility_warning_when_server_reports_one(self):
+        client, _session = self.client_with_responses(
+            FakeResponse(
+                200,
+                {
+                    "token": "session-secret",
+                    "server_version": "2.0.0",
+                    "compatibility_warning": "This server (v2.0.0) is newer than this client (v1.2.1). Please update the client.",
+                },
+            )
+        )
+
+        client.authenticate()
+
+        self.assertEqual(client.server_version, "2.0.0")
+        self.assertEqual(
+            client.compatibility_warning,
+            "This server (v2.0.0) is newer than this client (v1.2.1). Please update the client.",
+        )
 
     def test_reserves_job_with_numeric_server_id(self):
         client, session = self.client_with_responses(
