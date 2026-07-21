@@ -17,6 +17,3 @@ Release/
 *.onefile-build/
 *.spec.tmp
 *.egg-info/
-
-
-
