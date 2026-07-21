@@ -6,13 +6,66 @@ from __future__ import annotations
 
 import logging
 import platform
+import subprocess
+import sys
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from threading import Event
 from time import monotonic, sleep
 from typing import Any
 
 
 logger = logging.getLogger(__name__)
+
+# Matches the WebView2Bootstrapper client ID checked by the Inno Setup
+# installer (packaging/windows/Pridge-Client.iss) so both entry points agree
+# on whether a valid runtime is already present.
+WEBVIEW2_CLIENT_ID = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+WEBVIEW2_BOOTSTRAPPER_NAME = "MicrosoftEdgeWebview2Setup.exe"
+
+
+def ensure_webview2_runtime() -> None:
+    """Install the bundled WebView2 Runtime if this machine does not have it.
+
+    The installer build provisions the runtime during setup, but the
+    portable build has no setup step, so it must provision the runtime
+    itself on first launch using the bootstrapper packaged alongside it.
+    """
+    if platform.system() != "Windows":
+        return
+    try:
+        if _webview2_runtime_installed():
+            return
+        bootstrapper = _bundled_webview2_bootstrapper()
+        if bootstrapper is None:
+            logger.debug("No bundled WebView2 bootstrapper found; skipping runtime install")
+            return
+        logger.info("Microsoft WebView2 Runtime is missing; installing the bundled runtime")
+        subprocess.run([str(bootstrapper), "/silent", "/install"], check=True, timeout=180)
+    except Exception as exc:
+        logger.warning("Could not install the Microsoft WebView2 Runtime: %s", exc)
+
+
+def _webview2_runtime_installed() -> bool:
+    import winreg
+
+    for hive, key_path in (
+        (winreg.HKEY_LOCAL_MACHINE, f"SOFTWARE\\WOW6432Node\\Microsoft\\EdgeUpdate\\Clients\\{WEBVIEW2_CLIENT_ID}"),
+        (winreg.HKEY_CURRENT_USER, f"Software\\Microsoft\\EdgeUpdate\\Clients\\{WEBVIEW2_CLIENT_ID}"),
+    ):
+        try:
+            with winreg.OpenKey(hive, key_path) as key:
+                version, _ = winreg.QueryValueEx(key, "pv")
+        except OSError:
+            continue
+        if version and version != "0.0.0.0":
+            return True
+    return False
+
+
+def _bundled_webview2_bootstrapper() -> Path | None:
+    candidate = Path(sys.executable).resolve().parent / WEBVIEW2_BOOTSTRAPPER_NAME
+    return candidate if candidate.is_file() else None
 
 
 def preferred_webview_gui() -> str | None:

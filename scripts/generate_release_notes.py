@@ -120,7 +120,7 @@ def render(tag: str, markdown: bool) -> str:
     lines.extend(
         [
             heading("Known issues"),
-            bullet + "Windows requires Microsoft WebView2 Runtime; the setup packages install it automatically when missing.",
+            bullet + "Windows requires Microsoft WebView2 Runtime; both the setup and portable packages install it automatically when missing.",
             bullet + "Packages are unsigned unless the optional signing secrets are configured.",
             "",
             heading("Upgrade notes"),

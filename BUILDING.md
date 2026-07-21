@@ -124,7 +124,7 @@ To provide an explicit output directory for one command:
 ./scripts/build-windows.ps1 -Variant All -OutputDir "D:\Pridge Builds"
 ```
 
-Both setup packages use the shared Inno Setup definition at [Pridge-Client.iss](packaging/windows/Pridge-Client.iss). The installer checks Microsoft's WebView2 Runtime `pv` registry value for both per-machine and per-user installations. It runs the embedded official Evergreen bootstrapper with `/silent /install` only when a valid runtime is missing. The portable packages require the Microsoft WebView2 Runtime already provided by or installed on Windows; they never require Python.
+Both setup packages use the shared Inno Setup definition at [Pridge-Client.iss](packaging/windows/Pridge-Client.iss). The installer checks Microsoft's WebView2 Runtime `pv` registry value for both per-machine and per-user installations. It runs the embedded official Evergreen bootstrapper with `/silent /install` only when a valid runtime is missing. The portable packages carry their own copy of the same Evergreen bootstrapper (`MicrosoftEdgeWebview2Setup.exe`, staged alongside the executable) and run the same registry check and silent install on first launch via `platform_window.ensure_webview2_runtime`, so neither package variant depends on the runtime being preinstalled. Neither package requires Python.
 
 Each Windows build also runs the packaged executable with its private GUI smoke mode. A build succeeds only when WebView2 renders the frontend, React obtains state through the Python bridge, and the application closes cleanly with exit code zero.
 

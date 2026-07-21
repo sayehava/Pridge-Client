@@ -37,6 +37,7 @@ from printbridge_client.platform_window import (
     configure_application_menu,
     configure_utility_window,
     create_application_menu,
+    ensure_webview2_runtime,
     preferred_webview_gui,
 )
 from printbridge_client.printers import Printer, PrinterError, PrinterManager, validate_driver_settings
@@ -889,6 +890,7 @@ class ClientApi:
 
 
 def run_gui(gui_smoke_test: bool = False) -> None:
+    ensure_webview2_runtime()
     if gui_smoke_test:
         _log_stage("argument detection", "--gui-smoke-test recognized before normal startup")
         _run_gui_smoke_test()

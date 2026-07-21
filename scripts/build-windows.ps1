@@ -200,11 +200,16 @@ function Test-FrozenGui {
 }
 
 function New-PortableArchive {
-    param([string]$Distribution, [string]$Destination)
+    param([string]$Distribution, [string]$Destination, [string]$Bootstrapper)
     $PortableRoot = Join-Path $TemporaryRoot ("portable-" + [guid]::NewGuid().ToString("N"))
     $PortableApp = Join-Path $PortableRoot "Pridge Client"
     New-Item -ItemType Directory -Path $PortableApp -Force | Out-Null
     Copy-Item (Join-Path $Distribution "*") $PortableApp -Recurse -Force
+    # The portable build has no installer step, so it carries its own copy of
+    # the WebView2 Evergreen bootstrapper and installs the runtime itself on
+    # first launch (see platform_window.ensure_webview2_runtime) when a
+    # machine does not already have it.
+    Copy-Item $Bootstrapper (Join-Path $PortableApp "MicrosoftEdgeWebview2Setup.exe") -Force
     if (Test-Path $Destination) { Remove-Item $Destination -Force }
     Compress-Archive -Path $PortableApp -DestinationPath $Destination -CompressionLevel Optimal
 }
@@ -279,7 +284,7 @@ function Build-Native {
     Test-FrozenExecutable $Executable
     Test-FrozenGui $Executable
     Invoke-CodeSign $Executable
-    New-PortableArchive $Distribution.FullName (Join-Path $OutputDir $Context.windows_packages[1])
+    New-PortableArchive $Distribution.FullName (Join-Path $OutputDir $Context.windows_packages[1]) $Bootstrapper
     New-Installer $Context $Distribution.FullName $Context.windows_packages[0] $Bootstrapper
 }
 
@@ -301,7 +306,7 @@ function Build-PyInstaller {
     Test-FrozenExecutable $Executable
     Test-FrozenGui $Executable
     Invoke-CodeSign $Executable
-    New-PortableArchive $Distribution (Join-Path $OutputDir $Context.windows_packages[1])
+    New-PortableArchive $Distribution (Join-Path $OutputDir $Context.windows_packages[1]) $Bootstrapper
     New-Installer $Context $Distribution $Context.windows_packages[0] $Bootstrapper
 }
 

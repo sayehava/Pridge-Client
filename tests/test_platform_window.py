@@ -11,6 +11,7 @@ from printbridge_client.platform_window import (
     configure_application_identity,
     create_application_menu,
     disable_minimize,
+    ensure_webview2_runtime,
     preferred_webview_gui,
     show_startup_error,
 )
@@ -92,6 +93,53 @@ class PlatformWindowTests(unittest.TestCase):
         disable_minimize(SimpleNamespace(native=native))
 
         self.assertFalse(native.MinimizeBox)
+
+    @patch("printbridge_client.platform_window.platform.system", return_value="Darwin")
+    @patch("printbridge_client.platform_window.subprocess.run")
+    def test_skips_webview2_check_outside_windows(self, run, _system):
+        ensure_webview2_runtime()
+
+        run.assert_not_called()
+
+    @patch("printbridge_client.platform_window.platform.system", return_value="Windows")
+    @patch("printbridge_client.platform_window._webview2_runtime_installed", return_value=True)
+    @patch("printbridge_client.platform_window.subprocess.run")
+    def test_skips_install_when_runtime_already_present(self, run, _installed, _system):
+        ensure_webview2_runtime()
+
+        run.assert_not_called()
+
+    @patch("printbridge_client.platform_window.platform.system", return_value="Windows")
+    @patch("printbridge_client.platform_window._webview2_runtime_installed", return_value=False)
+    @patch("printbridge_client.platform_window._bundled_webview2_bootstrapper", return_value=None)
+    @patch("printbridge_client.platform_window.subprocess.run")
+    def test_skips_install_when_no_bootstrapper_is_bundled(self, run, _bootstrapper, _installed, _system):
+        ensure_webview2_runtime()
+
+        run.assert_not_called()
+
+    @patch("printbridge_client.platform_window.platform.system", return_value="Windows")
+    @patch("printbridge_client.platform_window._webview2_runtime_installed", return_value=False)
+    @patch(
+        "printbridge_client.platform_window._bundled_webview2_bootstrapper",
+        return_value=r"C:\App\MicrosoftEdgeWebview2Setup.exe",
+    )
+    @patch("printbridge_client.platform_window.subprocess.run")
+    def test_silently_installs_the_bundled_bootstrapper_when_runtime_is_missing(
+        self, run, _bootstrapper, _installed, _system
+    ):
+        ensure_webview2_runtime()
+
+        run.assert_called_once_with(
+            [r"C:\App\MicrosoftEdgeWebview2Setup.exe", "/silent", "/install"], check=True, timeout=180
+        )
+
+    @patch("printbridge_client.platform_window.platform.system", return_value="Windows")
+    @patch("printbridge_client.platform_window._webview2_runtime_installed", return_value=False)
+    @patch("printbridge_client.platform_window._bundled_webview2_bootstrapper", return_value="C:\\bootstrap.exe")
+    @patch("printbridge_client.platform_window.subprocess.run", side_effect=OSError("boom"))
+    def test_install_failure_is_logged_and_swallowed(self, _run, _bootstrapper, _installed, _system):
+        ensure_webview2_runtime()
 
 
 if __name__ == "__main__":
