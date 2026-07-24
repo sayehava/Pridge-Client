@@ -71,8 +71,11 @@ class PrinterCapabilities:
 
 class PrinterManager:
     def __init__(self, system: str | None = None) -> None:
+        from pridge_client.config import default_config_dir
         from pridge_client.printer_backends import create_backend
         from pridge_client.renderers import (
+            AppMappingRendererPlugin,
+            AppMappingStore,
             PDFValidationService,
             RendererSelectionService,
             build_default_registry,
@@ -81,6 +84,9 @@ class PrinterManager:
         self.system = system or platform.system()
         self.backend = create_backend(self.system)
         self._registry = build_default_registry()
+        self._app_mapping_store = AppMappingStore(default_config_dir())
+        self._app_mapping_plugin = AppMappingRendererPlugin(self._app_mapping_store.load())
+        self._registry.register(self._app_mapping_plugin, priority=100, is_builtin=False)
         self._validation = PDFValidationService()
         self._renderer_selector = RendererSelectionService(self._registry, self._validation)
 
@@ -202,6 +208,14 @@ class PrinterManager:
     @property
     def renderer_registry(self):
         return self._registry
+
+    @property
+    def app_mapping_plugin(self):
+        return self._app_mapping_plugin
+
+    @property
+    def app_mapping_store(self):
+        return self._app_mapping_store
 
 
 def validate_driver_settings(

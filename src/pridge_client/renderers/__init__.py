@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from pridge_client.renderers.app_mapping import AppMapping, AppMappingRendererPlugin, AppMappingStore
 from pridge_client.renderers.base import (
     PRIDGE_RENDERER_API_VERSION,
     RenderError,
@@ -31,6 +32,9 @@ def build_default_registry() -> RendererRegistry:
 
 __all__ = [
     "PRIDGE_RENDERER_API_VERSION",
+    "AppMapping",
+    "AppMappingRendererPlugin",
+    "AppMappingStore",
     "RenderError",
     "RenderOptions",
     "RendererPlugin",

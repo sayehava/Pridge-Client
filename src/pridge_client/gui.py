@@ -555,6 +555,62 @@ class ClientApi:
         self.printer_manager.renderer_registry.set_enabled(str(plugin_id), bool(enabled))
         return self.get_renderer_plugins()
 
+    def get_app_mappings(self) -> dict:
+        mappings = self.printer_manager.app_mapping_plugin.get_mappings()
+        return {"ok": True, "error": None, "mappings": [self._mapping_public(m) for m in mappings]}
+
+    def add_app_mapping(self, fields: dict) -> dict:
+        from pridge_client.renderers import AppMapping
+        import uuid as _uuid
+        mapping = AppMapping(
+            id=_uuid.uuid4().hex,
+            name=str(fields.get("name", "")).strip(),
+            extensions=self._str_list(fields.get("extensions", [])),
+            mime_types=self._str_list(fields.get("mime_types", [])),
+            executable=str(fields.get("executable", "")).strip(),
+            arguments=self._str_list(fields.get("arguments", [])),
+            timeout=self._safe_float(fields.get("timeout"), 60.0, minimum=1.0),
+            enabled=bool(fields.get("enabled", True)),
+            platform_filter=str(fields.get("platform_filter", "")).strip().lower(),
+        )
+        if not mapping.name:
+            return self._error("Mapping name is required.")
+        mappings = self.printer_manager.app_mapping_plugin.get_mappings()
+        mappings.append(mapping)
+        self.printer_manager.app_mapping_plugin.set_mappings(mappings)
+        self.printer_manager.app_mapping_store.save(mappings)
+        return self.get_app_mappings()
+
+    def update_app_mapping(self, mapping_id: str, fields: dict) -> dict:
+        from pridge_client.renderers import AppMapping
+        mappings = self.printer_manager.app_mapping_plugin.get_mappings()
+        idx = next((i for i, m in enumerate(mappings) if m.id == str(mapping_id)), None)
+        if idx is None:
+            return self._error("Mapping not found.")
+        existing = mappings[idx]
+        updated = AppMapping(
+            id=existing.id,
+            name=str(fields.get("name", existing.name)).strip() or existing.name,
+            extensions=self._str_list(fields.get("extensions", existing.extensions)),
+            mime_types=self._str_list(fields.get("mime_types", existing.mime_types)),
+            executable=str(fields.get("executable", existing.executable)).strip(),
+            arguments=self._str_list(fields.get("arguments", existing.arguments)),
+            timeout=self._safe_float(fields.get("timeout"), existing.timeout, minimum=1.0),
+            enabled=bool(fields.get("enabled", existing.enabled)),
+            platform_filter=str(fields.get("platform_filter", existing.platform_filter)).strip().lower(),
+        )
+        mappings[idx] = updated
+        self.printer_manager.app_mapping_plugin.set_mappings(mappings)
+        self.printer_manager.app_mapping_store.save(mappings)
+        return self.get_app_mappings()
+
+    def remove_app_mapping(self, mapping_id: str) -> dict:
+        mappings = self.printer_manager.app_mapping_plugin.get_mappings()
+        mappings = [m for m in mappings if m.id != str(mapping_id)]
+        self.printer_manager.app_mapping_plugin.set_mappings(mappings)
+        self.printer_manager.app_mapping_store.save(mappings)
+        return self.get_app_mappings()
+
     def swap_renderer_plugin_priorities(self, plugin_id_a: str, plugin_id_b: str) -> dict:
         reg = self.printer_manager.renderer_registry
         entry_a = reg.get_entry(str(plugin_id_a))
@@ -881,6 +937,33 @@ class ClientApi:
             and isinstance(value_id, (str, int, float, bool))
             and str(value_id).strip()
         }
+
+    def _mapping_public(self, mapping: object) -> dict:
+        return {
+            "id": mapping.id,
+            "name": mapping.name,
+            "extensions": list(mapping.extensions),
+            "mime_types": list(mapping.mime_types),
+            "executable": mapping.executable,
+            "arguments": list(mapping.arguments),
+            "timeout": mapping.timeout,
+            "enabled": mapping.enabled,
+            "platform_filter": mapping.platform_filter,
+        }
+
+    def _str_list(self, value: object) -> list[str]:
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        if isinstance(value, str):
+            return [s.strip() for s in value.split(",") if s.strip()]
+        return []
+
+    def _safe_float(self, value: object, default: float, minimum: float = 0.0) -> float:
+        try:
+            parsed = float(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return default
+        return max(parsed, minimum)
 
     def _printer_profile_public(self, profile: PrinterProfile) -> dict[str, object]:
         return {
