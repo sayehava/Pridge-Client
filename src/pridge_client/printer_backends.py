@@ -5,11 +5,9 @@
 from __future__ import annotations
 
 import logging
+import platform
 import re
 import subprocess
-import tempfile
-import time
-from pathlib import Path
 from typing import Mapping
 
 from pridge_client.printers import (
@@ -22,16 +20,6 @@ from pridge_client.printers import (
 
 
 logger = logging.getLogger(__name__)
-_CONTENT_TYPE_PATTERN = re.compile(r"^[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+$")
-_CONTENT_TYPE_SUFFIXES = {
-    "application/pdf": ".pdf",
-    "application/postscript": ".ps",
-    "application/vnd.hp-pcl": ".pcl",
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-    "image/tiff": ".tiff",
-    "text/plain": ".txt",
-}
 
 
 def create_backend(system: str):
@@ -58,13 +46,13 @@ class UnsupportedPrinterBackend:
     def print_raw(self, printer_name: str, data: bytes, job_name: str) -> None:
         raise PrinterError(f"Unsupported platform: {self.system}")
 
-    def print_driver(
+    def print_driver_pdf(
         self,
         printer_name: str,
-        data: bytes,
-        content_type: str,
+        pdf_data: bytes,
         settings: Mapping[str, str],
         job_name: str,
+        submission_method: str = "direct_pdf",
     ) -> None:
         raise PrinterError(f"Unsupported platform: {self.system}")
 
@@ -157,11 +145,23 @@ class PosixPrinterBackend:
         if completed.returncode != 0:
             raise PrinterError("Could not submit raw print job.")
 
-    def print_driver(
+    def print_driver_pdf(
         self,
         printer_name: str,
-        data: bytes,
-        content_type: str,
+        pdf_data: bytes,
+        settings: Mapping[str, str],
+        job_name: str,
+        submission_method: str = "direct_pdf",
+    ) -> None:
+        if submission_method == "pdfium":
+            self._print_pdf_via_pdfium(printer_name, pdf_data, settings, job_name)
+        else:
+            self._print_pdf_direct(printer_name, pdf_data, settings, job_name)
+
+    def _print_pdf_direct(
+        self,
+        printer_name: str,
+        pdf_data: bytes,
         settings: Mapping[str, str],
         job_name: str,
     ) -> None:
@@ -169,17 +169,71 @@ class PosixPrinterBackend:
         command = ["lp", "-d", printer_name, "-t", job_name]
         for option_id, value_id in settings.items():
             command.extend(["-o", f"{option_id}={value_id}"])
-        if _CONTENT_TYPE_PATTERN.fullmatch(content_type):
-            command.extend(["-o", f"document-format={content_type}"])
+        command.extend(["-o", "document-format=application/pdf"])
         completed = subprocess.run(
             command,
-            input=data,
+            input=pdf_data,
             check=False,
             capture_output=True,
             timeout=120,
         )
         if completed.returncode != 0:
-            raise PrinterError("Could not submit print job through the system driver.")
+            raise PrinterError("CUPS rejected the PDF print job.")
+        logger.info("Direct PDF submitted to CUPS queue %s", printer_name)
+
+    def _print_pdf_via_pdfium(
+        self,
+        printer_name: str,
+        pdf_data: bytes,
+        settings: Mapping[str, str],
+        job_name: str,
+    ) -> None:
+        from pridge_client.pdfium_service import PDFiumRenderService
+
+        svc = PDFiumRenderService()
+        rendered_pages = svc.render_pages(pdf_data, target_dpi=300.0)
+        if not rendered_pages:
+            raise PrinterError("PDFium produced no pages from the document.")
+
+        if self.system == "Darwin":
+            self._macos_print_rendered_pages(printer_name, rendered_pages, settings, job_name)
+        else:
+            self._linux_print_rendered_pages(printer_name, rendered_pages, settings, job_name)
+
+    def _macos_print_rendered_pages(self, printer_name, rendered_pages, settings, job_name):
+        import io
+        try:
+            from PIL import Image
+        except ImportError as exc:
+            raise PrinterError("PDFium rendered-page printing requires Pillow.") from exc
+
+        # Convert rendered pages to a multi-page PDF via Pillow and submit directly
+        images = []
+        for page in rendered_pages:
+            img = Image.frombytes(
+                "RGBA" if page.has_alpha else "RGB",
+                (page.width_px, page.height_px),
+                page.data,
+                "raw",
+                "BGRA" if page.has_alpha else "BGR",
+            )
+            images.append(img.convert("RGB"))
+
+        buf = io.BytesIO()
+        if images:
+            images[0].save(
+                buf,
+                format="PDF",
+                save_all=True,
+                append_images=images[1:],
+                resolution=rendered_pages[0].dpi,
+            )
+        pdf_data = buf.getvalue()
+        self._print_pdf_direct(printer_name, pdf_data, settings, job_name)
+
+    def _linux_print_rendered_pages(self, printer_name, rendered_pages, settings, job_name):
+        # Same approach as macOS: re-wrap rendered pages as PDF and submit via CUPS
+        self._macos_print_rendered_pages(printer_name, rendered_pages, settings, job_name)
 
     def _require_printer(self, printer_name: str) -> None:
         if printer_name not in {printer.name for printer in self.list_printers()}:
@@ -248,30 +302,15 @@ class WindowsPrinterBackend:
         finally:
             win32print.ClosePrinter(handle)
 
-    def print_driver(
+    def print_driver_pdf(
         self,
         printer_name: str,
-        data: bytes,
-        content_type: str,
+        pdf_data: bytes,
         settings: Mapping[str, str],
         job_name: str,
+        submission_method: str = "pdfium",
     ) -> None:
-        win32print = _load_win32print()
-        handle = self._open_printer(win32print, printer_name)
-        win32print.ClosePrinter(handle)
-        suffix = _CONTENT_TYPE_SUFFIXES.get(content_type, ".bin")
-        temporary_path: Path | None = None
-        try:
-            with tempfile.NamedTemporaryFile(prefix="pridge-print-", suffix=suffix, delete=False) as file:
-                file.write(data)
-                temporary_path = Path(file.name)
-            _windows_print_to(temporary_path, printer_name)
-        finally:
-            if temporary_path is not None:
-                try:
-                    temporary_path.unlink()
-                except OSError:
-                    pass
+        _windows_gdi_print_pdf(pdf_data, printer_name, settings, job_name)
 
     @staticmethod
     def _open_printer(win32print, printer_name: str):
@@ -279,6 +318,89 @@ class WindowsPrinterBackend:
             return win32print.OpenPrinter(printer_name)
         except Exception as exc:
             raise PrinterError("The selected printer is no longer available.") from exc
+
+
+def _windows_gdi_print_pdf(
+    pdf_data: bytes,
+    printer_name: str,
+    settings: Mapping[str, str],
+    job_name: str,
+) -> None:
+    try:
+        import win32ui
+        import win32con
+    except ImportError as exc:
+        raise PrinterError("Windows system-driver printing requires pywin32.") from exc
+
+    try:
+        from PIL import Image, ImageWin
+    except ImportError as exc:
+        raise PrinterError("Windows system-driver printing requires Pillow.") from exc
+
+    from pridge_client.pdfium_service import PDFiumRenderService
+
+    svc = PDFiumRenderService()
+    if not svc.is_available():
+        raise PrinterError(
+            "Windows system-driver printing requires pypdfium2."
+            " It must be included in the Pridge Client installation."
+        )
+
+    dc = win32ui.CreateDC()
+    try:
+        dc.CreatePrinterDC(printer_name)
+    except Exception as exc:
+        raise PrinterError("Could not create a printer device context.") from exc
+
+    try:
+        dpi_x = dc.GetDeviceCaps(win32con.LOGPIXELSX)
+        dpi_y = dc.GetDeviceCaps(win32con.LOGPIXELSY)
+        target_dpi = float(max(dpi_x, dpi_y, 72))
+        print_w = dc.GetDeviceCaps(win32con.HORZRES)
+        print_h = dc.GetDeviceCaps(win32con.VERTRES)
+
+        rendered_pages = svc.render_pages(pdf_data, target_dpi=target_dpi, pixel_format="BGRA")
+        if not rendered_pages:
+            raise PrinterError("PDFium produced no pages from the document.")
+
+        dc.StartDoc(job_name)
+        try:
+            for page in rendered_pages:
+                dc.StartPage()
+                try:
+                    img = Image.frombytes(
+                        "RGBA",
+                        (page.width_px, page.height_px),
+                        page.data,
+                        "raw",
+                        "BGRA",
+                    ).convert("RGB")
+
+                    scale = min(print_w / page.width_px, print_h / page.height_px)
+                    dst_w = int(page.width_px * scale)
+                    dst_h = int(page.height_px * scale)
+                    dst_x = (print_w - dst_w) // 2
+                    dst_y = (print_h - dst_h) // 2
+
+                    if abs(scale - 1.0) > 0.01:
+                        img = img.resize((dst_w, dst_h), Image.LANCZOS)
+
+                    dib = ImageWin.Dib(img)
+                    dib.draw(dc.GetSafeHdc(), (dst_x, dst_y, dst_x + dst_w, dst_y + dst_h))
+                    logger.debug(
+                        "Windows GDI: drew page %dx%d at (%d,%d)+%dx%d",
+                        page.width_px, page.height_px, dst_x, dst_y, dst_w, dst_h,
+                    )
+                finally:
+                    dc.EndPage()
+        except Exception:
+            dc.AbortDoc()
+            raise
+        else:
+            dc.EndDoc()
+            logger.info("Windows GDI print job '%s' submitted to %s", job_name, printer_name)
+    finally:
+        dc.DeleteDC()
 
 
 def parse_lpoptions(output: str) -> tuple[DriverOption, ...]:
@@ -328,37 +450,6 @@ def _load_win32print():
     except ImportError as exc:
         raise PrinterError("Windows printing requires pywin32.") from exc
     return win32print
-
-
-def _windows_print_to(path: Path, printer_name: str) -> None:
-    try:
-        import win32con
-        import win32event
-        from win32com.shell import shell, shellcon
-    except ImportError as exc:
-        raise PrinterError("Windows system-driver printing requires pywin32.") from exc
-
-    try:
-        result = shell.ShellExecuteEx(
-            fMask=shellcon.SEE_MASK_NOCLOSEPROCESS,
-            lpVerb="printto",
-            lpFile=str(path),
-            lpParameters=f'"{printer_name.replace(chr(34), "")}"',
-            nShow=win32con.SW_HIDE,
-        )
-        process = result.get("hProcess")
-        if process:
-            wait_result = win32event.WaitForSingleObject(process, 120_000)
-            if wait_result == win32event.WAIT_TIMEOUT:
-                raise PrinterError("The document printing application did not finish in time.")
-        else:
-            time.sleep(5)
-    except PrinterError:
-        raise
-    except Exception as exc:
-        raise PrinterError(
-            "Windows could not send this document through its registered printing application."
-        ) from exc
 
 
 def _safe_backend_error(exc: Exception) -> str:

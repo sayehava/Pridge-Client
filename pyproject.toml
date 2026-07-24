@@ -18,6 +18,7 @@ classifiers = [
 ]
 dependencies = [
     "requests>=2.31",
+    "pypdfium2>=4.30",
     "pywebview==6.2.1",
     "pyobjc-core>=10.0; platform_system == 'Darwin'",
     "pyobjc-framework-Cocoa>=10.0; platform_system == 'Darwin'",
@@ -29,6 +30,7 @@ dependencies = [
 
 [project.optional-dependencies]
 secure = ["keyring>=24"]
+svg = ["cairosvg>=2.7"]
 tray = [
     "pystray==0.19.5",
     "Pillow>=10",

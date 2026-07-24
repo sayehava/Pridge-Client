@@ -27,7 +27,7 @@ datas = [
 ]
 binaries = []
 hiddenimports = []
-for package in ("webview", "keyring", "pystray", "PIL"):
+for package in ("webview", "keyring", "pystray", "PIL", "pypdfium2"):
     package_datas, package_binaries, package_hiddenimports = collect_all(package)
     datas += package_datas
     binaries += package_binaries

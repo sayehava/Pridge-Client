@@ -32,6 +32,13 @@ class ReservedJob:
     remote_printer_id: str = ""
     remote_printer_name: str = ""
     copies: int = 1
+    filename: str = ""
+    renderer: str = ""
+    render_options: dict[str, object] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.render_options is None:
+            self.render_options = {}
 
 
 @dataclass
@@ -284,6 +291,10 @@ def _parse_reserved_job(raw: dict[str, Any]) -> ReservedJob:
     except (TypeError, ValueError):
         copies = 1
 
+    filename = raw.get("filename", "")
+    renderer = raw.get("renderer", "")
+    render_options = raw.get("render_options", {})
+
     return ReservedJob(
         job_id=str(job_id),
         payload_base64=payload_base64,
@@ -292,6 +303,9 @@ def _parse_reserved_job(raw: dict[str, Any]) -> ReservedJob:
         remote_printer_id=str(remote_printer_id).strip() if isinstance(remote_printer_id, (str, int)) else "",
         remote_printer_name=remote_printer_name.strip() if isinstance(remote_printer_name, str) else "",
         copies=max(copies, 1),
+        filename=str(filename).strip() if isinstance(filename, str) else "",
+        renderer=str(renderer).strip() if isinstance(renderer, str) else "",
+        render_options=render_options if isinstance(render_options, dict) else {},
     )
 
 

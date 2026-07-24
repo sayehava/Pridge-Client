@@ -123,6 +123,7 @@ class PollingWorker:
             payload = decode_payload(job.payload_base64)
             client.report_printing(job.job_id)
             self._record_job(job.job_id, "printing")
+            submission_method = profile.submission_method or None
             for copy_number in range(job.copies):
                 logger.info("Printing job %s copy %s of %s", job.job_id, copy_number + 1, job.copies)
                 self.printer_manager.print_job(
@@ -130,8 +131,11 @@ class PollingWorker:
                     payload,
                     mode=profile.mode,
                     driver_settings=profile.driver_settings,
-                    content_type=job.content_type,
+                    content_type=job.content_type or None,
+                    filename=job.filename or None,
                     job_name=f"Pridge {job.job_id}",
+                    submission_method=submission_method,
+                    explicit_renderer=job.renderer or None,
                 )
             client.report_printed(job.job_id)
             self._record_job(job.job_id, "printed")

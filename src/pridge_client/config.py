@@ -23,6 +23,7 @@ LEGACY_CONFIG_DIR_NAMES = ("printbridge-client", "printbridge-endpoint")
 LEGACY_KEYRING_SERVICES = ("printbridge-client", "printbridge-endpoint")
 DARKNESS_GRADES = ("Quartz", "Moonstone", "Labradorite", "Onyx", "Obsidian", "Jet")
 PRINT_MODES = ("raw", "system_driver")
+SUBMISSION_METHODS = ("", "direct_pdf", "pdfium")
 
 
 @dataclass
@@ -36,6 +37,7 @@ class PrinterMapping:
 class PrinterProfile:
     mode: str = "system_driver"
     driver_settings: dict[str, str] = field(default_factory=dict)
+    submission_method: str = ""
 
 
 @dataclass
@@ -363,7 +365,12 @@ def _parse_printer_profiles(raw: Any) -> dict[str, PrinterProfile]:
             and isinstance(value_id, (str, int, float, bool))
             and str(value_id).strip()
         }
-        profiles[name] = PrinterProfile(mode=mode, driver_settings=settings)
+        raw_method = str(raw_profile.get("submission_method", "")).strip().lower()
+        if raw_method not in SUBMISSION_METHODS:
+            raw_method = ""
+        profiles[name] = PrinterProfile(
+            mode=mode, driver_settings=settings, submission_method=raw_method
+        )
     return profiles
 
 

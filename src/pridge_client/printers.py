@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import platform
+import time
 from dataclasses import dataclass, field
 from typing import Mapping
 
@@ -71,9 +72,17 @@ class PrinterCapabilities:
 class PrinterManager:
     def __init__(self, system: str | None = None) -> None:
         from pridge_client.printer_backends import create_backend
+        from pridge_client.renderers import (
+            PDFValidationService,
+            RendererSelectionService,
+            build_default_registry,
+        )
 
         self.system = system or platform.system()
         self.backend = create_backend(self.system)
+        self._registry = build_default_registry()
+        self._validation = PDFValidationService()
+        self._renderer_selector = RendererSelectionService(self._registry, self._validation)
 
     def list_printers(self) -> list[Printer]:
         return self.backend.list_printers()
@@ -101,9 +110,14 @@ class PrinterManager:
         data: bytes,
         mode: str = "system_driver",
         driver_settings: Mapping[str, str] | None = None,
-        content_type: str = "application/octet-stream",
+        content_type: str | None = None,
+        filename: str | None = None,
         job_name: str = "Pridge Job",
+        submission_method: str | None = None,
+        explicit_renderer: str | None = None,
     ) -> None:
+        from pridge_client.renderers.base import RenderError, RenderOptions
+
         if not printer_name:
             raise PrinterError("No printer is selected.")
         if not data:
@@ -120,8 +134,50 @@ class PrinterManager:
         if not capabilities.system_driver_available:
             raise PrinterError("The selected printer does not have an available system driver.")
         settings = validate_driver_settings(capabilities, driver_settings or {})
-        logger.info("Submitting system-driver job to printer %s", printer_name)
-        self.backend.print_driver(printer_name, data, content_type, settings, job_name)
+
+        try:
+            plugin, reason = self._renderer_selector.select(
+                data=data,
+                mime_type=content_type or None,
+                filename=filename or None,
+                explicit_plugin_id=explicit_renderer or None,
+            )
+        except RenderError as exc:
+            raise PrinterError(str(exc)) from exc
+
+        options = RenderOptions()
+
+        t0 = time.monotonic()
+        try:
+            pdf_data = plugin.render_to_pdf(
+                data=data,
+                mime_type=content_type or None,
+                filename=filename or None,
+                options=options,
+            )
+        except RenderError as exc:
+            raise PrinterError(
+                f"Renderer plugin {plugin.plugin_id} failed while converting the document: {exc}"
+            ) from exc
+        logger.info(
+            "Renderer %s produced %d bytes in %.3fs (reason=%s)",
+            plugin.plugin_id, len(pdf_data), time.monotonic() - t0, reason,
+        )
+
+        try:
+            self._validation.require_valid_pdf(pdf_data)
+        except RenderError as exc:
+            raise PrinterError(str(exc)) from exc
+
+        method = submission_method or _default_submission_method(self.system)
+        logger.info(
+            "Submitting system-driver job to printer %s (submission_method=%s)", printer_name, method
+        )
+        t0 = time.monotonic()
+        self.backend.print_driver_pdf(printer_name, pdf_data, settings, job_name, method)
+        logger.info(
+            "Native submission of %d bytes completed in %.3fs", len(pdf_data), time.monotonic() - t0
+        )
 
     def print_raw(self, printer_name: str, data: bytes, job_name: str = "Pridge Job") -> None:
         self.print_job(printer_name, data, mode="raw", job_name=job_name)
@@ -142,6 +198,10 @@ class PrinterManager:
             content_type="application/pdf",
             job_name="Pridge Test Page",
         )
+
+    @property
+    def renderer_registry(self):
+        return self._registry
 
 
 def validate_driver_settings(
@@ -197,3 +257,9 @@ def create_test_page_pdf() -> bytes:
         ).encode("ascii")
     )
     return bytes(document)
+
+
+def _default_submission_method(system: str) -> str:
+    if system == "Windows":
+        return "pdfium"
+    return "direct_pdf"
