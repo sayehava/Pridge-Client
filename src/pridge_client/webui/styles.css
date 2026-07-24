@@ -1457,19 +1457,31 @@ button.stone-option.selected {
   align-items: flex-start;
   padding-top: 12px;
   padding-bottom: 12px;
+  gap: 10px;
+}
+
+.renderer-row .setting-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.renderer-row .setting-check {
+  margin-top: 3px;
+  flex-shrink: 0;
 }
 
 .renderer-order {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   flex: 0 0 auto;
+  margin-top: 1px;
 }
 
 .renderer-order-btn {
-  padding: 2px 8px;
-  font-size: 0.8rem;
-  line-height: 1.4;
+  padding: 1px 7px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   min-width: 0;
 }
 
@@ -1477,7 +1489,10 @@ button.stone-option.selected {
   color: var(--text-muted);
   margin-top: 3px;
   font-size: 0.78rem;
-  word-break: break-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .renderer-error {
@@ -1489,4 +1504,137 @@ button.stone-option.selected {
   color: var(--text-muted);
   font-size: 0.88rem;
   margin: 8px 0 0;
+}
+
+.app-mappings-section {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.app-mappings-section h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin: 0 0 4px;
+}
+
+.app-mappings-section p {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: 0 0 10px;
+}
+
+.mapping-row {
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.mapping-row .setting-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.mapping-row .setting-check {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.mapping-actions {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.mapping-add-btn {
+  margin-top: 10px;
+}
+
+.btn-secondary {
+  background: var(--control-bg);
+  border-color: var(--border);
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  padding: 4px 10px;
+}
+
+.btn-secondary:hover {
+  background: var(--card-highlight);
+}
+
+.btn-danger-small {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+  font-size: 0.82rem;
+  padding: 4px 10px;
+}
+
+.btn-danger-small:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+.mapping-form {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: 14px;
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mapping-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mapping-form-row label {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.mapping-form-row label small {
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 400;
+  margin-top: 1px;
+}
+
+.mapping-form-row input,
+.mapping-form-row select,
+.mapping-form-row textarea {
+  background: var(--control-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--text);
+  font-size: 0.88rem;
+  padding: 6px 9px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.mapping-form-row textarea {
+  resize: vertical;
+  font-family: monospace;
+}
+
+.mapping-form-row--half {
+  flex-direction: row;
+  gap: 12px;
+}
+
+.mapping-form-row--half > .mapping-form-row {
+  flex: 1;
+}
+
+.mapping-form-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 4px;
 }
