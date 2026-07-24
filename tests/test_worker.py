@@ -113,7 +113,10 @@ class WorkerPrintingModeTests(unittest.TestCase):
             mode="system_driver",
             driver_settings={"PageSize": "A4"},
             content_type="application/pdf",
+            filename=None,
             job_name="Pridge 42",
+            submission_method=None,
+            explicit_renderer=None,
         )
         client.report_printed.assert_called_once_with("42")
 

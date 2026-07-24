@@ -58,9 +58,20 @@ class DriverCapabilityTests(unittest.TestCase):
 
 class PrinterManagerTests(unittest.TestCase):
     def setUp(self) -> None:
+        from unittest.mock import MagicMock
+        from pridge_client.renderers import (
+            PDFValidationService,
+            RendererSelectionService,
+            build_default_registry,
+        )
         self.manager = PrinterManager.__new__(PrinterManager)
         self.manager.system = "Test"
         self.manager.backend = Mock()
+        self.manager._registry = build_default_registry()
+        self.manager._validation = PDFValidationService()
+        self.manager._renderer_selector = RendererSelectionService(
+            self.manager._registry, self.manager._validation
+        )
 
     def test_raw_mode_preserves_payload_and_does_not_request_capabilities(self) -> None:
         payload = b"\x00\xff\r\n"
@@ -86,20 +97,18 @@ class PrinterManagerTests(unittest.TestCase):
 
         self.manager.print_job(
             "Labels",
-            b"%PDF",
+            create_test_page_pdf(),
             mode="system_driver",
             driver_settings={"Resolution": "300dpi", "Removed": "value"},
             content_type="application/pdf",
             job_name="Driver job",
         )
 
-        self.manager.backend.print_driver.assert_called_once_with(
-            "Labels",
-            b"%PDF",
-            "application/pdf",
-            {"Resolution": "300dpi"},
-            "Driver job",
-        )
+        call_args = self.manager.backend.print_driver_pdf.call_args
+        self.assertEqual(call_args.args[0], "Labels")
+        self.assertTrue(call_args.args[1].startswith(b"%PDF"))
+        self.assertEqual(call_args.args[2], {"Resolution": "300dpi"})
+        self.assertEqual(call_args.args[3], "Driver job")
 
     def test_rejects_system_driver_mode_when_no_driver_is_available(self) -> None:
         self.manager.backend.get_capabilities.return_value = PrinterCapabilities(
@@ -118,10 +127,11 @@ class PrinterManagerTests(unittest.TestCase):
 
         self.manager.print_test_page("Labels", "system_driver")
 
-        args = self.manager.backend.print_driver.call_args.args
-        self.assertEqual(args[0], "Labels")
-        self.assertTrue(args[1].startswith(b"%PDF-1.4"))
-        self.assertEqual(args[2:], ("application/pdf", {}, "Pridge Test Page"))
+        call_args = self.manager.backend.print_driver_pdf.call_args
+        self.assertEqual(call_args.args[0], "Labels")
+        self.assertTrue(call_args.args[1].startswith(b"%PDF-1.4"))
+        self.assertEqual(call_args.args[2], {})
+        self.assertEqual(call_args.args[3], "Pridge Test Page")
 
     def test_does_not_inject_a_generic_test_payload_in_raw_mode(self) -> None:
         with self.assertRaises(PrinterError):
@@ -157,15 +167,15 @@ class PosixPrinterBackendTests(unittest.TestCase):
         self.assertEqual(run.call_args.args[0][-2:], ["-o", "raw"])
 
     @patch("pridge_client.printer_backends.subprocess.run")
-    def test_driver_submission_uses_exact_validated_option_ids(self, run) -> None:
+    def test_direct_pdf_submission_passes_options_and_pdf_format(self, run) -> None:
         run.return_value = Mock(returncode=0)
 
-        self.backend.print_driver(
+        self.backend.print_driver_pdf(
             "Labels",
             b"%PDF",
-            "application/pdf",
             {"PageSize": "w288h432", "CutMedia": "EndOfPage"},
             "Driver job",
+            "direct_pdf",
         )
 
         command = run.call_args.args[0]
