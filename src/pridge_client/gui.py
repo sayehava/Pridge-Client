@@ -531,6 +531,38 @@ class ClientApi:
             "state": self._build_state(),
         }
 
+    def get_renderer_plugins(self) -> dict:
+        entries = self.printer_manager.renderer_registry.all_entries()
+        entries_sorted = sorted(entries, key=lambda e: e.priority)
+        plugins = [
+            {
+                "plugin_id": entry.plugin.plugin_id,
+                "display_name": entry.plugin.display_name,
+                "version": entry.plugin.version,
+                "api_version": entry.plugin.api_version,
+                "mime_types": sorted(entry.plugin.supported_mime_types),
+                "extensions": sorted(entry.plugin.supported_extensions),
+                "enabled": entry.enabled,
+                "priority": entry.priority,
+                "is_builtin": entry.is_builtin,
+                "load_error": entry.load_error,
+            }
+            for entry in entries_sorted
+        ]
+        return {"ok": True, "error": None, "plugins": plugins}
+
+    def set_renderer_plugin_enabled(self, plugin_id: str, enabled: bool) -> dict:
+        self.printer_manager.renderer_registry.set_enabled(str(plugin_id), bool(enabled))
+        return self.get_renderer_plugins()
+
+    def swap_renderer_plugin_priorities(self, plugin_id_a: str, plugin_id_b: str) -> dict:
+        reg = self.printer_manager.renderer_registry
+        entry_a = reg.get_entry(str(plugin_id_a))
+        entry_b = reg.get_entry(str(plugin_id_b))
+        if entry_a is not None and entry_b is not None:
+            entry_a.priority, entry_b.priority = entry_b.priority, entry_a.priority
+        return self.get_renderer_plugins()
+
     def export_log(self) -> dict:
         log_path = default_log_dir() / "client.log"
         if not log_path.is_file():

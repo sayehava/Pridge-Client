@@ -1452,3 +1452,41 @@ button.stone-option.selected {
   background: linear-gradient(180deg, rgba(120, 154, 207, 0.48), rgba(68, 91, 129, 0.46));
   border: 2px solid rgba(8, 14, 27, 0.22);
 }
+
+.renderer-row {
+  align-items: flex-start;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.renderer-order {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.renderer-order-btn {
+  padding: 2px 8px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  min-width: 0;
+}
+
+.renderer-types {
+  color: var(--text-muted);
+  margin-top: 3px;
+  font-size: 0.78rem;
+  word-break: break-all;
+}
+
+.renderer-error {
+  color: var(--danger);
+  margin-top: 3px;
+}
+
+.hint-text {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  margin: 8px 0 0;
+}
