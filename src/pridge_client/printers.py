@@ -81,6 +81,7 @@ class PrinterCapabilities:
 class PrinterManager:
     def __init__(self, system: str | None = None) -> None:
         from pridge_client.config import default_config_dir
+        from pridge_client.plugins.discovery import register_third_party_renderers
         from pridge_client.printer_backends import create_backend
         from pridge_client.renderers import (
             AppMappingRendererPlugin,
@@ -92,10 +93,12 @@ class PrinterManager:
 
         self.system = system or platform.system()
         self.backend = create_backend(self.system)
+        self._config_dir = default_config_dir()
         self._registry = build_default_registry()
-        self._app_mapping_store = AppMappingStore(default_config_dir())
+        self._app_mapping_store = AppMappingStore(self._config_dir)
         self._app_mapping_plugin = AppMappingRendererPlugin(self._app_mapping_store.load())
         self._registry.register(self._app_mapping_plugin, priority=100, is_builtin=False)
+        self._third_party_renderer_ids = register_third_party_renderers(self._registry, self._config_dir)
         self._validation = PDFValidationService()
         self._renderer_selector = RendererSelectionService(self._registry, self._validation)
 
@@ -213,6 +216,29 @@ class PrinterManager:
             content_type="application/pdf",
             job_name="Pridge Test Page",
         )
+
+    def install_renderer_plugin(self, source: Path) -> str:
+        from pridge_client.plugins.installer import install_renderer_plugin
+
+        plugin_id = install_renderer_plugin(source, self._config_dir)
+        self.rescan_renderer_plugins()
+        return plugin_id
+
+    def remove_renderer_plugin(self, plugin_id: str) -> None:
+        from pridge_client.plugins.installer import remove_renderer_plugin
+
+        remove_renderer_plugin(plugin_id, self._config_dir)
+        self.rescan_renderer_plugins()
+
+    def rescan_renderer_plugins(self) -> None:
+        from pridge_client.plugins.discovery import register_third_party_renderers
+
+        for plugin_id in self._third_party_renderer_ids:
+            self._registry.remove(plugin_id)
+        for entry in self._registry.all_entries():
+            if entry.load_error and not entry.is_builtin:
+                self._registry.remove(entry.plugin.plugin_id)
+        self._third_party_renderer_ids = register_third_party_renderers(self._registry, self._config_dir)
 
     @property
     def renderer_registry(self):

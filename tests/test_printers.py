@@ -2,9 +2,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileComment: Additional terms apply; see ADDITIONAL_TERMS.md.
 
+import shutil
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
+from pridge_client.plugins.discovery import renderer_plugins_dir
 from pridge_client.printer_backends import PosixPrinterBackend, parse_lpoptions
 from pridge_client.printers import (
     DriverChoice,
@@ -16,6 +20,9 @@ from pridge_client.printers import (
     create_test_page_pdf,
     validate_driver_settings,
 )
+
+
+FIXTURE_PLUGIN_DIR = Path(__file__).resolve().parent / "fixtures" / "example_renderer_plugin"
 
 
 class DriverCapabilityTests(unittest.TestCase):
@@ -145,6 +152,57 @@ class PrinterManagerTests(unittest.TestCase):
             self.manager.print_test_page("Labels", "raw")
 
         self.manager.backend.print_raw.assert_not_called()
+
+
+class PrinterManagerPluginLifecycleTests(unittest.TestCase):
+    def setUp(self) -> None:
+        from pridge_client.renderers import PDFValidationService, RendererSelectionService, build_default_registry
+
+        self.scratch = TemporaryDirectory()
+        self.addCleanup(self.scratch.cleanup)
+        self.config_dir = Path(self.scratch.name)
+
+        self.manager = PrinterManager.__new__(PrinterManager)
+        self.manager.system = "Test"
+        self.manager.backend = Mock()
+        self.manager._config_dir = self.config_dir
+        self.manager._registry = build_default_registry()
+        self.manager._third_party_renderer_ids = []
+        self.manager._validation = PDFValidationService()
+        self.manager._renderer_selector = RendererSelectionService(
+            self.manager._registry, self.manager._validation
+        )
+
+    def test_install_makes_a_third_party_plugin_immediately_selectable(self) -> None:
+        plugin_id = self.manager.install_renderer_plugin(FIXTURE_PLUGIN_DIR)
+
+        self.assertEqual(plugin_id, "org.example.pridge.renderer.example")
+        entry = self.manager.renderer_registry.get_entry(plugin_id)
+        self.assertIsNotNone(entry)
+        self.assertFalse(entry.is_builtin)
+        self.assertIn(plugin_id, self.manager._third_party_renderer_ids)
+
+    def test_remove_drops_the_plugin_from_the_live_registry(self) -> None:
+        plugin_id = self.manager.install_renderer_plugin(FIXTURE_PLUGIN_DIR)
+
+        self.manager.remove_renderer_plugin(plugin_id)
+
+        self.assertIsNone(self.manager.renderer_registry.get_entry(plugin_id))
+        self.assertNotIn(plugin_id, self.manager._third_party_renderer_ids)
+
+    def test_rescan_does_not_duplicate_an_already_loaded_plugin(self) -> None:
+        plugin_dir = renderer_plugins_dir(self.config_dir) / "example"
+        shutil.copytree(FIXTURE_PLUGIN_DIR, plugin_dir)
+
+        self.manager.rescan_renderer_plugins()
+        self.manager.rescan_renderer_plugins()
+
+        matches = [
+            entry
+            for entry in self.manager.renderer_registry.all_entries()
+            if entry.plugin.plugin_id == "org.example.pridge.renderer.example"
+        ]
+        self.assertEqual(len(matches), 1)
 
 
 class PosixPrinterBackendTests(unittest.TestCase):

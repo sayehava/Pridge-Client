@@ -1,0 +1,10 @@
+{
+  "id": "org.example.pridge.renderer.example",
+  "name": "Example Renderer",
+  "version": "1.0.0",
+  "api_version": 1,
+  "category": "renderer",
+  "entry_point": "plugin:ExampleRendererPlugin",
+  "supported_mime_types": ["application/x-pridge-example"],
+  "supported_extensions": [".example"]
+}
