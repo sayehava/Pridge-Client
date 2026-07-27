@@ -117,7 +117,8 @@ class PollingWorker:
     def _process_job(self, client: PridgeClient, job: ReservedJob) -> None:
         server = self.config.servers[0] if self.config.servers else None
         printer_name = resolve_printer_name(server, job, self.config.selected_printer)
-        profile = self.config.printer_profiles.get(printer_name, PrinterProfile())
+        override = server.printer_profiles.get(printer_name) if server else None
+        profile = override or self.config.printer_profiles.get(printer_name, PrinterProfile())
         self._record_job(job.job_id, "reserved")
         try:
             payload = decode_payload(job.payload_base64)
