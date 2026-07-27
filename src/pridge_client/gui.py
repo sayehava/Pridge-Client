@@ -615,6 +615,41 @@ class ClientApi:
         self._save_dashboard_widgets([widgets for widgets in pages if widgets])
         return self.get_dashboard_layout()
 
+    def reorder_dashboard_widget(self, widget_id: str, target_page: int, target_position: int) -> dict:
+        widget_id = str(widget_id).strip()
+        try:
+            target_page = int(target_page)
+            target_position = int(target_position)
+        except (TypeError, ValueError):
+            return self.get_dashboard_layout()
+
+        pages = self._grouped_dashboard_widgets()
+        source = None
+        for page_index, widgets in enumerate(pages):
+            for position, widget in enumerate(widgets):
+                if widget.id == widget_id:
+                    source = (page_index, position)
+                    break
+            if source:
+                break
+
+        if source is not None:
+            source_page, source_position = source
+            widget = pages[source_page][source_position]
+            target_page = max(0, min(target_page, len(pages)))
+            if target_page == len(pages):
+                pages.append([])
+            same_page = target_page == source_page
+            room_available = same_page or len(pages[target_page]) < MAX_DASHBOARD_WIDGETS_PER_PAGE
+            if room_available:
+                pages[source_page].pop(source_position)
+                target_widgets = pages[target_page]
+                target_position = max(0, min(target_position, len(target_widgets)))
+                target_widgets.insert(target_position, widget)
+
+        self._save_dashboard_widgets([widgets for widgets in pages if widgets])
+        return self.get_dashboard_layout()
+
     def _dashboard_layout_payload(self) -> dict:
         catalog = self._dashboard_catalog()
         catalog_by_type = {item["type"]: item for item in catalog}
