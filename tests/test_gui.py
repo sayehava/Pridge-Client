@@ -29,6 +29,11 @@ class MemoryTokenStore:
 
 
 class NoPrinters:
+    def __init__(self):
+        from pridge_client.renderers.registry import RendererRegistry
+
+        self.renderer_registry = RendererRegistry()
+
     def list_printers(self):
         return []
 
@@ -155,6 +160,7 @@ class ClientApiTests(unittest.TestCase):
 
     def test_saves_validated_system_driver_profile(self):
         manager = Mock()
+        manager.renderer_registry.all_entries.return_value = []
         manager.list_printers.return_value = [Printer("Office Driver", system_driver_available=True)]
         capabilities = PrinterCapabilities(
             printer_name="Office Driver",
@@ -183,6 +189,7 @@ class ClientApiTests(unittest.TestCase):
 
     def test_exposes_driver_capabilities_with_saved_profile(self):
         manager = Mock()
+        manager.renderer_registry.all_entries.return_value = []
         manager.list_printers.return_value = [Printer("Office Driver", system_driver_available=True)]
         capabilities = PrinterCapabilities(
             printer_name="Office Driver",
@@ -202,6 +209,7 @@ class ClientApiTests(unittest.TestCase):
 
     def test_opens_native_driver_settings(self):
         manager = Mock()
+        manager.renderer_registry.all_entries.return_value = []
         manager.list_printers.return_value = [Printer("Office Driver", system_driver_available=True)]
         manager.get_capabilities.return_value = PrinterCapabilities(
             printer_name="Office Driver",
@@ -218,6 +226,7 @@ class ClientApiTests(unittest.TestCase):
 
     def test_submits_test_page_using_saved_driver_profile(self):
         manager = Mock()
+        manager.renderer_registry.all_entries.return_value = []
         manager.list_printers.return_value = [Printer("Office Driver", system_driver_available=True)]
         self.api.printer_manager = manager
         self.api.refresh_printers()
