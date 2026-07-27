@@ -757,7 +757,7 @@ class ClientApi:
         if window is None:
             return self._error(MESSAGE_PLUGIN_INSTALL_FAILED)
         try:
-            selection = window.create_file_dialog(webview.FOLDER_DIALOG)
+            selection = window.create_file_dialog(webview.FileDialog.FOLDER)
         except Exception as exc:
             logger.warning("Could not open the plugin install dialog: %s", exc)
             return self._error(MESSAGE_PLUGIN_INSTALL_FAILED)
