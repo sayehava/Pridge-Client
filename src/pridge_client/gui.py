@@ -870,7 +870,7 @@ class ClientApi:
 
         default_name = f"pridge-client-{datetime.now().strftime('%Y%m%d-%H%M%S')}.log"
         try:
-            selection = window.create_file_dialog(webview.SAVE_DIALOG, save_filename=default_name)
+            selection = window.create_file_dialog(webview.FileDialog.SAVE, save_filename=default_name)
         except Exception as exc:
             logger.warning("Could not open the log export dialog: %s", exc)
             return self._error(MESSAGE_LOG_EXPORT_FAILED)
