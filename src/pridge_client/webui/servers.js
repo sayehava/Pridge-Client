@@ -215,20 +215,23 @@
 
     return html`
       <main class="utility-page">
-        <${ServerConnections}
-          servers=${state.servers}
-          onAdd=${onAdd}
-          onEdit=${onEdit}
-          onRemove=${onRemove}
-          onStart=${(serverId) => callApi("start_server", serverId).then(applyResult)}
-          onStop=${(serverId) => callApi("stop_server", serverId).then(applyResult)}
-        />
+        <div class="utility-content">
+          <${ServerConnections}
+            servers=${state.servers}
+            onAdd=${onAdd}
+            onEdit=${onEdit}
+            onRemove=${onRemove}
+            onStart=${(serverId) => callApi("start_server", serverId).then(applyResult)}
+            onStop=${(serverId) => callApi("stop_server", serverId).then(applyResult)}
+          />
+        </div>
         <${ConfirmDialog}
           server=${serverToRemove}
           onCancel=${() => setServerToRemove(null)}
           onConfirm=${confirmRemove}
         />
         <div class="utility-actions">
+          <span class="utility-footer-info">${S.servers_count.replace("{count}", state.servers.length)}</span>
           <button onClick=${() => callApi("close_utility_window", "servers")}>${S.close}</button>
         </div>
       </main>
