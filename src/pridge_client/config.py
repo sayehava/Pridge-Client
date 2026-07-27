@@ -50,6 +50,7 @@ class ServerConfig:
     heartbeat_interval_seconds: int = 30
     default_printer: str = ""
     printer_mappings: list[PrinterMapping] = field(default_factory=list)
+    printer_profiles: dict[str, PrinterProfile] = field(default_factory=dict)
 
 
 @dataclass
@@ -318,6 +319,7 @@ def _parse_server(raw: dict[str, Any], legacy_printer: str = "") -> ServerConfig
         heartbeat_interval_seconds=_positive_int(raw.get("heartbeat_interval_seconds", 30), 30),
         default_printer=str(raw.get("default_printer", legacy_printer)).strip(),
         printer_mappings=_parse_printer_mappings(raw.get("printer_mappings", [])),
+        printer_profiles=_parse_printer_profiles(raw.get("printer_profiles", {})),
     )
 
 
