@@ -687,5 +687,85 @@ class ClientApiTests(unittest.TestCase):
         main_window.destroy.assert_called_once()
 
 
+class DashboardWidgetTests(unittest.TestCase):
+    def setUp(self):
+        self.previous_handlers = list(logging.getLogger().handlers)
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        config_path = Path(self.temporary_directory.name) / "config.json"
+        self.api = ClientApi(
+            config_store=ConfigStore(config_path),
+            token_store=MemoryTokenStore(),
+            printer_manager=NoPrinters(),
+        )
+
+    def tearDown(self):
+        logging.getLogger().handlers = self.previous_handlers
+        self.temporary_directory.cleanup()
+
+    def test_default_layout_has_recent_jobs_and_logs_on_one_page(self):
+        result = self.api.get_dashboard_layout()
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(result["pages"]), 1)
+        self.assertEqual([w["widget_type"] for w in result["pages"][0]], ["recent_jobs", "logs"])
+        self.assertEqual({item["type"] for item in result["catalog"]}, {"recent_jobs", "logs"})
+
+    def test_add_widget_rejects_an_unknown_type(self):
+        result = self.api.add_dashboard_widget("not-a-real-widget")
+
+        self.assertFalse(result["ok"])
+
+    def test_add_widget_fills_the_current_page_before_a_new_one(self):
+        self.api.add_dashboard_widget("recent_jobs")
+        self.api.add_dashboard_widget("recent_jobs")
+        result = self.api.add_dashboard_widget("logs")
+
+        self.assertEqual(len(result["pages"]), 2)
+        self.assertEqual(len(result["pages"][0]), 4)
+        self.assertEqual(len(result["pages"][1]), 1)
+
+    def test_remove_widget_compacts_empty_pages(self):
+        layout = self.api.get_dashboard_layout()
+        first_id = layout["pages"][0][0]["id"]
+        second_id = layout["pages"][0][1]["id"]
+
+        self.api.remove_dashboard_widget(first_id)
+        result = self.api.remove_dashboard_widget(second_id)
+
+        self.assertEqual(result["pages"], [[]])
+
+    def test_move_down_then_up_swaps_widgets_within_a_page(self):
+        layout = self.api.get_dashboard_layout()
+        first_id = layout["pages"][0][0]["id"]
+
+        moved = self.api.move_dashboard_widget(first_id, "down")
+
+        self.assertEqual([w["id"] for w in moved["pages"][0]], [layout["pages"][0][1]["id"], first_id])
+
+        moved_back = self.api.move_dashboard_widget(first_id, "up")
+
+        self.assertEqual([w["id"] for w in moved_back["pages"][0]], [first_id, layout["pages"][0][1]["id"]])
+
+    def test_move_right_creates_a_new_page_when_the_next_one_is_full(self):
+        layout = self.api.get_dashboard_layout()
+        widget_id = layout["pages"][0][0]["id"]
+
+        result = self.api.move_dashboard_widget(widget_id, "right")
+
+        self.assertEqual(len(result["pages"]), 2)
+        self.assertEqual([w["id"] for w in result["pages"][1]], [widget_id])
+        self.assertEqual(len(result["pages"][0]), 1)
+
+    def test_move_left_sends_a_widget_back_to_the_previous_page(self):
+        layout = self.api.get_dashboard_layout()
+        widget_id = layout["pages"][0][0]["id"]
+        self.api.move_dashboard_widget(widget_id, "right")
+
+        result = self.api.move_dashboard_widget(widget_id, "left")
+
+        self.assertEqual(len(result["pages"]), 1)
+        self.assertEqual([w["widget_type"] for w in result["pages"][0]], ["logs", "recent_jobs"])
+
+
 if __name__ == "__main__":
     unittest.main()
