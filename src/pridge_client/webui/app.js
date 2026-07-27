@@ -77,32 +77,156 @@
     `;
   }
 
-  function JobsLogsCard({ jobs, logs }) {
+  function LogsPanel({ logs }) {
     const panelRef = useRef(null);
     useEffect(() => {
       const element = panelRef.current;
       if (element) element.scrollTop = element.scrollHeight;
     }, [logs]);
 
+    return logs.length === 0
+      ? html`<div class="scroll-panel empty">${S.no_logs}</div>`
+      : html`<div class="scroll-panel" ref=${panelRef}>
+          ${logs.map((line, index) => html`<div class="log-line" key=${index}>${line}</div>`)}
+        </div>`;
+  }
+
+  function WidgetCard({ widget, index, widgetCount, pageIndex, pageCount, recentJobs, logs, onRemove, onMove }) {
+    const containerId = `pridge-widget-${widget.id}`;
+    const scriptLoaded = useRef(false);
+
+    useEffect(() => {
+      if (widget.source !== "plugin" || !widget.script_source || scriptLoaded.current) return;
+      scriptLoaded.current = true;
+      window.PridgeWidgetContainerId = containerId;
+      const script = document.createElement("script");
+      script.textContent = widget.script_source;
+      document.body.appendChild(script);
+    }, [widget.source, widget.script_source]);
+
+    let body;
+    if (widget.widget_type === "recent_jobs") {
+      body = recentJobs.length === 0
+        ? html`<div class="scroll-panel empty">${S.no_jobs}</div>`
+        : html`<div class="scroll-panel">${recentJobs.map((line, i) => html`<div class="job-line" key=${i}>${line}</div>`)}</div>`;
+    } else if (widget.widget_type === "logs") {
+      body = html`<${LogsPanel} logs=${logs} />`;
+    } else {
+      body = html`<div id=${containerId} class="widget-plugin-mount"></div>`;
+    }
+
     return html`
-      <div class="card jobs-logs-card">
-        <div class="jobs-logs-pane">
-          <h3 class="card-title">${S.recent_jobs}</h3>
-          ${jobs.length === 0
-            ? html`<div class="scroll-panel empty">${S.no_jobs}</div>`
-            : html`<div class="scroll-panel">
-                ${jobs.map((line, index) => html`<div class="job-line" key=${index}>${line}</div>`)}
-              </div>`}
+      <div class="card widget-card">
+        <div class="widget-card-header">
+          <h4>${widget.title}</h4>
+          <div class="widget-card-actions">
+            <button class="widget-move-btn" title=${S.move_left} disabled=${pageIndex === 0 && index === 0} onClick=${() => onMove("left")}>◀</button>
+            <button class="widget-move-btn" title=${S.move_up} disabled=${index === 0} onClick=${() => onMove("up")}>▲</button>
+            <button class="widget-move-btn" title=${S.move_down} disabled=${index === widgetCount - 1} onClick=${() => onMove("down")}>▼</button>
+            <button class="widget-move-btn" title=${S.move_right} onClick=${() => onMove("right")}>▶</button>
+            <button class="widget-remove-btn" title=${S.remove_widget} onClick=${onRemove}>×</button>
+          </div>
         </div>
-        <div class="jobs-logs-divider"></div>
-        <div class="jobs-logs-pane">
-          <h3 class="card-title">${S.logs_status}</h3>
-          ${logs.length === 0
-            ? html`<div class="scroll-panel empty">${S.no_logs}</div>`
-            : html`<div class="scroll-panel" ref=${panelRef}>
-                ${logs.map((line, index) => html`<div class="log-line" key=${index}>${line}</div>`)}
-              </div>`}
+        <div class="widget-card-body">${body}</div>
+      </div>
+    `;
+  }
+
+  function WidgetPicker({ catalog, onPick, onClose }) {
+    return html`
+      <div class="modal-backdrop" role="presentation" onMouseDown=${(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}>
+        <div class="widget-picker" role="dialog" aria-modal="true" aria-label=${S.add_widget}>
+          <h3>${S.add_widget}</h3>
+          <div class="widget-picker-list">
+            ${catalog.map(
+              (item) => html`
+                <button class="ghost widget-picker-item" key=${item.type} onClick=${() => onPick(item.type)}>
+                  ${item.title}
+                  <span class=${item.source === "plugin" ? "badge" : "badge badge-active"}>
+                    ${item.source === "plugin" ? S.renderer_third_party : S.renderer_builtin}
+                  </span>
+                </button>
+              `
+            )}
+          </div>
+          <div class="utility-actions">
+            <button onClick=${onClose}>${S.close}</button>
+          </div>
         </div>
+      </div>
+    `;
+  }
+
+  function WidgetArea({ recentJobs, logs }) {
+    const [layout, setLayout] = useState(null);
+    const [pageIndex, setPageIndex] = useState(0);
+    const [showPicker, setShowPicker] = useState(false);
+
+    const refreshLayout = () => {
+      callApi("get_dashboard_layout").then((result) => {
+        if (result && result.ok) setLayout({ pages: result.pages, catalog: result.catalog });
+      });
+    };
+
+    useEffect(() => {
+      whenApiReady(refreshLayout);
+    }, []);
+
+    if (!layout) return html`<div class="card widget-area"></div>`;
+
+    const pageCount = Math.max(1, layout.pages.length);
+    const currentPage = Math.min(pageIndex, pageCount - 1);
+    const widgets = layout.pages[currentPage] || [];
+
+    const applyLayout = (result) => {
+      if (result && result.ok) setLayout({ pages: result.pages, catalog: result.catalog });
+    };
+    const addWidget = (widgetType) => {
+      callApi("add_dashboard_widget", widgetType).then((result) => {
+        applyLayout(result);
+        if (result && result.ok) setShowPicker(false);
+      });
+    };
+    const removeWidget = (id) => callApi("remove_dashboard_widget", id).then(applyLayout);
+    const moveWidget = (id, direction) => callApi("move_dashboard_widget", id, direction).then(applyLayout);
+
+    return html`
+      <div class="card widget-area">
+        <div class="widget-area-header">
+          <button class="ghost" onClick=${() => setShowPicker(true)}>${S.add_widget}</button>
+          ${pageCount > 1
+            ? html`
+                <div class="widget-page-nav">
+                  <button class="page-arrow" disabled=${currentPage === 0} onClick=${() => setPageIndex(currentPage - 1)}>‹</button>
+                  <span class="page-summary">${S.page_summary.replace("{page}", currentPage + 1).replace("{pages}", pageCount)}</span>
+                  <button class="page-arrow" disabled=${currentPage === pageCount - 1} onClick=${() => setPageIndex(currentPage + 1)}>›</button>
+                </div>
+              `
+            : null}
+        </div>
+        <div class="widget-grid">
+          ${widgets.map(
+            (widget, index) => html`
+              <${WidgetCard}
+                key=${widget.id}
+                widget=${widget}
+                index=${index}
+                widgetCount=${widgets.length}
+                pageIndex=${currentPage}
+                pageCount=${pageCount}
+                recentJobs=${recentJobs}
+                logs=${logs}
+                onRemove=${() => removeWidget(widget.id)}
+                onMove=${(direction) => moveWidget(widget.id, direction)}
+              />
+            `
+          )}
+        </div>
+        ${showPicker
+          ? html`<${WidgetPicker} catalog=${layout.catalog} onPick=${addWidget} onClose=${() => setShowPicker(false)} />`
+          : null}
       </div>
     `;
   }
@@ -170,7 +294,7 @@
             onStart=${() => callApi("start_workers").then(applyResult)}
             onStop=${() => callApi("stop_workers").then(applyResult)}
           />
-          <${JobsLogsCard} jobs=${state.recent_jobs} logs=${state.logs} />
+          <${WidgetArea} recentJobs=${state.recent_jobs} logs=${state.logs} />
         </div>
         ${error ? html`<div class="toast">${error}</div>` : null}
       </div>
