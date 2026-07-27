@@ -868,6 +868,42 @@ button.page-number.active {
   border-bottom: none;
 }
 
+.printer-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.printer-stat-row:last-child {
+  border-bottom: none;
+}
+
+.printer-stat-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.printer-stat-counts {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.printer-stat-success {
+  color: #34d399;
+}
+
+.printer-stat-failed {
+  color: #f87171;
+}
+
 .log-line {
   font-family: "SF Mono", Menlo, Consolas, monospace;
   font-size: 11.5px;
