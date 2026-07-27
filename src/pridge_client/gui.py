@@ -457,6 +457,7 @@ class ClientApi:
             "error": None,
             "capabilities": capabilities.public(validated),
             "profile": self._printer_profile_public(profile),
+            "platform_system": platform.system(),
             "state": self._build_state(),
         }
 
