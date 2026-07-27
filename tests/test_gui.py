@@ -646,6 +646,25 @@ class ClientApiTests(unittest.TestCase):
 
         self.assertFalse(result["ok"])
 
+    def test_reorder_renderer_plugin_moves_it_to_the_target_index(self):
+        manager = FakePluginPrinterManager()
+        manager.renderer_registry.register(FakeRendererPlugin("builtin.two"), priority=20, is_builtin=True)
+        manager.renderer_registry.register(FakeRendererPlugin("builtin.three"), priority=30, is_builtin=True)
+        self.api.printer_manager = manager
+
+        result = self.api.reorder_renderer_plugin("builtin.three", 0)
+
+        ordered = [p["plugin_id"] for p in sorted(result["plugins"], key=lambda p: p["priority"])]
+        self.assertEqual(ordered, ["builtin.three", "builtin.one", "builtin.two"])
+
+    def test_reorder_renderer_plugin_with_an_unknown_id_is_a_no_op(self):
+        manager = FakePluginPrinterManager()
+        self.api.printer_manager = manager
+
+        result = self.api.reorder_renderer_plugin("no-such-plugin", 0)
+
+        self.assertEqual([p["plugin_id"] for p in result["plugins"]], ["builtin.one"])
+
     def test_native_transparency_is_always_disabled(self):
         self.assertEqual(_window_effects(), {"transparent": False, "vibrancy": False})
 
