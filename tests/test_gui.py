@@ -190,6 +190,42 @@ class ClientApiTests(unittest.TestCase):
         )
         self.assertEqual(self.api.config_store.load().printer_profiles["Office Driver"].mode, "system_driver")
 
+    def test_saves_a_valid_submission_method(self):
+        manager = Mock()
+        manager.renderer_registry.all_entries.return_value = []
+        manager.list_printers.return_value = [Printer("Office Driver", system_driver_available=True)]
+        manager.get_capabilities.return_value = PrinterCapabilities(
+            printer_name="Office Driver", system_driver_available=True
+        )
+        self.api.printer_manager = manager
+        self.api.refresh_printers()
+
+        result = self.api.update_printer_profile(
+            "Office Driver", {"mode": "system_driver", "submission_method": "direct_pdf"}
+        )
+
+        self.assertEqual(result["profile"]["submission_method"], "direct_pdf")
+        self.assertEqual(
+            self.api.config_store.load().printer_profiles["Office Driver"].submission_method, "direct_pdf"
+        )
+
+    def test_falls_back_to_the_existing_submission_method_when_invalid(self):
+        manager = Mock()
+        manager.renderer_registry.all_entries.return_value = []
+        manager.list_printers.return_value = [Printer("Office Driver", system_driver_available=True)]
+        manager.get_capabilities.return_value = PrinterCapabilities(
+            printer_name="Office Driver", system_driver_available=True
+        )
+        self.api.printer_manager = manager
+        self.api.refresh_printers()
+        self.api.update_printer_profile("Office Driver", {"mode": "system_driver", "submission_method": "pdfium"})
+
+        result = self.api.update_printer_profile(
+            "Office Driver", {"mode": "system_driver", "submission_method": "not-a-real-method"}
+        )
+
+        self.assertEqual(result["profile"]["submission_method"], "pdfium")
+
     def test_exposes_driver_capabilities_with_saved_profile(self):
         manager = Mock()
         manager.renderer_registry.all_entries.return_value = []
