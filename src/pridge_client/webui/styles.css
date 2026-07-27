@@ -868,17 +868,13 @@ button.page-number.active {
   border-bottom: none;
 }
 
-.printer-stat-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 6px 0;
+.printer-stat-group {
+  padding: 8px 0;
   border-bottom: 1px solid var(--border);
   font-size: 12px;
 }
 
-.printer-stat-row:last-child {
+.printer-stat-group:last-child {
   border-bottom: none;
 }
 
@@ -886,6 +882,20 @@ button.page-number.active {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.printer-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 0;
+}
+
+.printer-stat-label {
+  color: var(--text-muted);
 }
 
 .printer-stat-counts {
