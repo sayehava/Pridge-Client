@@ -68,6 +68,7 @@ from pridge_client.strings import (
     MESSAGE_WINDOW_MINIMIZED,
     MENU_ABOUT,
     MENU_PLUGINS,
+    MENU_PRINTERS,
     MENU_QUIT,
     MENU_SERVERS,
     MENU_SETTINGS,
@@ -78,6 +79,7 @@ from pridge_client.strings import (
     WINDOW_APP_MAPPING,
     WINDOW_EDIT_SERVER,
     WINDOW_PLUGINS,
+    WINDOW_PRINTERS,
     WINDOW_SERVERS,
     WINDOW_SETTINGS,
     WINDOW_TITLE,
@@ -315,6 +317,15 @@ class ClientApi:
             page="servers.html",
             width=760,
             height=780,
+        )
+
+    def open_printers_window(self) -> dict:
+        return self._open_utility_window(
+            key="printers",
+            title=WINDOW_PRINTERS,
+            page="printers.html",
+            width=680,
+            height=760,
         )
 
     def open_app_mapping_window(self) -> dict:
@@ -1153,6 +1164,7 @@ def _run_gui_normal() -> None:
     menu_actions = [
         (MENU_PLUGINS, api.open_plugins_window),
         (MENU_SERVERS, api.open_servers_window),
+        (MENU_PRINTERS, api.open_printers_window),
         (MENU_SETTINGS, api.open_settings_window),
         (MENU_ABOUT, api.open_about_window),
         (MENU_QUIT, api.quit_application),
