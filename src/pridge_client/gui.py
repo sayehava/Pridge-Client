@@ -540,10 +540,10 @@ class ClientApi:
                 submission_method=profile.submission_method or None,
             )
         except PrinterError as exc:
-            self._bump_printer_stat(name, success=False)
+            self._bump_printer_stat(name, origin="test", success=False)
             return self._error(str(exc))
         logger.info("Submitted test page to printer %s", name)
-        self._bump_printer_stat(name, success=True)
+        self._bump_printer_stat(name, origin="test", success=True)
         return {
             "ok": True,
             "error": None,
@@ -1036,8 +1036,10 @@ class ClientApi:
                     "name": printer.name,
                     "is_default": printer.is_default,
                     "system_driver_available": printer.system_driver_available,
-                    "success_count": self.printer_stats.get(printer.name, {}).get("success", 0),
-                    "failed_count": self.printer_stats.get(printer.name, {}).get("failed", 0),
+                    "test_success_count": self.printer_stats.get(printer.name, {}).get("test", {}).get("success", 0),
+                    "test_failed_count": self.printer_stats.get(printer.name, {}).get("test", {}).get("failed", 0),
+                    "remote_success_count": self.printer_stats.get(printer.name, {}).get("remote", {}).get("success", 0),
+                    "remote_failed_count": self.printer_stats.get(printer.name, {}).get("remote", {}).get("failed", 0),
                 }
                 for printer in self.printers
             ],
@@ -1278,7 +1280,7 @@ class ClientApi:
                     self.recent_jobs.insert(0, line)
                     del self.recent_jobs[MAX_RECENT_JOBS:]
                     if job.printer_name and job.status in ("printed", "failed"):
-                        self._bump_printer_stat(job.printer_name, success=job.status == "printed")
+                        self._bump_printer_stat(job.printer_name, origin="remote", success=job.status == "printed")
             elif event == "config":
                 server_id, runtime_config = payload  # type: ignore[misc]
                 self._apply_runtime_config(server_id, runtime_config)
@@ -1295,8 +1297,9 @@ class ClientApi:
         server.heartbeat_interval_seconds = runtime_config.heartbeat_interval_seconds
         self.config_store.save(self._current_config())
 
-    def _bump_printer_stat(self, printer_name: str, success: bool) -> None:
-        counts = self.printer_stats.setdefault(printer_name, {"success": 0, "failed": 0})
+    def _bump_printer_stat(self, printer_name: str, origin: str, success: bool) -> None:
+        printer_counts = self.printer_stats.setdefault(printer_name, {})
+        counts = printer_counts.setdefault(origin, {"success": 0, "failed": 0})
         counts["success" if success else "failed"] += 1
 
     def _update_running_status(self) -> None:
