@@ -1148,6 +1148,12 @@ button.stone-option.selected {
   border-top: 1px solid var(--border);
 }
 
+.utility-footer-info {
+  margin-right: auto;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .settings-message {
   color: #86efac;
   font-size: 12px;
