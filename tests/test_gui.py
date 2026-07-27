@@ -226,6 +226,30 @@ class ClientApiTests(unittest.TestCase):
 
         self.assertEqual(result["profile"]["submission_method"], "pdfium")
 
+    @patch("pridge_client.gui.PridgeClient")
+    def test_server_id_targets_that_servers_own_profile_override(self, _client_class):
+        manager = Mock()
+        manager.renderer_registry.all_entries.return_value = []
+        manager.list_printers.return_value = [Printer("Office Driver", system_driver_available=True)]
+        manager.get_capabilities.return_value = PrinterCapabilities(
+            printer_name="Office Driver", system_driver_available=True
+        )
+        self.api.printer_manager = manager
+        self.api.refresh_printers()
+        add_result = self.api.add_server({"name": "Office", "server_url": "https://office.example.test"})
+        server_id = add_result["state"]["servers"][0]["id"]
+
+        result = self.api.update_printer_profile(
+            "Office Driver", {"mode": "system_driver", "submission_method": "pdfium"}, server_id
+        )
+
+        self.assertEqual(result["profile"]["submission_method"], "pdfium")
+        saved = self.api.config_store.load()
+        self.assertEqual(
+            saved.servers[0].printer_profiles["Office Driver"].submission_method, "pdfium"
+        )
+        self.assertNotIn("Office Driver", saved.printer_profiles)
+
     def test_exposes_driver_capabilities_with_saved_profile(self):
         manager = Mock()
         manager.renderer_registry.all_entries.return_value = []
