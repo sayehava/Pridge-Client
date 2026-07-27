@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 from pridge_client.api import RemotePrinter
 from pridge_client.config import ConfigStore
 from pridge_client.gui import APP_ICON_PATH, ClientApi, _shutdown_smoke_test, _webview_start_icon, _window_effects
-from pridge_client.printers import DriverChoice, DriverOption, Printer, PrinterCapabilities
+from pridge_client.printers import DriverChoice, DriverOption, Printer, PrinterCapabilities, PrinterError
 
 
 class MemoryTokenStore:
@@ -303,6 +303,35 @@ class ClientApiTests(unittest.TestCase):
             driver_settings={},
             submission_method=None,
         )
+
+    def test_successful_test_print_increments_the_printer_success_count(self):
+        manager = Mock()
+        manager.renderer_registry.all_entries.return_value = []
+        manager.list_printers.return_value = [Printer("Office Driver", system_driver_available=True)]
+        self.api.printer_manager = manager
+        self.api.refresh_printers()
+
+        self.api.test_printer("Office Driver")
+        state = self.api._build_state()
+
+        details = next(p for p in state["printer_details"] if p["name"] == "Office Driver")
+        self.assertEqual(details["success_count"], 1)
+        self.assertEqual(details["failed_count"], 0)
+
+    def test_failed_test_print_increments_the_printer_failed_count(self):
+        manager = Mock()
+        manager.renderer_registry.all_entries.return_value = []
+        manager.list_printers.return_value = [Printer("Office Driver", system_driver_available=True)]
+        manager.print_test_page.side_effect = PrinterError("out of paper")
+        self.api.printer_manager = manager
+        self.api.refresh_printers()
+
+        self.api.test_printer("Office Driver")
+        state = self.api._build_state()
+
+        details = next(p for p in state["printer_details"] if p["name"] == "Office Driver")
+        self.assertEqual(details["success_count"], 0)
+        self.assertEqual(details["failed_count"], 1)
 
     def test_starts_and_stops_one_server(self):
         result = self.api.add_server({"name": "Office", "server_url": "https://office.example.test"})
@@ -727,7 +756,7 @@ class DashboardWidgetTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(len(result["pages"]), 1)
         self.assertEqual([w["widget_type"] for w in result["pages"][0]], ["recent_jobs", "logs"])
-        self.assertEqual({item["type"] for item in result["catalog"]}, {"recent_jobs", "logs"})
+        self.assertEqual({item["type"] for item in result["catalog"]}, {"recent_jobs", "logs", "printer_stats"})
 
     def test_add_widget_rejects_an_unknown_type(self):
         result = self.api.add_dashboard_widget("not-a-real-widget")
@@ -817,7 +846,7 @@ class DashboardWidgetTests(unittest.TestCase):
 
         result = self.api.get_dashboard_layout()
 
-        self.assertEqual([item["source"] for item in result["catalog"]], ["builtin", "builtin"])
+        self.assertEqual([item["source"] for item in result["catalog"]], ["builtin", "builtin", "builtin"])
 
 
 if __name__ == "__main__":
