@@ -6,12 +6,21 @@ from __future__ import annotations
 
 import logging
 import platform
+import textwrap
 import time
 from dataclasses import dataclass, field
+from io import BytesIO
+from pathlib import Path
 from typing import Mapping
+
+from pridge_client.version import __version__
 
 
 logger = logging.getLogger(__name__)
+_LOGO_PATH = Path(__file__).resolve().parent / "webui" / "assets" / "Logo.png"
+_PAGE_WIDTH = 612
+_PAGE_HEIGHT = 792
+_MARGIN = 72
 
 
 class PrinterError(RuntimeError):
@@ -234,24 +243,80 @@ def validate_driver_settings(
 
 
 def create_test_page_pdf() -> bytes:
-    content = (
-        b"BT\n"
-        b"/F1 24 Tf\n"
-        b"72 700 Td\n"
-        b"(Pridge Client Test Page) Tj\n"
-        b"0 -38 Td\n"
-        b"/F1 12 Tf\n"
-        b"(System driver printing is configured correctly.) Tj\n"
-        b"ET\n"
+    """A one-page PDF that a person, not just a log line, can use to confirm
+    printing actually works: the Pridge logo plus large, unmissable status
+    text, so a blank or garbled page is as obvious as a correct one.
+    """
+    logo = _logo_jpeg()
+
+    title = "PRIDGE TEST PAGE"
+    content = bytearray(_text_op(title, "F2", 34, _centered_x(title, 34, 0.62), 720))
+
+    image_bottom = 690.0
+    if logo is not None:
+        jpeg_bytes, native_width, native_height = logo
+        display_width = 170.0
+        display_height = display_width * native_height / native_width
+        x = (_PAGE_WIDTH - display_width) / 2
+        y = image_bottom - display_height
+        content.extend(
+            f"q\n{display_width:.2f} 0 0 {display_height:.2f} {x:.2f} {y:.2f} cm\n/Im1 Do\nQ\n".encode("ascii")
+        )
+        image_bottom = y
+    else:
+        image_bottom -= 20
+
+    status = "IF YOU CAN READ THIS CLEARLY, PRINTING WORKS"
+    status_y = image_bottom - 40
+    content.extend(_text_op(status, "F2", 20, _centered_x(status, 20, 0.58), status_y))
+
+    explanation = textwrap.wrap(
+        "This page was generated locally by Pridge Client and submitted through the "
+        "selected printer's installed system driver. If the logo, title, and this "
+        "paragraph are all sharp and complete, System Driver printing is configured "
+        "correctly for this printer. RAW-mode printers do not use this test page, "
+        "because RAW jobs are sent unchanged in a device-specific printer language "
+        "that Pridge Client never converts or interprets.",
+        width=80,
     )
-    objects = (
+    text_y = status_y - 40
+    for line in explanation:
+        content.extend(_text_op(line, "F1", 12, _MARGIN, text_y))
+        text_y -= 16
+
+    footer = f"Pridge Client {__version__}"
+    content.extend(_text_op(footer, "F1", 9, _MARGIN, 40))
+
+    resources = b"/Font << /F1 4 0 R /F2 6 0 R >>"
+    if logo is not None:
+        resources = b"/Font << /F1 4 0 R /F2 6 0 R >> /XObject << /Im1 7 0 R >>"
+
+    objects = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
-        b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 "
+        + f"{_PAGE_WIDTH} {_PAGE_HEIGHT}".encode("ascii")
+        + b"] /Resources << "
+        + resources
+        + b" >> /Contents 5 0 R >>",
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-        f"<< /Length {len(content)} >>\nstream\n".encode("ascii") + content + b"endstream",
-    )
+        f"<< /Length {len(content)} >>\nstream\n".encode("ascii") + bytes(content) + b"endstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+    ]
+    if logo is not None:
+        jpeg_bytes, native_width, native_height = logo
+        objects.append(
+            b"<< /Type /XObject /Subtype /Image /Width "
+            + str(native_width).encode("ascii")
+            + b" /Height "
+            + str(native_height).encode("ascii")
+            + b" /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length "
+            + str(len(jpeg_bytes)).encode("ascii")
+            + b" >>\nstream\n"
+            + jpeg_bytes
+            + b"\nendstream"
+        )
+
     document = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
     offsets = [0]
     for object_number, value in enumerate(objects, start=1):
@@ -277,3 +342,41 @@ def _default_submission_method(system: str) -> str:
     if system == "Windows":
         return "pdfium"
     return "direct_pdf"
+
+
+def _text_op(text: str, font: str, size: float, x: float, y: float) -> bytes:
+    return (
+        b"BT\n/"
+        + font.encode("ascii")
+        + f" {size:g} Tf\n{x:.2f} {y:.2f} Td\n(".encode("ascii")
+        + _pdf_escape(text)
+        + b") Tj\nET\n"
+    )
+
+
+def _pdf_escape(text: str) -> bytes:
+    escaped = text.replace("\\", r"\\").replace("(", r"\(").replace(")", r"\)")
+    return escaped.encode("latin-1", errors="replace")
+
+
+def _centered_x(text: str, size: float, average_width_em: float) -> float:
+    width = len(text) * size * average_width_em
+    return max(_MARGIN, (_PAGE_WIDTH - width) / 2)
+
+
+def _logo_jpeg() -> tuple[bytes, int, int] | None:
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+    try:
+        with Image.open(_LOGO_PATH) as source:
+            rgba = source.convert("RGBA")
+            flattened = Image.new("RGB", rgba.size, (255, 255, 255))
+            flattened.paste(rgba, mask=rgba.split()[3])
+    except OSError as exc:
+        logger.warning("Could not load the Pridge logo for the test page: %s", exc)
+        return None
+    buffer = BytesIO()
+    flattened.save(buffer, format="JPEG", quality=88)
+    return buffer.getvalue(), flattened.width, flattened.height

@@ -23,8 +23,15 @@ class DriverCapabilityTests(unittest.TestCase):
         document = create_test_page_pdf()
 
         self.assertTrue(document.startswith(b"%PDF-1.4"))
-        self.assertIn(b"Pridge Client Test Page", document)
+        self.assertIn(b"PRIDGE TEST PAGE", document)
+        self.assertIn(b"IF YOU CAN READ THIS CLEARLY, PRINTING WORKS", document)
         self.assertTrue(document.endswith(b"%%EOF\n"))
+
+    def test_embeds_the_pridge_logo_as_an_image_xobject(self) -> None:
+        document = create_test_page_pdf()
+
+        self.assertIn(b"/Subtype /Image", document)
+        self.assertIn(b"/Im1", document)
 
     def test_parses_cups_option_ids_labels_choices_and_defaults(self) -> None:
         capabilities = parse_lpoptions(
