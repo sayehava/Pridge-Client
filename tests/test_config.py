@@ -185,6 +185,33 @@ class ConfigStoreTests(unittest.TestCase):
         self.assertEqual(server.printer_mappings[0].remote_printer_name, "Receipts")
         self.assertEqual(server.printer_mappings[0].local_printer_name, "EPSON TM-T88")
 
+    def test_loads_per_server_printer_profile_override(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "servers": [
+                            {
+                                "id": "office",
+                                "name": "Office",
+                                "server_url": "https://office.example.test",
+                                "printer_profiles": {
+                                    "EPSON TM-T88": {"mode": "raw", "submission_method": "pdfium"}
+                                },
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            config = ConfigStore(path).load()
+
+        profile = config.servers[0].printer_profiles["EPSON TM-T88"]
+        self.assertEqual(profile.mode, "raw")
+        self.assertEqual(profile.submission_method, "pdfium")
+
     def test_migrates_global_printer_to_server_default(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.json"
