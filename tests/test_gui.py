@@ -766,6 +766,35 @@ class DashboardWidgetTests(unittest.TestCase):
         self.assertEqual(len(result["pages"]), 1)
         self.assertEqual([w["widget_type"] for w in result["pages"][0]], ["logs", "recent_jobs"])
 
+    def test_catalog_includes_a_plugin_widget_with_its_script_source_inlined(self):
+        fixture_dir = Path(__file__).resolve().parent / "fixtures" / "example_widget_plugin"
+        self.api.printer_manager.renderer_registry.register(
+            FakeRendererPlugin("org.example.pridge.widget.example"),
+            priority=200,
+            is_builtin=False,
+            source_path=str(fixture_dir),
+        )
+
+        result = self.api.get_dashboard_layout()
+
+        plugin_entries = [item for item in result["catalog"] if item["source"] == "plugin"]
+        self.assertEqual(len(plugin_entries), 1)
+        self.assertEqual(plugin_entries[0]["type"], "org.example.pridge.widget.example")
+        self.assertEqual(plugin_entries[0]["title"], "Example Widget")
+        self.assertIn("Example widget rendered", plugin_entries[0]["script_source"])
+
+    def test_catalog_omits_a_renderer_plugin_without_widget_fields(self):
+        self.api.printer_manager.renderer_registry.register(
+            FakeRendererPlugin("org.example.no.widget"),
+            priority=200,
+            is_builtin=False,
+            source_path="/nonexistent/plugin/path",
+        )
+
+        result = self.api.get_dashboard_layout()
+
+        self.assertEqual([item["source"] for item in result["catalog"]], ["builtin", "builtin"])
+
 
 if __name__ == "__main__":
     unittest.main()
