@@ -62,7 +62,7 @@
   function ServersSummaryCard({ servers, onManage }) {
     const running = servers.filter((server) => server.running).length;
     return html`
-      <div class="card area-server">
+      <div class="card summary-card">
         <div class="card-heading-row">
           <div>
             <h3 class="card-title">${S.server_connections}</h3>
@@ -76,20 +76,35 @@
     `;
   }
 
-  function ControlsCard({ state, onStart, onStop }) {
+  function PluginsSummaryCard({ summary, onManage }) {
     return html`
-      <div class="card area-polling">
-        <h3 class="card-title">${S.endpoint_controls}</h3>
-        <div class="card-subtitle controls-hint">${S.endpoint_controls_hint}</div>
-        <div class="badge-row">
-          <label class="field-label">${S.connection_status}</label>
-          <${Badge} text=${state.connection_status} />
+      <div class="card summary-card">
+        <div class="card-heading-row">
+          <div>
+            <h3 class="card-title">${S.plugins}</h3>
+            <div class="card-subtitle">${S.plugins_enabled_summary
+              .replace("{enabled}", summary.enabled)
+              .replace("{total}", summary.total)}</div>
+            ${summary.third_party > 0
+              ? html`<div class="card-subtitle">${S.plugins_third_party_summary.replace("{count}", summary.third_party)}</div>`
+              : null}
+          </div>
+          <button class="primary" onClick=${onManage}>${S.manage_plugins}</button>
         </div>
-        <div class="badge-row">
-          <label class="field-label">${S.heartbeat}</label>
-          <${Badge} text=${state.heartbeat_status} />
+      </div>
+    `;
+  }
+
+  function StatusBar({ state, onStart, onStop }) {
+    return html`
+      <div class="status-bar">
+        <div class="status-bar-copy">
+          <strong>${S.endpoint_controls}</strong>
+          <span>${S.endpoint_controls_hint}</span>
         </div>
-        <div class="button-row controls-actions">
+        <div class="badge-row"><label class="field-label">${S.connection_status}</label><${Badge} text=${state.connection_status} /></div>
+        <div class="badge-row"><label class="field-label">${S.heartbeat}</label><${Badge} text=${state.heartbeat_status} /></div>
+        <div class="button-row">
           <button class="success" onClick=${onStart}>${S.start_all}</button>
           <button class="danger" onClick=${onStop}>${S.stop_all}</button>
         </div>
@@ -97,20 +112,7 @@
     `;
   }
 
-  function JobsCard({ jobs }) {
-    return html`
-      <div class="card area-jobs">
-        <h3 class="card-title">${S.recent_jobs}</h3>
-        ${jobs.length === 0
-          ? html`<div class="scroll-panel empty">${S.no_jobs}</div>`
-          : html`<div class="scroll-panel">
-              ${jobs.map((line, index) => html`<div class="job-line" key=${index}>${line}</div>`)}
-            </div>`}
-      </div>
-    `;
-  }
-
-  function LogsCard({ logs }) {
+  function JobsLogsCard({ jobs, logs }) {
     const panelRef = useRef(null);
     useEffect(() => {
       const element = panelRef.current;
@@ -118,13 +120,24 @@
     }, [logs]);
 
     return html`
-      <div class="card area-logs">
-        <h3 class="card-title">${S.logs_status}</h3>
-        ${logs.length === 0
-          ? html`<div class="scroll-panel empty">${S.no_logs}</div>`
-          : html`<div class="scroll-panel" ref=${panelRef}>
-              ${logs.map((line, index) => html`<div class="log-line" key=${index}>${line}</div>`)}
-            </div>`}
+      <div class="card jobs-logs-card">
+        <div class="jobs-logs-pane">
+          <h3 class="card-title">${S.recent_jobs}</h3>
+          ${jobs.length === 0
+            ? html`<div class="scroll-panel empty">${S.no_jobs}</div>`
+            : html`<div class="scroll-panel">
+                ${jobs.map((line, index) => html`<div class="job-line" key=${index}>${line}</div>`)}
+              </div>`}
+        </div>
+        <div class="jobs-logs-divider"></div>
+        <div class="jobs-logs-pane">
+          <h3 class="card-title">${S.logs_status}</h3>
+          ${logs.length === 0
+            ? html`<div class="scroll-panel empty">${S.no_logs}</div>`
+            : html`<div class="scroll-panel" ref=${panelRef}>
+                ${logs.map((line, index) => html`<div class="log-line" key=${index}>${line}</div>`)}
+              </div>`}
+        </div>
       </div>
     `;
   }
@@ -186,17 +199,22 @@
           onQuit=${() => callApi("quit_application")}
         />
         <div class="content">
-          <${ServersSummaryCard}
-            servers=${state.servers}
-            onManage=${() => callApi("open_servers_window").then(applyResult)}
-          />
-          <${ControlsCard}
+          <${StatusBar}
             state=${state}
             onStart=${() => callApi("start_workers").then(applyResult)}
             onStop=${() => callApi("stop_workers").then(applyResult)}
           />
-          <${JobsCard} jobs=${state.recent_jobs} />
-          <${LogsCard} logs=${state.logs} />
+          <div class="summary-row">
+            <${ServersSummaryCard}
+              servers=${state.servers}
+              onManage=${() => callApi("open_servers_window").then(applyResult)}
+            />
+            <${PluginsSummaryCard}
+              summary=${state.plugins_summary}
+              onManage=${() => callApi("open_plugins_window").then(applyResult)}
+            />
+          </div>
+          <${JobsLogsCard} jobs=${state.recent_jobs} logs=${state.logs} />
         </div>
         ${error ? html`<div class="toast">${error}</div>` : null}
       </div>
