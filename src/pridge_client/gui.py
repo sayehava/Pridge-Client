@@ -855,14 +855,6 @@ class ClientApi:
         self.printer_manager.app_mapping_store.save(mappings)
         return self.get_app_mappings()
 
-    def swap_renderer_plugin_priorities(self, plugin_id_a: str, plugin_id_b: str) -> dict:
-        reg = self.printer_manager.renderer_registry
-        entry_a = reg.get_entry(str(plugin_id_a))
-        entry_b = reg.get_entry(str(plugin_id_b))
-        if entry_a is not None and entry_b is not None:
-            entry_a.priority, entry_b.priority = entry_b.priority, entry_a.priority
-        return self.get_renderer_plugins()
-
     def reorder_renderer_plugin(self, plugin_id: str, target_index: int) -> dict:
         plugin_id = str(plugin_id).strip()
         try:
