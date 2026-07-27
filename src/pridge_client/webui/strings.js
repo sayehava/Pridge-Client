@@ -148,8 +148,6 @@ window.PridgeStrings = Object.freeze({
   renderer_builtin: "Built-in",
   renderer_third_party: "Third-party",
   renderer_load_error: "Failed to load",
-  renderer_move_up: "Move earlier",
-  renderer_move_down: "Move later",
   plugin_settings: "Settings",
   install_plugin: "Install Plugin…",
   install_plugin_hint: "Select a plugin folder containing manifest.json to install a third-party renderer.",
