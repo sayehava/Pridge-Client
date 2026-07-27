@@ -59,42 +59,6 @@
     `;
   }
 
-  function ServersSummaryCard({ servers, onManage }) {
-    const running = servers.filter((server) => server.running).length;
-    return html`
-      <div class="card summary-card">
-        <div class="card-heading-row">
-          <div>
-            <h3 class="card-title">${S.server_connections}</h3>
-            <div class="card-subtitle">${S.servers_summary
-              .replace("{running}", running)
-              .replace("{total}", servers.length)}</div>
-          </div>
-          <button class="primary" onClick=${onManage}>${S.manage_servers}</button>
-        </div>
-      </div>
-    `;
-  }
-
-  function PluginsSummaryCard({ summary, onManage }) {
-    return html`
-      <div class="card summary-card">
-        <div class="card-heading-row">
-          <div>
-            <h3 class="card-title">${S.plugins}</h3>
-            <div class="card-subtitle">${S.plugins_enabled_summary
-              .replace("{enabled}", summary.enabled)
-              .replace("{total}", summary.total)}</div>
-            ${summary.third_party > 0
-              ? html`<div class="card-subtitle">${S.plugins_third_party_summary.replace("{count}", summary.third_party)}</div>`
-              : null}
-          </div>
-          <button class="primary" onClick=${onManage}>${S.manage_plugins}</button>
-        </div>
-      </div>
-    `;
-  }
-
   function StatusBar({ state, onStart, onStop }) {
     return html`
       <div class="status-bar">
@@ -204,16 +168,6 @@
             onStart=${() => callApi("start_workers").then(applyResult)}
             onStop=${() => callApi("stop_workers").then(applyResult)}
           />
-          <div class="summary-row">
-            <${ServersSummaryCard}
-              servers=${state.servers}
-              onManage=${() => callApi("open_servers_window").then(applyResult)}
-            />
-            <${PluginsSummaryCard}
-              summary=${state.plugins_summary}
-              onManage=${() => callApi("open_plugins_window").then(applyResult)}
-            />
-          </div>
           <${JobsLogsCard} jobs=${state.recent_jobs} logs=${state.logs} />
         </div>
         ${error ? html`<div class="toast">${error}</div>` : null}
