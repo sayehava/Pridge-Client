@@ -362,13 +362,6 @@ button {
   margin-top: 0;
 }
 
-.summary-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--gap);
-  flex: 0 0 auto;
-}
-
 /* Cards */
 .card {
   background: linear-gradient(145deg, var(--card-highlight), var(--card-bg));
@@ -406,9 +399,6 @@ button {
   background: var(--border);
 }
 
-.summary-card {
-  min-height: 0;
-}
 
 .card-title {
   font-size: 15px;
@@ -1470,10 +1460,6 @@ button.stone-option.selected {
 }
 
 @media (max-width: 1040px) {
-  .summary-row {
-    grid-template-columns: 1fr;
-  }
-
   .status-bar {
     flex-direction: column;
     align-items: stretch;
