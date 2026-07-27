@@ -13,4 +13,5 @@ class JobHistoryEntry:
     job_id: str
     status: str
     detail: str = ""
+    printer_name: str = ""
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
