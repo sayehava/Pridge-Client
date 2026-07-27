@@ -38,7 +38,7 @@
     return html`<span class=${active ? "badge badge-active" : "badge"}>${text}</span>`;
   }
 
-  function Sidebar({ state, onPlugins, onServers, onSettings, onAbout, onQuit }) {
+  function Sidebar({ state, onPlugins, onServers, onPrinters, onSettings, onAbout, onQuit }) {
     return html`
       <div class="sidebar">
         <div class="sidebar-title">${state.app_name}</div>
@@ -51,6 +51,7 @@
         <div class="sidebar-footer">
           <button class="sidebar-nav full-width" onClick=${onPlugins}><span aria-hidden="true">🧩</span>${S.plugins}</button>
           <button class="sidebar-nav full-width" onClick=${onServers}><span aria-hidden="true">🖧</span>${S.servers}</button>
+          <button class="sidebar-nav full-width" onClick=${onPrinters}><span aria-hidden="true">🖨</span>${S.printers}</button>
           <button class="sidebar-nav full-width" onClick=${onSettings}><span aria-hidden="true">⚙</span>${S.settings}</button>
           <button class="sidebar-nav full-width" onClick=${onAbout}><span aria-hidden="true">ⓘ</span>${S.about}</button>
           <button class="danger full-width" onClick=${onQuit}>${S.quit}</button>
@@ -158,6 +159,7 @@
           state=${state}
           onPlugins=${() => callApi("open_plugins_window").then(applyResult)}
           onServers=${() => callApi("open_servers_window").then(applyResult)}
+          onPrinters=${() => callApi("open_printers_window").then(applyResult)}
           onSettings=${() => callApi("open_settings_window").then(applyResult)}
           onAbout=${() => callApi("open_about_window").then(applyResult)}
           onQuit=${() => callApi("quit_application")}
