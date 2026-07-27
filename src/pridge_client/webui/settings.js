@@ -79,44 +79,46 @@
           <img src="assets/Hero.png" alt="" />
           <div class="utility-hero-copy"><h1>${S.settings}</h1><p>${S.about_title}</p></div>
         </div>
-        <section class="settings-section">
-          <h2>${S.appearance}</h2>
-          <p>${S.appearance_hint}</p>
-          <div class="stone-options" role="radiogroup" aria-label=${S.darkness_amount}>
-            ${S.darkness_grades.map(
-              (grade) => html`<button
-                type="button"
-                role="radio"
-                aria-checked=${form.darkness_grade === grade.name}
-                class=${form.darkness_grade === grade.name ? "stone-option selected" : "stone-option"}
-                onClick=${() => change("darkness_grade", grade.name)}
-                key=${grade.name}
-              >
-                <span class=${`stone-swatch stone-${grade.name.toLowerCase()}`}></span>
-                <span><strong>${grade.name}</strong><small>${grade.tone}</small></span>
-              </button>`
-            )}
-          </div>
-        </section>
-        <section class="settings-section">
-          <h2>${S.startup}</h2>
-          <div class="setting-row">
-            <div class="setting-copy"><strong>${S.start_polling_on_launch}</strong></div>
-            <input class="setting-check" type="checkbox" checked=${form.start_polling_on_launch} onChange=${(event) => change("start_polling_on_launch", event.target.checked)} />
-          </div>
-          <div class="setting-row">
-            <div class="setting-copy"><strong>${S.start_at_login}</strong></div>
-            <input class="setting-check" type="checkbox" checked=${form.start_at_login} onChange=${(event) => change("start_at_login", event.target.checked)} />
-          </div>
-        </section>
-        <section class="settings-section">
-          <h2>${S.diagnostics}</h2>
-          <div class="setting-row">
-            <div class="setting-copy"><strong>${S.export_log}</strong><small>${S.export_log_hint}</small></div>
-            <button onClick=${exportLog} disabled=${exporting}>${exporting ? S.exporting_log : S.export_log}</button>
-          </div>
-        </section>
-        ${message ? html`<div class="settings-message">${message}</div>` : null}
+        <div class="utility-content">
+          <section class="settings-section">
+            <h2>${S.appearance}</h2>
+            <p>${S.appearance_hint}</p>
+            <div class="stone-options" role="radiogroup" aria-label=${S.darkness_amount}>
+              ${S.darkness_grades.map(
+                (grade) => html`<button
+                  type="button"
+                  role="radio"
+                  aria-checked=${form.darkness_grade === grade.name}
+                  class=${form.darkness_grade === grade.name ? "stone-option selected" : "stone-option"}
+                  onClick=${() => change("darkness_grade", grade.name)}
+                  key=${grade.name}
+                >
+                  <span class=${`stone-swatch stone-${grade.name.toLowerCase()}`}></span>
+                  <span><strong>${grade.name}</strong><small>${grade.tone}</small></span>
+                </button>`
+              )}
+            </div>
+          </section>
+          <section class="settings-section">
+            <h2>${S.startup}</h2>
+            <div class="setting-row">
+              <div class="setting-copy"><strong>${S.start_polling_on_launch}</strong></div>
+              <input class="setting-check" type="checkbox" checked=${form.start_polling_on_launch} onChange=${(event) => change("start_polling_on_launch", event.target.checked)} />
+            </div>
+            <div class="setting-row">
+              <div class="setting-copy"><strong>${S.start_at_login}</strong></div>
+              <input class="setting-check" type="checkbox" checked=${form.start_at_login} onChange=${(event) => change("start_at_login", event.target.checked)} />
+            </div>
+          </section>
+          <section class="settings-section">
+            <h2>${S.diagnostics}</h2>
+            <div class="setting-row">
+              <div class="setting-copy"><strong>${S.export_log}</strong><small>${S.export_log_hint}</small></div>
+              <button onClick=${exportLog} disabled=${exporting}>${exporting ? S.exporting_log : S.export_log}</button>
+            </div>
+          </section>
+          ${message ? html`<div class="settings-message">${message}</div>` : null}
+        </div>
         <div class="utility-actions">
           <button onClick=${() => callApi("close_utility_window", "settings")}>${S.close}</button>
         </div>
