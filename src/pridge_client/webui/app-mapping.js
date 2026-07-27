@@ -139,40 +139,43 @@
           <img src="assets/Hero.png" alt="" />
           <div class="utility-hero-copy"><h1>${S.app_mappings}</h1><p>${S.app_mappings_hint}</p></div>
         </div>
-        <section class="settings-section">
-          ${mappings !== null && mappings.length === 0 && editingMapping === null
-            ? html`<p class="hint-text">${S.no_app_mappings}</p>`
-            : null}
-          ${mappings !== null ? mappings.map((m) => editingMapping && editingMapping.id === m.id
-            ? html`<${MappingForm} key=${m.id} initial=${mappingToForm(m)} onSave=${saveMapping} onCancel=${() => setEditingMapping(null)} />`
-            : html`
-              <div class="setting-row mapping-row" key=${m.id}>
-                <input
-                  class="setting-check"
-                  type="checkbox"
-                  checked=${m.enabled}
-                  onChange=${(e) => callApi("update_app_mapping", m.id, { enabled: e.target.checked }).then((r) => r && r.ok && setMappings(r.mappings))}
-                />
-                <div class="setting-copy">
-                  <strong>${m.name}</strong>
-                  ${[...m.extensions, ...m.mime_types].length ? html`<small>${[...m.extensions, ...m.mime_types].join(", ")}</small>` : null}
-                  ${m.executable ? html`<small class="renderer-types">${m.executable}</small>` : null}
+        <div class="utility-content">
+          <section class="settings-section">
+            ${mappings !== null && mappings.length === 0 && editingMapping === null
+              ? html`<p class="hint-text">${S.no_app_mappings}</p>`
+              : null}
+            ${mappings !== null ? mappings.map((m) => editingMapping && editingMapping.id === m.id
+              ? html`<${MappingForm} key=${m.id} initial=${mappingToForm(m)} onSave=${saveMapping} onCancel=${() => setEditingMapping(null)} />`
+              : html`
+                <div class="setting-row mapping-row" key=${m.id}>
+                  <input
+                    class="setting-check"
+                    type="checkbox"
+                    checked=${m.enabled}
+                    onChange=${(e) => callApi("update_app_mapping", m.id, { enabled: e.target.checked }).then((r) => r && r.ok && setMappings(r.mappings))}
+                  />
+                  <div class="setting-copy">
+                    <strong>${m.name}</strong>
+                    ${[...m.extensions, ...m.mime_types].length ? html`<small>${[...m.extensions, ...m.mime_types].join(", ")}</small>` : null}
+                    ${m.executable ? html`<small class="renderer-types">${m.executable}</small>` : null}
+                  </div>
+                  <div class="mapping-actions">
+                    <button class="btn-secondary" onClick=${() => setEditingMapping(m)}>${S.edit}</button>
+                    <button class="btn-danger-small" onClick=${() => removeMapping(m.id, m.name)}>${S.remove}</button>
+                  </div>
                 </div>
-                <div class="mapping-actions">
-                  <button class="btn-secondary" onClick=${() => setEditingMapping(m)}>${S.edit}</button>
-                  <button class="btn-danger-small" onClick=${() => removeMapping(m.id, m.name)}>${S.remove}</button>
-                </div>
-              </div>
-            `
-          ) : null}
-          ${editingMapping && !editingMapping.id
-            ? html`<${MappingForm} initial=${null} onSave=${saveMapping} onCancel=${() => setEditingMapping(null)} />`
-            : null}
-          ${editingMapping === null
-            ? html`<button class="btn-secondary mapping-add-btn" onClick=${() => setEditingMapping({})}>${S.add_mapping}</button>`
-            : null}
-        </section>
+              `
+            ) : null}
+            ${editingMapping && !editingMapping.id
+              ? html`<${MappingForm} initial=${null} onSave=${saveMapping} onCancel=${() => setEditingMapping(null)} />`
+              : null}
+            ${editingMapping === null
+              ? html`<button class="btn-secondary mapping-add-btn" onClick=${() => setEditingMapping({})}>${S.add_mapping}</button>`
+              : null}
+          </section>
+        </div>
         <div class="utility-actions">
+          <span class="utility-footer-info">${S.mappings_count.replace("{count}", mappings ? mappings.length : 0)}</span>
           <button onClick=${() => callApi("close_utility_window", "app_mapping")}>${S.close}</button>
         </div>
       </main>
