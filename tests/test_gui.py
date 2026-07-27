@@ -241,6 +241,7 @@ class ClientApiTests(unittest.TestCase):
             "Office Driver",
             mode="system_driver",
             driver_settings={},
+            submission_method=None,
         )
 
     def test_starts_and_stops_one_server(self):
