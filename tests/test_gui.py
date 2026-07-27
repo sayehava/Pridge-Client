@@ -766,6 +766,43 @@ class DashboardWidgetTests(unittest.TestCase):
         self.assertEqual(len(result["pages"]), 1)
         self.assertEqual([w["widget_type"] for w in result["pages"][0]], ["logs", "recent_jobs"])
 
+    def test_reorder_moves_a_widget_within_the_same_page(self):
+        layout = self.api.get_dashboard_layout()
+        first_id = layout["pages"][0][0]["id"]
+        second_id = layout["pages"][0][1]["id"]
+
+        result = self.api.reorder_dashboard_widget(first_id, 0, 1)
+
+        self.assertEqual([w["id"] for w in result["pages"][0]], [second_id, first_id])
+
+    def test_reorder_moves_a_widget_to_a_new_page(self):
+        layout = self.api.get_dashboard_layout()
+        widget_id = layout["pages"][0][0]["id"]
+
+        result = self.api.reorder_dashboard_widget(widget_id, 1, 0)
+
+        self.assertEqual(len(result["pages"]), 2)
+        self.assertEqual([w["id"] for w in result["pages"][1]], [widget_id])
+        self.assertEqual(len(result["pages"][0]), 1)
+
+    def test_reorder_is_a_no_op_when_the_target_page_is_full(self):
+        self.api.add_dashboard_widget("recent_jobs")
+        self.api.add_dashboard_widget("recent_jobs")
+        layout = self.api.add_dashboard_widget("logs")
+        widget_to_move = layout["pages"][1][0]["id"]
+
+        result = self.api.reorder_dashboard_widget(widget_to_move, 0, 0)
+
+        self.assertEqual(len(result["pages"][0]), 4)
+        self.assertEqual(len(result["pages"][1]), 1)
+
+    def test_reorder_with_an_unknown_id_is_a_no_op(self):
+        before = self.api.get_dashboard_layout()
+
+        result = self.api.reorder_dashboard_widget("no-such-widget", 0, 0)
+
+        self.assertEqual(result["pages"], before["pages"])
+
     def test_catalog_includes_a_plugin_widget_with_its_script_source_inlined(self):
         fixture_dir = Path(__file__).resolve().parent / "fixtures" / "example_widget_plugin"
         self.api.printer_manager.renderer_registry.register(
