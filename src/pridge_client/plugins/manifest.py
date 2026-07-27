@@ -32,6 +32,8 @@ class PluginManifest:
     entry_point: str
     supported_mime_types: tuple[str, ...] = field(default_factory=tuple)
     supported_extensions: tuple[str, ...] = field(default_factory=tuple)
+    widget_title: str = ""
+    widget_entry: str = ""
 
     def public(self) -> dict[str, object]:
         return {
@@ -42,7 +44,13 @@ class PluginManifest:
             "category": self.category,
             "supported_mime_types": list(self.supported_mime_types),
             "supported_extensions": list(self.supported_extensions),
+            "widget_title": self.widget_title,
+            "widget_entry": self.widget_entry,
         }
+
+    @property
+    def has_widget(self) -> bool:
+        return bool(self.widget_title and self.widget_entry)
 
 
 def load_manifest(manifest_path: Path) -> PluginManifest:
@@ -91,4 +99,6 @@ def load_manifest(manifest_path: Path) -> PluginManifest:
         supported_extensions=tuple(
             str(value).strip() for value in raw.get("supported_extensions", []) if str(value).strip()
         ),
+        widget_title=str(raw.get("widget_title", "")).strip(),
+        widget_entry=str(raw.get("widget_entry", "")).strip(),
     )
