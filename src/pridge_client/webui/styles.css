@@ -968,17 +968,32 @@ button.page-number.active {
 
 /* Settings and About windows */
 .utility-body {
-  overflow: auto;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .utility-page {
-  min-height: 100vh;
+  height: 100vh;
   padding: 22px;
   display: flex;
   flex-direction: column;
   gap: 14px;
   backdrop-filter: blur(25px) saturate(138%);
   -webkit-backdrop-filter: blur(25px) saturate(138%);
+  overflow: hidden;
+}
+
+/* The header (hero banner or similar) and the footer (utility-actions)
+   stay put; only utility-content scrolls. No fixed/sticky positioning
+   involved, just normal flex layout: the header and footer are
+   flex: 0 0 auto, and utility-content is flex: 1 with its own scrollbar. */
+.utility-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .utility-hero {
@@ -989,6 +1004,7 @@ button.page-number.active {
   border: 1px solid var(--border-bright);
   background: var(--card-bg);
   box-shadow: 0 18px 45px rgba(0, 0, 0, 0.2);
+  flex: 0 0 auto;
 }
 
 .utility-hero img {
@@ -1125,8 +1141,11 @@ button.stone-option.selected {
 .utility-actions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 8px;
-  margin-top: auto;
+  flex: 0 0 auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
 }
 
 .settings-message {
