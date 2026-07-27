@@ -195,7 +195,7 @@
       setProfileError("");
       setProfileMessage("");
       setProfileBusy(true);
-      callApi("get_printer_capabilities", printerName).then((result) => {
+      callApi("get_printer_capabilities", printerName, serverId).then((result) => {
         setProfileBusy(false);
         if (!result) return;
         if (!result.ok) {
@@ -220,7 +220,7 @@
       setProfileBusy(true);
       setProfileError("");
       setProfileMessage("");
-      callApi("update_printer_profile", setupPrinter, nextProfile).then((result) => {
+      callApi("update_printer_profile", setupPrinter, nextProfile, serverId).then((result) => {
         setProfileBusy(false);
         if (!result) return;
         if (!result.ok) {
@@ -258,7 +258,7 @@
       setProfileBusy(true);
       setProfileError("");
       setProfileMessage("");
-      callApi("open_printer_driver_settings", setupPrinter).then((result) => {
+      callApi("open_printer_driver_settings", setupPrinter, serverId).then((result) => {
         setProfileBusy(false);
         if (!result) return;
         if (!result.ok) {
@@ -275,7 +275,7 @@
       setProfileBusy(true);
       setProfileError("");
       setProfileMessage("");
-      callApi("test_printer", setupPrinter).then((result) => {
+      callApi("test_printer", setupPrinter, serverId).then((result) => {
         setProfileBusy(false);
         if (!result) return;
         if (!result.ok) {
