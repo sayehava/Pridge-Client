@@ -1059,6 +1059,7 @@ class ClientApi:
         return {
             "mode": profile.mode,
             "driver_settings": dict(profile.driver_settings),
+            "submission_method": profile.submission_method,
         }
 
     def _server_by_id(self, server_id: str) -> ServerConfig | None:
