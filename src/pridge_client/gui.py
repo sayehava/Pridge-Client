@@ -873,6 +873,15 @@ class ClientApi:
             },
             "recent_jobs": list(self.recent_jobs),
             "logs": list(self.logs),
+            "plugins_summary": self._plugins_summary(),
+        }
+
+    def _plugins_summary(self) -> dict[str, int]:
+        entries = self.printer_manager.renderer_registry.all_entries()
+        return {
+            "total": len(entries),
+            "enabled": sum(1 for entry in entries if entry.enabled and not entry.load_error),
+            "third_party": sum(1 for entry in entries if not entry.is_builtin and entry.source_path),
         }
 
     def _server_public(self, server: ServerConfig) -> dict:
