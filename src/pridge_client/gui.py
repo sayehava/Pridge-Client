@@ -158,6 +158,7 @@ class ClientApi:
         self.ready_status = MESSAGE_READY
         self.recent_jobs: list[str] = []
         self.logs: list[str] = ["Pridge Client GUI loaded"]
+        self.printer_stats: dict[str, dict[str, int]] = {}
 
         self._install_log_handler()
         if self.gui_smoke_test:
@@ -539,8 +540,10 @@ class ClientApi:
                 submission_method=profile.submission_method or None,
             )
         except PrinterError as exc:
+            self._bump_printer_stat(name, success=False)
             return self._error(str(exc))
         logger.info("Submitted test page to printer %s", name)
+        self._bump_printer_stat(name, success=True)
         return {
             "ok": True,
             "error": None,
@@ -643,6 +646,7 @@ class ClientApi:
         catalog = [
             {"type": "recent_jobs", "title": "Recent Jobs", "source": "builtin"},
             {"type": "logs", "title": "Logs / Status", "source": "builtin"},
+            {"type": "printer_stats", "title": "Printer Activity", "source": "builtin"},
         ]
         from pridge_client.plugins.manifest import MANIFEST_FILE_NAME, load_manifest
 
@@ -1032,6 +1036,8 @@ class ClientApi:
                     "name": printer.name,
                     "is_default": printer.is_default,
                     "system_driver_available": printer.system_driver_available,
+                    "success_count": self.printer_stats.get(printer.name, {}).get("success", 0),
+                    "failed_count": self.printer_stats.get(printer.name, {}).get("failed", 0),
                 }
                 for printer in self.printers
             ],
@@ -1271,6 +1277,8 @@ class ClientApi:
                     line = f"{name} - {job.status}: {job.job_id} {job.detail}".strip()
                     self.recent_jobs.insert(0, line)
                     del self.recent_jobs[MAX_RECENT_JOBS:]
+                    if job.printer_name and job.status in ("printed", "failed"):
+                        self._bump_printer_stat(job.printer_name, success=job.status == "printed")
             elif event == "config":
                 server_id, runtime_config = payload  # type: ignore[misc]
                 self._apply_runtime_config(server_id, runtime_config)
@@ -1286,6 +1294,10 @@ class ClientApi:
         server.polling_interval_seconds = runtime_config.polling_interval_seconds
         server.heartbeat_interval_seconds = runtime_config.heartbeat_interval_seconds
         self.config_store.save(self._current_config())
+
+    def _bump_printer_stat(self, printer_name: str, success: bool) -> None:
+        counts = self.printer_stats.setdefault(printer_name, {"success": 0, "failed": 0})
+        counts["success" if success else "failed"] += 1
 
     def _update_running_status(self) -> None:
         running = sum(1 for worker in self.workers.values() if worker.state.running)
