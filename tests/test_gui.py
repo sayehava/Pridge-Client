@@ -55,6 +55,7 @@ class FakePluginPrinterManager(NoPrinters):
 
         self.renderer_registry = RendererRegistry()
         self.renderer_registry.register(FakeRendererPlugin("builtin.one"), priority=10, is_builtin=True)
+        self.app_mapping_plugin = FakeRendererPlugin("app-mapping.none")
 
     def install_renderer_plugin(self, source):
         from pathlib import Path as _Path
