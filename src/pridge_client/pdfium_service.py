@@ -79,13 +79,16 @@ class PDFiumRenderService:
                 page = doc[idx]
                 width_pt = page.get_width()
                 height_pt = page.get_height()
-                width_px = max(1, round(width_pt * scale))
-                height_px = max(1, round(height_pt * scale))
 
                 bitmap_format = pdfium.raw.FPDFBitmap_BGRA if use_alpha else pdfium.raw.FPDFBitmap_BGR
                 bitmap = page.render(scale=scale, rotation=0, force_bitmap_format=bitmap_format)
                 raw = bytes(bitmap.buffer)
                 stride = bitmap.stride
+                # Use PDFium's actual bitmap dimensions, not a separately rounded
+                # guess: even a 1px mismatch here shears the decoded image, since
+                # consumers reconstruct rows using these declared dimensions.
+                width_px = bitmap.width
+                height_px = bitmap.height
 
                 rendered.append(RenderedPage(
                     width_px=width_px,
