@@ -190,7 +190,12 @@ class PrinterManager:
         method = submission_method or _default_submission_method(self.system)
         logger.info(f"Submitting system-driver job to printer {printer_name} (submission_method={method})")
         t0 = time.monotonic()
-        self.backend.print_driver_pdf(printer_name, pdf_data, settings, job_name, method)
+        try:
+            self.backend.print_driver_pdf(printer_name, pdf_data, settings, job_name, method)
+        except PrinterError:
+            raise
+        except Exception as exc:
+            raise PrinterError(f"Printing failed: {exc}") from exc
         logger.info(f"Native submission of {len(pdf_data)} bytes completed in {time.monotonic() - t0:.3f}s")
 
     def print_raw(self, printer_name: str, data: bytes, job_name: str = "Pridge Job") -> None:
