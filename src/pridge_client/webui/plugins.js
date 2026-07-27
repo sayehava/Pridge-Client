@@ -28,6 +28,7 @@
     const [plugins, setPlugins] = useState(null);
     const [message, setMessage] = useState("");
     const [busy, setBusy] = useState(false);
+    const [draggingId, setDraggingId] = useState(null);
 
     const refreshPlugins = () => {
       callApi("get_renderer_plugins").then((result) => {
@@ -45,14 +46,14 @@
       });
     };
 
-    const movePlugin = (index, direction) => {
-      if (!plugins) return;
-      const sorted = [...plugins].sort((a, b) => a.priority - b.priority);
-      const target = index + direction;
-      if (target < 0 || target >= sorted.length) return;
-      callApi("swap_renderer_plugin_priorities", sorted[index].plugin_id, sorted[target].plugin_id).then((result) => {
+    const reorderPlugin = (pluginId, targetIndex) => {
+      callApi("reorder_renderer_plugin", pluginId, targetIndex).then((result) => {
         if (result && result.ok) setPlugins(result.plugins);
       });
+    };
+    const dropAt = (targetIndex) => {
+      if (draggingId) reorderPlugin(draggingId, targetIndex);
+      setDraggingId(null);
     };
 
     const installPlugin = () => {
@@ -101,34 +102,59 @@
           <p>${S.renderers_hint}</p>
           ${!plugins ? null : plugins.length === 0 ? html`<p class="hint-text">${S.no_renderers}</p>` : (() => {
             const sorted = [...plugins].sort((a, b) => a.priority - b.priority);
-            return sorted.map((plugin, index) => {
-              const thirdParty = !plugin.is_builtin && !!plugin.source_path;
-              return html`
-                <div class="setting-row renderer-row" key=${plugin.plugin_id}>
-                  <input
-                    class="setting-check"
-                    type="checkbox"
-                    checked=${plugin.enabled}
-                    disabled=${!!plugin.load_error}
-                    onChange=${(e) => togglePlugin(plugin.plugin_id, e.target.checked)}
-                  />
-                  <div class="setting-copy">
-                    <strong>${plugin.display_name}</strong>
-                    <span class=${thirdParty ? "badge" : "badge badge-active"}>${thirdParty ? S.renderer_third_party : S.renderer_builtin}</span>
-                    <small>${plugin.plugin_id} · v${plugin.version || "?"} · API ${plugin.api_version}</small>
-                    ${plugin.mime_types.length ? html`<small class="renderer-types">${plugin.mime_types.join(", ")}</small>` : null}
-                    ${thirdParty ? html`<small class="renderer-types">${plugin.source_path}</small>` : null}
-                    ${plugin.load_error ? html`<small class="renderer-error">${S.renderer_load_error}: ${plugin.load_error}</small>` : null}
-                  </div>
-                  <div class="renderer-order">
-                    <button class="renderer-order-btn" title=${S.renderer_move_up} disabled=${index === 0} onClick=${() => movePlugin(index, -1)}>↑</button>
-                    <button class="renderer-order-btn" title=${S.renderer_move_down} disabled=${index === sorted.length - 1} onClick=${() => movePlugin(index, 1)}>↓</button>
-                  </div>
-                  ${plugin.has_settings ? html`<button class="btn-secondary" onClick=${openPluginSettings}>${S.plugin_settings}</button>` : null}
-                  ${thirdParty ? html`<button class="btn-danger-small" onClick=${() => removePlugin(plugin.plugin_id, plugin.display_name)}>${S.remove}</button>` : null}
-                </div>
-              `;
-            });
+            return html`
+              <div
+                onDragOver=${(event) => event.preventDefault()}
+                onDrop=${(event) => {
+                  event.preventDefault();
+                  dropAt(sorted.length - 1);
+                }}
+              >
+                ${sorted.map((plugin, index) => {
+                  const thirdParty = !plugin.is_builtin && !!plugin.source_path;
+                  return html`
+                    <div
+                      class=${"setting-row renderer-row" + (draggingId === plugin.plugin_id ? " widget-card-dragging" : "")}
+                      key=${plugin.plugin_id}
+                      onDragOver=${(event) => event.preventDefault()}
+                      onDrop=${(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        dropAt(index);
+                      }}
+                    >
+                      <span
+                        class="widget-drag-handle"
+                        draggable="true"
+                        title=${S.drag_to_reorder}
+                        onDragStart=${(event) => {
+                          event.dataTransfer.effectAllowed = "move";
+                          setDraggingId(plugin.plugin_id);
+                        }}
+                        onDragEnd=${() => setDraggingId(null)}
+                      >⋮⋮</span>
+                      <input
+                        class="setting-check"
+                        type="checkbox"
+                        checked=${plugin.enabled}
+                        disabled=${!!plugin.load_error}
+                        onChange=${(e) => togglePlugin(plugin.plugin_id, e.target.checked)}
+                      />
+                      <div class="setting-copy">
+                        <strong>${plugin.display_name}</strong>
+                        <span class=${thirdParty ? "badge" : "badge badge-active"}>${thirdParty ? S.renderer_third_party : S.renderer_builtin}</span>
+                        <small>${plugin.plugin_id} · v${plugin.version || "?"} · API ${plugin.api_version}</small>
+                        ${plugin.mime_types.length ? html`<small class="renderer-types">${plugin.mime_types.join(", ")}</small>` : null}
+                        ${thirdParty ? html`<small class="renderer-types">${plugin.source_path}</small>` : null}
+                        ${plugin.load_error ? html`<small class="renderer-error">${S.renderer_load_error}: ${plugin.load_error}</small>` : null}
+                      </div>
+                      ${plugin.has_settings ? html`<button class="btn-secondary" onClick=${openPluginSettings}>${S.plugin_settings}</button>` : null}
+                      ${thirdParty ? html`<button class="btn-danger-small" onClick=${() => removePlugin(plugin.plugin_id, plugin.display_name)}>${S.remove}</button>` : null}
+                    </div>
+                  `;
+                })}
+              </div>
+            `;
           })()}
           <div class="plugin-install-row">
             <button onClick=${installPlugin} disabled=${busy}>${busy ? S.installing_plugin : S.install_plugin}</button>
