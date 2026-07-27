@@ -894,6 +894,25 @@ class ClientApi:
             entry_a.priority, entry_b.priority = entry_b.priority, entry_a.priority
         return self.get_renderer_plugins()
 
+    def reorder_renderer_plugin(self, plugin_id: str, target_index: int) -> dict:
+        plugin_id = str(plugin_id).strip()
+        try:
+            target_index = int(target_index)
+        except (TypeError, ValueError):
+            return self.get_renderer_plugins()
+
+        registry = self.printer_manager.renderer_registry
+        ordered_ids = [entry.plugin.plugin_id for entry in sorted(registry.all_entries(), key=lambda e: e.priority)]
+        if plugin_id not in ordered_ids:
+            return self.get_renderer_plugins()
+
+        ordered_ids.remove(plugin_id)
+        target_index = max(0, min(target_index, len(ordered_ids)))
+        ordered_ids.insert(target_index, plugin_id)
+        for position, ordered_id in enumerate(ordered_ids):
+            registry.set_priority(ordered_id, (position + 1) * 10)
+        return self.get_renderer_plugins()
+
     def export_log(self) -> dict:
         log_path = default_log_dir() / "client.log"
         if not log_path.is_file():
