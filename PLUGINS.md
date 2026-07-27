@@ -102,6 +102,43 @@ each enabled plugin's own `can_render()`. The Plugins window lets you
 reorder plugin priority and enable/disable individual plugins, including
 built-ins.
 
+## Dashboard widgets (optional, any plugin)
+
+Any renderer plugin can also contribute a widget to the dashboard's widget
+area — this is not a separate category, just two extra manifest fields:
+
+```json
+{
+  "widget_title": "My Widget",
+  "widget_entry": "widget.js"
+}
+```
+
+Both must be set for the widget to appear in the **Add Widget** picker;
+`widget_entry` is a plain JavaScript file next to `manifest.json`. When a
+user adds your widget, Pridge Client reads that file's source and injects it
+as an inline `<script>` directly into the dashboard page. Your script runs
+once, synchronously, and must mount into the container Pridge Client already
+created for it:
+
+```javascript
+(function () {
+  var container = document.getElementById(window.PridgeWidgetContainerId);
+  container.innerHTML = "<strong>Hello from my widget</strong>";
+})();
+```
+
+`window.PridgeWidgetContainerId` is set immediately before your script runs
+and only describes your own widget's container — read it right away rather
+than caching it, since the next widget added overwrites it for its own
+script. A complete example lives at
+[`tests/fixtures/example_widget_plugin/`](tests/fixtures/example_widget_plugin/).
+
+Widget scripts are **not sandboxed**: your code runs with full access to the
+live dashboard page (its DOM, its `pywebview.api` bridge, everything else on
+the page), exactly like Pridge's own UI code. Only install widget plugins
+you trust as much as you'd trust any other code running in the application.
+
 ## Security
 
 Third-party plugins execute arbitrary Python code with Pridge Client's own
