@@ -254,15 +254,35 @@ class PrinterManager:
     ) -> None:
         if mode != "system_driver":
             raise PrinterError("Test printing is available only in System Driver mode.")
+        page_width_pt, page_height_pt = self._resolve_test_page_size(printer_name, driver_settings)
         self.print_job(
             printer_name,
-            create_test_page_pdf(),
+            create_test_page_pdf(page_width_pt, page_height_pt),
             mode="system_driver",
             driver_settings=driver_settings,
             content_type="application/pdf",
             job_name="Pridge Test Page",
             submission_method=submission_method,
         )
+
+    def _resolve_test_page_size(
+        self,
+        printer_name: str,
+        driver_settings: Mapping[str, str] | None,
+    ) -> tuple[float, float]:
+        try:
+            capabilities = self.get_capabilities(printer_name)
+            page_size_option = next(
+                (option for option in capabilities.options if option.id.lower() == "pagesize"), None
+            )
+            if page_size_option is not None:
+                selected = (driver_settings or {}).get(page_size_option.id) or page_size_option.default
+                resolved = _page_size_for_option(selected)
+                if resolved is not None:
+                    return resolved
+        except Exception as exc:
+            logger.debug("Could not resolve the selected paper size for %s: %s", printer_name, exc)
+        return _PAGE_WIDTH, _PAGE_HEIGHT
 
     def install_renderer_plugin(self, source: Path) -> str:
         from pridge_client.plugins.installer import install_renderer_plugin
@@ -315,33 +335,51 @@ def validate_driver_settings(
     return validated
 
 
-def create_test_page_pdf() -> bytes:
+def create_test_page_pdf(page_width_pt: float = _PAGE_WIDTH, page_height_pt: float = _PAGE_HEIGHT) -> bytes:
     """A one-page PDF that a person, not just a log line, can use to confirm
     printing actually works: the Pridge logo plus large, unmissable status
     text, so a blank or garbled page is as obvious as a correct one.
+
+    The layout is proportional to the given page size (points) so the test
+    page always fits the printer's currently selected paper size instead of
+    always being laid out for US Letter.
     """
+    margin = max(24.0, min(72.0, min(page_width_pt, page_height_pt) * 0.1))
+    reference_width = 612.0 - 2 * 72.0
+    reference_height = 792.0 - 2 * 72.0
+    available_width = page_width_pt - 2 * margin
+    available_height = page_height_pt - 2 * margin
+    scale = max(0.45, min(1.0, available_width / reference_width, available_height / reference_height))
+
+    title_size = max(18.0, 34.0 * scale)
+    status_size = max(12.0, 20.0 * scale)
+    body_size = max(8.0, 12.0 * scale)
+    footer_size = max(7.0, 9.0 * scale)
+    logo_width = max(90.0, 170.0 * scale)
+
     logo = _logo_jpeg()
 
     title = "PRIDGE TEST PAGE"
-    content = bytearray(_text_op(title, "F2", 34, _centered_x(title, 34, 0.62), 720))
+    title_y = page_height_pt - margin
+    content = bytearray(_text_op(title, "F2", title_size, _centered_x(title, title_size, 0.62, page_width_pt, margin), title_y))
 
-    image_bottom = 690.0
+    image_bottom = title_y - 30 * scale
     if logo is not None:
         jpeg_bytes, native_width, native_height = logo
-        display_width = 170.0
+        display_width = logo_width
         display_height = display_width * native_height / native_width
-        x = (_PAGE_WIDTH - display_width) / 2
+        x = (page_width_pt - display_width) / 2
         y = image_bottom - display_height
         content.extend(
             f"q\n{display_width:.2f} 0 0 {display_height:.2f} {x:.2f} {y:.2f} cm\n/Im1 Do\nQ\n".encode("ascii")
         )
         image_bottom = y
     else:
-        image_bottom -= 20
+        image_bottom -= 20 * scale
 
     status = "IF YOU CAN READ THIS CLEARLY, PRINTING WORKS"
-    status_y = image_bottom - 40
-    content.extend(_text_op(status, "F2", 20, _centered_x(status, 20, 0.58), status_y))
+    status_y = image_bottom - 40 * scale
+    content.extend(_text_op(status, "F2", status_size, _centered_x(status, status_size, 0.58, page_width_pt, margin), status_y))
 
     explanation = textwrap.wrap(
         "This page was generated locally by Pridge Client and submitted through the "
@@ -352,13 +390,14 @@ def create_test_page_pdf() -> bytes:
         "that Pridge Client never converts or interprets.",
         width=80,
     )
-    text_y = status_y - 40
+    text_y = status_y - 40 * scale
     for line in explanation:
-        content.extend(_text_op(line, "F1", 12, _MARGIN, text_y))
-        text_y -= 16
+        content.extend(_text_op(line, "F1", body_size, margin, text_y))
+        text_y -= 16 * scale
 
     footer = f"Pridge Client {__version__}"
-    content.extend(_text_op(footer, "F1", 9, _MARGIN, 40))
+    footer_y = max(16.0, margin - 32.0)
+    content.extend(_text_op(footer, "F1", footer_size, margin, footer_y))
 
     resources = b"/Font << /F1 4 0 R /F2 6 0 R >>"
     if logo is not None:
@@ -368,7 +407,7 @@ def create_test_page_pdf() -> bytes:
         b"<< /Type /Catalog /Pages 2 0 R >>",
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
         b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 "
-        + f"{_PAGE_WIDTH} {_PAGE_HEIGHT}".encode("ascii")
+        + f"{page_width_pt:g} {page_height_pt:g}".encode("ascii")
         + b"] /Resources << "
         + resources
         + b" >> /Contents 5 0 R >>",
@@ -432,9 +471,9 @@ def _pdf_escape(text: str) -> bytes:
     return escaped.encode("latin-1", errors="replace")
 
 
-def _centered_x(text: str, size: float, average_width_em: float) -> float:
+def _centered_x(text: str, size: float, average_width_em: float, page_width_pt: float, margin: float) -> float:
     width = len(text) * size * average_width_em
-    return max(_MARGIN, (_PAGE_WIDTH - width) / 2)
+    return max(margin, (page_width_pt - width) / 2)
 
 
 def _logo_jpeg() -> tuple[bytes, int, int] | None:
