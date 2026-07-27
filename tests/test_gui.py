@@ -597,6 +597,15 @@ class ClientApiTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertIn("servers.html", create_window.call_args.kwargs["url"])
 
+    @patch("pridge_client.gui.webview.create_window")
+    def test_opens_printers_window_at_fixed_size(self, create_window):
+        create_window.return_value = FakeWindow()
+
+        result = self.api.open_printers_window()
+
+        self.assertTrue(result["ok"])
+        self.assertIn("printers.html", create_window.call_args.kwargs["url"])
+
     def test_install_plugin_registers_the_selected_folder(self):
         self.api.printer_manager = FakePluginPrinterManager()
         window = Mock()
