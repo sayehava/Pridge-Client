@@ -117,12 +117,22 @@
         : html`<div class="scroll-panel">
             ${printerDetails.map(
               (printer) => html`
-                <div class="printer-stat-row" key=${printer.name}>
-                  <span class="printer-stat-name">${printer.name}</span>
-                  <span class="printer-stat-counts">
-                    <span class="printer-stat-success">${printer.success_count}</span>
-                    <span class="printer-stat-failed">${printer.failed_count}</span>
-                  </span>
+                <div class="printer-stat-group" key=${printer.name}>
+                  <div class="printer-stat-name">${printer.name}</div>
+                  <div class="printer-stat-row">
+                    <span class="printer-stat-label">${S.test_print}</span>
+                    <span class="printer-stat-counts">
+                      <span class="printer-stat-success">${printer.test_success_count}</span>
+                      <span class="printer-stat-failed">${printer.test_failed_count}</span>
+                    </span>
+                  </div>
+                  <div class="printer-stat-row">
+                    <span class="printer-stat-label">${S.remote_prints}</span>
+                    <span class="printer-stat-counts">
+                      <span class="printer-stat-success">${printer.remote_success_count}</span>
+                      <span class="printer-stat-failed">${printer.remote_failed_count}</span>
+                    </span>
+                  </div>
                 </div>
               `
             )}
