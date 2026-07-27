@@ -261,6 +261,26 @@ Pridge Client follows semantic versioning. The current application version is `1
 
 The project exposes `pridge-client` as its console script. A packaged desktop build can launch the GUI by default or use `--headless` for background operation.
 
+## Third-Party Libraries
+
+Pridge Client is built on the following open-source libraries. Their authors' work makes this project possible.
+
+| Library | Purpose | License |
+| --- | --- | --- |
+| [pywebview](https://github.com/r0x0r/pywebview) | Desktop window and native webview shell | BSD-3-Clause |
+| [pystray](https://github.com/moses-palmer/pystray) | System tray icon and menu | LGPL-3.0 |
+| [Pillow](https://python-pillow.org/) | Tray/window icon and test-page image handling | MIT-CMU (HPND) |
+| [keyring](https://github.com/jaraco/keyring) | Operating system credential store for client tokens | MIT |
+| [requests](https://requests.readthedocs.io/) | HTTP client for the Pridge Server API | Apache-2.0 |
+| [pyobjc](https://github.com/ronaldoussoren/pyobjc) (Cocoa, Quartz, WebKit, Security, UniformTypeIdentifiers) | macOS native window, menu, and keychain integration | MIT |
+| [pywin32](https://github.com/mhammond/pywin32) | Windows printer enumeration and native printing | PSF-2.0 |
+| [pythonnet](https://github.com/pythonnet/pythonnet) | Windows .NET interop | MIT |
+| [pycups](https://github.com/OpenPrinting/pycups) | Linux CUPS printer discovery | GPL-2.0-or-later |
+| [Nuitka](https://nuitka.net/) | Native release builds | Apache-2.0 |
+| [PyInstaller](https://pyinstaller.org/) | Bundled release builds | GPL-2.0-or-later with bootloader exception |
+
+See each project's repository for its complete license text.
+
 ## License
 
 Pridge Client is free software licensed under GNU General Public License version 3 or, at your option, any later version (`GPL-3.0-or-later`). See [LICENSE](LICENSE) for the full license text.
