@@ -378,27 +378,106 @@ button {
 
 /* .card overrides: must come after the base .card rule above so their
    flex-direction wins over it for these specific card variants. */
-.jobs-logs-card {
+.widget-area {
   flex: 1;
-  flex-direction: row;
   min-height: 220px;
-  gap: var(--gap);
+  gap: 12px;
 }
 
-.jobs-logs-pane {
-  flex: 1;
+.widget-card {
+  min-height: 0;
+  padding: 14px;
+}
+
+.widget-area-header {
   display: flex;
-  flex-direction: column;
-  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 auto;
+}
+
+.widget-page-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.widget-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 12px;
   min-height: 0;
 }
 
-.jobs-logs-divider {
-  width: 1px;
-  align-self: stretch;
-  background: var(--border);
+.widget-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
+.widget-card-header h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.widget-card-actions {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.widget-move-btn,
+.widget-remove-btn {
+  padding: 1px 6px;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  min-width: 0;
+}
+
+.widget-remove-btn {
+  color: var(--danger);
+}
+
+.widget-card-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.widget-plugin-mount {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.widget-picker {
+  background: linear-gradient(145deg, var(--card-highlight), var(--card-bg));
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-card);
+  padding: var(--gap);
+  max-width: 420px;
+  width: 100%;
+}
+
+.widget-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.widget-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
 
 .card-title {
   font-size: 15px;
@@ -1465,13 +1544,9 @@ button.stone-option.selected {
     align-items: stretch;
   }
 
-  .jobs-logs-card {
-    flex-direction: column;
-  }
-
-  .jobs-logs-divider {
-    width: auto;
-    height: 1px;
+  .widget-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
   }
 }
 
