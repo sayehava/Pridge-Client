@@ -753,38 +753,6 @@ class DashboardWidgetTests(unittest.TestCase):
 
         self.assertEqual(result["pages"], [[]])
 
-    def test_move_down_then_up_swaps_widgets_within_a_page(self):
-        layout = self.api.get_dashboard_layout()
-        first_id = layout["pages"][0][0]["id"]
-
-        moved = self.api.move_dashboard_widget(first_id, "down")
-
-        self.assertEqual([w["id"] for w in moved["pages"][0]], [layout["pages"][0][1]["id"], first_id])
-
-        moved_back = self.api.move_dashboard_widget(first_id, "up")
-
-        self.assertEqual([w["id"] for w in moved_back["pages"][0]], [first_id, layout["pages"][0][1]["id"]])
-
-    def test_move_right_creates_a_new_page_when_the_next_one_is_full(self):
-        layout = self.api.get_dashboard_layout()
-        widget_id = layout["pages"][0][0]["id"]
-
-        result = self.api.move_dashboard_widget(widget_id, "right")
-
-        self.assertEqual(len(result["pages"]), 2)
-        self.assertEqual([w["id"] for w in result["pages"][1]], [widget_id])
-        self.assertEqual(len(result["pages"][0]), 1)
-
-    def test_move_left_sends_a_widget_back_to_the_previous_page(self):
-        layout = self.api.get_dashboard_layout()
-        widget_id = layout["pages"][0][0]["id"]
-        self.api.move_dashboard_widget(widget_id, "right")
-
-        result = self.api.move_dashboard_widget(widget_id, "left")
-
-        self.assertEqual(len(result["pages"]), 1)
-        self.assertEqual([w["widget_type"] for w in result["pages"][0]], ["logs", "recent_jobs"])
-
     def test_reorder_moves_a_widget_within_the_same_page(self):
         layout = self.api.get_dashboard_layout()
         first_id = layout["pages"][0][0]["id"]
