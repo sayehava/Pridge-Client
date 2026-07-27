@@ -8,10 +8,44 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from pridge_client.config import ClientConfig, ClientTokenStore, ConfigStore, PrinterProfile
+from pridge_client.config import ClientConfig, ClientTokenStore, ConfigStore, DashboardWidget, PrinterProfile
 
 
 class ConfigStoreTests(unittest.TestCase):
+    def test_missing_config_defaults_to_recent_jobs_and_logs_widgets(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = ConfigStore(Path(directory) / "config.json").load()
+
+        self.assertEqual([w.widget_type for w in config.dashboard_widgets], ["recent_jobs", "logs"])
+
+    def test_saves_and_loads_dashboard_widget_layout(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            store = ConfigStore(path)
+            store.save(
+                ClientConfig(
+                    dashboard_widgets=[
+                        DashboardWidget(id="a", widget_type="recent_jobs", page=0, position=0),
+                        DashboardWidget(id="b", widget_type="org.example.widget", page=1, position=0),
+                    ]
+                )
+            )
+
+            config = store.load()
+
+        self.assertEqual(len(config.dashboard_widgets), 2)
+        self.assertEqual(config.dashboard_widgets[1].widget_type, "org.example.widget")
+        self.assertEqual(config.dashboard_widgets[1].page, 1)
+
+    def test_malformed_dashboard_widgets_fall_back_to_defaults(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            path.write_text(json.dumps({"dashboard_widgets": "not-a-list"}), encoding="utf-8")
+
+            config = ConfigStore(path).load()
+
+        self.assertEqual([w.widget_type for w in config.dashboard_widgets], ["recent_jobs", "logs"])
+
     def test_saves_and_loads_per_printer_profiles(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.json"
