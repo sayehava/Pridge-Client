@@ -97,6 +97,7 @@
           <img src="assets/Hero.png" alt="" />
           <div class="utility-hero-copy"><h1>${S.plugins}</h1><p>${S.plugins_hint}</p></div>
         </div>
+        <div class="utility-content">
         <section class="settings-section">
           <h2>${S.renderers}</h2>
           <p>${S.renderers_hint}</p>
@@ -163,7 +164,9 @@
           <p class="hint-text">${S.install_plugin_hint}</p>
         </section>
         ${message ? html`<div class="settings-message">${message}</div>` : null}
+        </div>
         <div class="utility-actions">
+          <span class="utility-footer-info">${S.plugins_count.replace("{count}", plugins ? plugins.length : 0)}</span>
           <button onClick=${() => callApi("close_utility_window", "plugins")}>${S.close}</button>
         </div>
       </main>
