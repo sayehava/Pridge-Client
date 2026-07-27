@@ -52,6 +52,10 @@ from pridge_client.strings import (
     MESSAGE_LOG_EXPORTED,
     MESSAGE_LOG_EXPORT_FAILED,
     MESSAGE_NO_LOG_FILE,
+    MESSAGE_PLUGIN_INSTALLED,
+    MESSAGE_PLUGIN_INSTALL_FAILED,
+    MESSAGE_PLUGIN_REMOVED,
+    MESSAGE_PLUGIN_REMOVE_FAILED,
     MESSAGE_SERVER_NOT_FOUND,
     MESSAGE_SERVER_REQUIRED,
     MESSAGE_SETTINGS_SAVED,
@@ -62,6 +66,7 @@ from pridge_client.strings import (
     MESSAGE_WINDOW_HIDDEN,
     MESSAGE_WINDOW_MINIMIZED,
     MENU_ABOUT,
+    MENU_PLUGINS,
     MENU_QUIT,
     MENU_SETTINGS,
     STATUS_RUNNING,
@@ -69,6 +74,7 @@ from pridge_client.strings import (
     WINDOW_ADD_SERVER,
     WINDOW_ABOUT,
     WINDOW_EDIT_SERVER,
+    WINDOW_PLUGINS,
     WINDOW_SETTINGS,
     WINDOW_TITLE,
 )
@@ -287,6 +293,15 @@ class ClientApi:
             page="about.html",
             width=600,
             height=690,
+        )
+
+    def open_plugins_window(self) -> dict:
+        return self._open_utility_window(
+            key="plugins",
+            title=WINDOW_PLUGINS,
+            page="plugins.html",
+            width=680,
+            height=760,
         )
 
     def close_utility_window(self, key: str) -> dict:
@@ -546,6 +561,7 @@ class ClientApi:
                 "priority": entry.priority,
                 "is_builtin": entry.is_builtin,
                 "load_error": entry.load_error,
+                "source_path": entry.source_path,
             }
             for entry in entries_sorted
         ]
@@ -553,6 +569,49 @@ class ClientApi:
 
     def set_renderer_plugin_enabled(self, plugin_id: str, enabled: bool) -> dict:
         self.printer_manager.renderer_registry.set_enabled(str(plugin_id), bool(enabled))
+        return self.get_renderer_plugins()
+
+    def install_plugin(self) -> dict:
+        window = self._utility_windows.get("plugins") or self._window
+        if window is None:
+            return self._error(MESSAGE_PLUGIN_INSTALL_FAILED)
+        try:
+            selection = window.create_file_dialog(webview.FOLDER_DIALOG)
+        except Exception as exc:
+            logger.warning("Could not open the plugin install dialog: %s", exc)
+            return self._error(MESSAGE_PLUGIN_INSTALL_FAILED)
+        if not selection:
+            return self.get_renderer_plugins()
+
+        from pridge_client.plugins import PluginInstallError
+
+        source = selection[0] if isinstance(selection, (list, tuple)) else selection
+        try:
+            plugin_id = self.printer_manager.install_renderer_plugin(Path(source))
+        except PluginInstallError as exc:
+            return self._error(str(exc))
+        logger.info("Installed third-party renderer plugin %s", plugin_id)
+        result = self.get_renderer_plugins()
+        result["message"] = MESSAGE_PLUGIN_INSTALLED
+        return result
+
+    def remove_plugin(self, plugin_id: str) -> dict:
+        from pridge_client.plugins import PluginInstallError
+
+        entry = self.printer_manager.renderer_registry.get_entry(str(plugin_id))
+        if entry is None or entry.is_builtin:
+            return self._error(MESSAGE_PLUGIN_REMOVE_FAILED)
+        try:
+            self.printer_manager.remove_renderer_plugin(str(plugin_id))
+        except PluginInstallError as exc:
+            return self._error(str(exc))
+        logger.info("Removed third-party renderer plugin %s", plugin_id)
+        result = self.get_renderer_plugins()
+        result["message"] = MESSAGE_PLUGIN_REMOVED
+        return result
+
+    def rescan_plugins(self) -> dict:
+        self.printer_manager.rescan_renderer_plugins()
         return self.get_renderer_plugins()
 
     def get_app_mappings(self) -> dict:
@@ -1053,6 +1112,7 @@ def _run_gui_normal() -> None:
     configure_application_identity(APP_NAME)
     api = ClientApi(gui_smoke_test=False)
     menu_actions = [
+        (MENU_PLUGINS, api.open_plugins_window),
         (MENU_SETTINGS, api.open_settings_window),
         (MENU_ABOUT, api.open_about_window),
         (MENU_QUIT, api.quit_application),

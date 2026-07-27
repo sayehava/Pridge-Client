@@ -33,6 +33,48 @@ class NoPrinters:
         return []
 
 
+class FakeRendererPlugin:
+    def __init__(self, plugin_id):
+        self.plugin_id = plugin_id
+        self.display_name = plugin_id
+        self.version = "1.0.0"
+        self.api_version = 1
+        self.supported_mime_types = frozenset()
+        self.supported_extensions = frozenset()
+
+    def can_render(self, *, mime_type, filename, data):
+        return False
+
+    def render_to_pdf(self, *, data, mime_type, filename, options):
+        raise NotImplementedError
+
+
+class FakePluginPrinterManager(NoPrinters):
+    def __init__(self):
+        from pridge_client.renderers.registry import RendererRegistry
+
+        self.renderer_registry = RendererRegistry()
+        self.renderer_registry.register(FakeRendererPlugin("builtin.one"), priority=10, is_builtin=True)
+
+    def install_renderer_plugin(self, source):
+        from pathlib import Path as _Path
+
+        plugin_id = f"third_party.{_Path(source).name}"
+        self.renderer_registry.register(
+            FakeRendererPlugin(plugin_id), priority=200, is_builtin=False, source_path=str(source)
+        )
+        return plugin_id
+
+    def remove_renderer_plugin(self, plugin_id):
+        from pridge_client.plugins import PluginInstallError
+
+        if not self.renderer_registry.remove(plugin_id):
+            raise PluginInstallError(f"Plugin '{plugin_id}' is not installed.")
+
+    def rescan_renderer_plugins(self):
+        pass
+
+
 class FakeWindowEvent:
     def __init__(self):
         self.handlers = []
@@ -462,6 +504,55 @@ class ClientApiTests(unittest.TestCase):
             result = self.api.export_log()
 
         self.assertTrue(result["ok"])
+
+    @patch("pridge_client.gui.webview.create_window")
+    def test_opens_plugins_window_at_fixed_size(self, create_window):
+        create_window.return_value = FakeWindow()
+
+        result = self.api.open_plugins_window()
+
+        self.assertTrue(result["ok"])
+        self.assertIn("plugins.html", create_window.call_args.kwargs["url"])
+
+    def test_install_plugin_registers_the_selected_folder(self):
+        self.api.printer_manager = FakePluginPrinterManager()
+        window = Mock()
+        window.create_file_dialog.return_value = (str(Path(self.temporary_directory.name) / "my-plugin"),)
+        self.api._window = window
+
+        result = self.api.install_plugin()
+
+        self.assertTrue(result["ok"])
+        plugin_ids = [plugin["plugin_id"] for plugin in result["plugins"]]
+        self.assertIn("third_party.my-plugin", plugin_ids)
+
+    def test_install_plugin_leaves_state_unchanged_when_dialog_is_cancelled(self):
+        self.api.printer_manager = FakePluginPrinterManager()
+        window = Mock()
+        window.create_file_dialog.return_value = None
+        self.api._window = window
+
+        result = self.api.install_plugin()
+
+        self.assertTrue(result["ok"])
+        self.assertEqual([p["plugin_id"] for p in result["plugins"]], ["builtin.one"])
+
+    def test_remove_plugin_removes_a_third_party_plugin(self):
+        manager = FakePluginPrinterManager()
+        manager.install_renderer_plugin(Path(self.temporary_directory.name) / "my-plugin")
+        self.api.printer_manager = manager
+
+        result = self.api.remove_plugin("third_party.my-plugin")
+
+        self.assertTrue(result["ok"])
+        self.assertNotIn("third_party.my-plugin", [p["plugin_id"] for p in result["plugins"]])
+
+    def test_remove_plugin_rejects_a_builtin_plugin(self):
+        self.api.printer_manager = FakePluginPrinterManager()
+
+        result = self.api.remove_plugin("builtin.one")
+
+        self.assertFalse(result["ok"])
 
     def test_native_transparency_is_always_disabled(self):
         self.assertEqual(_window_effects(), {"transparent": False, "vibrancy": False})
