@@ -120,6 +120,40 @@ class WorkerPrintingModeTests(unittest.TestCase):
         )
         client.report_printed.assert_called_once_with("42")
 
+    def test_server_specific_profile_overrides_the_global_default(self) -> None:
+        server = ServerConfig(
+            id="office",
+            default_printer="Office Driver",
+            printer_profiles={
+                "Office Driver": PrinterProfile(mode="system_driver", submission_method="pdfium"),
+            },
+        )
+        config = ClientConfig(
+            server_url="https://example.test",
+            servers=[server],
+            printer_profiles={
+                "Office Driver": PrinterProfile(mode="system_driver", submission_method="direct_pdf"),
+            },
+        )
+        printer_manager = Mock()
+        client = Mock()
+        worker = PollingWorker(config, "token", printer_manager=printer_manager)
+        job = ReservedJob(job_id="42", payload_base64="JVBERg==", content_type="application/pdf")
+
+        worker._process_job(client, job)
+
+        printer_manager.print_job.assert_called_once_with(
+            "Office Driver",
+            b"%PDF",
+            mode="system_driver",
+            driver_settings={},
+            content_type="application/pdf",
+            filename=None,
+            job_name="Pridge 42",
+            submission_method="pdfium",
+            explicit_renderer=None,
+        )
+
 
 class WorkerStatusRecoveryTests(unittest.TestCase):
     @patch("pridge_client.worker.PridgeClient")
