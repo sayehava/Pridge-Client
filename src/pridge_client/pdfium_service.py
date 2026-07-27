@@ -82,10 +82,10 @@ class PDFiumRenderService:
                 width_px = max(1, round(width_pt * scale))
                 height_px = max(1, round(height_pt * scale))
 
-                fmt = pdfium.BitmapType.BGRA if use_alpha else pdfium.BitmapType.BGR
-                bitmap = page.render(scale=scale, rotation=0, bitmap_maker=pdfium.FPDFBitmap_Create)
-                raw = bitmap.to_bytes()
-                stride = width_px * (4 if use_alpha else 3)
+                bitmap_format = pdfium.raw.FPDFBitmap_BGRA if use_alpha else pdfium.raw.FPDFBitmap_BGR
+                bitmap = page.render(scale=scale, rotation=0, force_bitmap_format=bitmap_format)
+                raw = bytes(bitmap.buffer)
+                stride = bitmap.stride
 
                 rendered.append(RenderedPage(
                     width_px=width_px,
@@ -98,6 +98,7 @@ class PDFiumRenderService:
                     dpi=target_dpi,
                     has_alpha=use_alpha,
                 ))
+                bitmap.close()
                 page.close()
                 logger.debug(
                     "PDFium rendered page %d: %dx%d px at %.0f dpi (%d bytes)",
