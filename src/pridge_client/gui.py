@@ -30,6 +30,7 @@ from pridge_client.config import (
     ClientTokenStore,
     ConfigStore,
     ClientConfig,
+    DashboardWidget,
     PrinterMapping,
     PrinterProfile,
     default_log_dir,
@@ -97,6 +98,7 @@ APP_ICON_PATH = ASSET_DIR / "Icon.png"
 TRAY_ICON_PATH = ASSET_DIR / "IconTray.png"
 MAX_RECENT_JOBS = 50
 MAX_LOG_LINES = 300
+MAX_DASHBOARD_WIDGETS_PER_PAGE = 4
 
 # The smoke test must never depend on a JS round trip to decide when the
 # native GUI has finished initializing: pywebview's `func` callback runs on a
@@ -553,6 +555,132 @@ class ClientApi:
             if server is not None:
                 return server.printer_profiles
         return self.config.printer_profiles
+
+    def get_dashboard_layout(self) -> dict:
+        return {"ok": True, "error": None, **self._dashboard_layout_payload()}
+
+    def add_dashboard_widget(self, widget_type: str) -> dict:
+        widget_type = str(widget_type).strip()
+        catalog = self._dashboard_catalog()
+        if widget_type not in {item["type"] for item in catalog}:
+            return {"ok": False, "error": "That widget is not available.", **self._dashboard_layout_payload()}
+
+        pages = self._grouped_dashboard_widgets()
+        target_page = next(
+            (index for index, widgets in enumerate(pages) if len(widgets) < MAX_DASHBOARD_WIDGETS_PER_PAGE),
+            len(pages),
+        )
+        if target_page == len(pages):
+            pages.append([])
+        pages[target_page].append(DashboardWidget(id=uuid.uuid4().hex, widget_type=widget_type))
+        self._save_dashboard_widgets(pages)
+        return self.get_dashboard_layout()
+
+    def remove_dashboard_widget(self, widget_id: str) -> dict:
+        widget_id = str(widget_id).strip()
+        pages = self._grouped_dashboard_widgets()
+        for widgets in pages:
+            widgets[:] = [widget for widget in widgets if widget.id != widget_id]
+        self._save_dashboard_widgets([widgets for widgets in pages if widgets])
+        return self.get_dashboard_layout()
+
+    def move_dashboard_widget(self, widget_id: str, direction: str) -> dict:
+        widget_id = str(widget_id).strip()
+        direction = str(direction).strip().lower()
+        pages = self._grouped_dashboard_widgets()
+        location = None
+        for page_index, widgets in enumerate(pages):
+            for position, widget in enumerate(widgets):
+                if widget.id == widget_id:
+                    location = (page_index, position)
+                    break
+            if location:
+                break
+
+        if location is not None:
+            page_index, position = location
+            widgets = pages[page_index]
+            if direction == "up" and position > 0:
+                widgets[position - 1], widgets[position] = widgets[position], widgets[position - 1]
+            elif direction == "down" and position < len(widgets) - 1:
+                widgets[position + 1], widgets[position] = widgets[position], widgets[position + 1]
+            elif direction == "left" and page_index > 0 and len(pages[page_index - 1]) < MAX_DASHBOARD_WIDGETS_PER_PAGE:
+                pages[page_index - 1].append(widgets.pop(position))
+            elif direction == "right":
+                if page_index == len(pages) - 1:
+                    pages.append([])
+                if len(pages[page_index + 1]) < MAX_DASHBOARD_WIDGETS_PER_PAGE:
+                    pages[page_index + 1].append(widgets.pop(position))
+
+        self._save_dashboard_widgets([widgets for widgets in pages if widgets])
+        return self.get_dashboard_layout()
+
+    def _dashboard_layout_payload(self) -> dict:
+        catalog = self._dashboard_catalog()
+        catalog_by_type = {item["type"]: item for item in catalog}
+        pages = []
+        for widgets in self._grouped_dashboard_widgets():
+            page = []
+            for widget in widgets:
+                meta = catalog_by_type.get(widget.widget_type, {"title": widget.widget_type, "source": "unknown"})
+                page.append(
+                    {
+                        "id": widget.id,
+                        "widget_type": widget.widget_type,
+                        "title": meta.get("title", widget.widget_type),
+                        "source": meta.get("source", "unknown"),
+                        "script_url": meta.get("script_url", ""),
+                    }
+                )
+            pages.append(page)
+        return {"pages": pages, "catalog": catalog}
+
+    def _dashboard_catalog(self) -> list[dict]:
+        catalog = [
+            {"type": "recent_jobs", "title": "Recent Jobs", "source": "builtin"},
+            {"type": "logs", "title": "Logs / Status", "source": "builtin"},
+        ]
+        from pridge_client.plugins.manifest import MANIFEST_FILE_NAME, load_manifest
+
+        for entry in self.printer_manager.renderer_registry.all_entries():
+            if entry.is_builtin or not entry.source_path or entry.load_error:
+                continue
+            try:
+                manifest = load_manifest(Path(entry.source_path) / MANIFEST_FILE_NAME)
+            except Exception:
+                continue
+            if not manifest.has_widget:
+                continue
+            script_path = Path(entry.source_path) / manifest.widget_entry
+            if not script_path.is_file():
+                continue
+            catalog.append(
+                {
+                    "type": entry.plugin.plugin_id,
+                    "title": manifest.widget_title,
+                    "source": "plugin",
+                    "script_url": script_path.resolve().as_uri(),
+                }
+            )
+        return catalog
+
+    def _grouped_dashboard_widgets(self) -> list[list[DashboardWidget]]:
+        pages: dict[int, list[DashboardWidget]] = {}
+        for widget in sorted(self.config.dashboard_widgets, key=lambda w: (w.page, w.position)):
+            pages.setdefault(widget.page, []).append(widget)
+        ordered = [pages[key] for key in sorted(pages.keys())]
+        return ordered or [[]]
+
+    def _save_dashboard_widgets(self, pages: list[list[DashboardWidget]]) -> None:
+        flattened: list[DashboardWidget] = []
+        for page_index, widgets in enumerate(pages):
+            for position, widget in enumerate(widgets):
+                flattened.append(
+                    DashboardWidget(id=widget.id, widget_type=widget.widget_type, page=page_index, position=position)
+                )
+        self.config.dashboard_widgets = flattened
+        self.config = self._current_config()
+        self.config_store.save(self.config)
 
     def set_start_polling_on_launch(self, value: bool) -> dict:
         self.start_polling_on_launch = bool(value)
