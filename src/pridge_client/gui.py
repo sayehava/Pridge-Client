@@ -938,6 +938,7 @@ class ClientApi:
             start_at_login=self.start_at_login,
             logging=self.config.logging,
             appearance=self.config.appearance,
+            dashboard_widgets=self.config.dashboard_widgets,
         )
 
     def _runtime_config(self, server: ServerConfig) -> ClientConfig:
