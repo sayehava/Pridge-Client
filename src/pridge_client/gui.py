@@ -73,6 +73,7 @@ from pridge_client.strings import (
     STATUS_STOPPED,
     WINDOW_ADD_SERVER,
     WINDOW_ABOUT,
+    WINDOW_APP_MAPPING,
     WINDOW_EDIT_SERVER,
     WINDOW_PLUGINS,
     WINDOW_SETTINGS,
@@ -302,6 +303,15 @@ class ClientApi:
             page="plugins.html",
             width=680,
             height=760,
+        )
+
+    def open_app_mapping_window(self) -> dict:
+        return self._open_utility_window(
+            key="app_mapping",
+            title=WINDOW_APP_MAPPING,
+            page="app-mapping.html",
+            width=640,
+            height=720,
         )
 
     def close_utility_window(self, key: str) -> dict:
