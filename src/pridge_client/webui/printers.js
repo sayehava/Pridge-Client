@@ -152,21 +152,23 @@
           <img src="assets/Hero.png" alt="" />
           <div class="utility-hero-copy"><h1>${S.printers}</h1><p>${S.printers_hint}</p></div>
         </div>
-        <section class="settings-section">
-          ${printers.length === 0
-            ? html`<p class="hint-text">${S.no_printers}</p>`
-            : printers.map(
-                (printer) => html`
-                  <div class="setting-row" key=${printer.name}>
-                    <div class="setting-copy">
-                      <strong>${printer.name}</strong>
-                      ${printer.is_default ? html`<span class="badge badge-active">${S.default_printer}</span>` : null}
+        <div class="utility-content">
+          <section class="settings-section">
+            ${printers.length === 0
+              ? html`<p class="hint-text">${S.no_printers}</p>`
+              : printers.map(
+                  (printer) => html`
+                    <div class="setting-row" key=${printer.name}>
+                      <div class="setting-copy">
+                        <strong>${printer.name}</strong>
+                        ${printer.is_default ? html`<span class="badge badge-active">${S.default_printer}</span>` : null}
+                      </div>
+                      <button class="ghost" onClick=${() => openPrinterSetup(printer.name)}>${S.configure}</button>
                     </div>
-                    <button class="ghost" onClick=${() => openPrinterSetup(printer.name)}>${S.configure}</button>
-                  </div>
-                `
-              )}
-        </section>
+                  `
+                )}
+          </section>
+        </div>
 
         ${setupPrinter
           ? html`
@@ -293,6 +295,7 @@
           : null}
 
         <div class="utility-actions">
+          <span class="utility-footer-info">${S.printers_count.replace("{count}", printers.length)}</span>
           <button onClick=${() => callApi("close_utility_window", "printers")}>${S.close}</button>
         </div>
       </main>
