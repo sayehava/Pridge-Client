@@ -1178,6 +1178,19 @@ button.stone-option.selected {
   overflow: hidden;
 }
 
+.about-header {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.about-content {
+  align-items: center;
+  width: 100%;
+}
+
 .about-logo {
   width: min(300px, 72vw);
   height: min(170px, 25vh);
