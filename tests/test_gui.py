@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 from pridge_client.api import RemotePrinter
 from pridge_client.config import ConfigStore
 from pridge_client.gui import APP_ICON_PATH, ClientApi, _shutdown_smoke_test, _webview_start_icon, _window_effects
+from pridge_client.models import JobHistoryEntry
 from pridge_client.printers import DriverChoice, DriverOption, Printer, PrinterCapabilities, PrinterError
 
 
@@ -304,7 +305,7 @@ class ClientApiTests(unittest.TestCase):
             submission_method=None,
         )
 
-    def test_successful_test_print_increments_the_printer_success_count(self):
+    def test_successful_test_print_increments_the_printer_test_success_count(self):
         manager = Mock()
         manager.renderer_registry.all_entries.return_value = []
         manager.list_printers.return_value = [Printer("Office Driver", system_driver_available=True)]
@@ -315,10 +316,12 @@ class ClientApiTests(unittest.TestCase):
         state = self.api._build_state()
 
         details = next(p for p in state["printer_details"] if p["name"] == "Office Driver")
-        self.assertEqual(details["success_count"], 1)
-        self.assertEqual(details["failed_count"], 0)
+        self.assertEqual(details["test_success_count"], 1)
+        self.assertEqual(details["test_failed_count"], 0)
+        self.assertEqual(details["remote_success_count"], 0)
+        self.assertEqual(details["remote_failed_count"], 0)
 
-    def test_failed_test_print_increments_the_printer_failed_count(self):
+    def test_failed_test_print_increments_the_printer_test_failed_count(self):
         manager = Mock()
         manager.renderer_registry.all_entries.return_value = []
         manager.list_printers.return_value = [Printer("Office Driver", system_driver_available=True)]
@@ -330,8 +333,27 @@ class ClientApiTests(unittest.TestCase):
         state = self.api._build_state()
 
         details = next(p for p in state["printer_details"] if p["name"] == "Office Driver")
-        self.assertEqual(details["success_count"], 0)
-        self.assertEqual(details["failed_count"], 1)
+        self.assertEqual(details["test_success_count"], 0)
+        self.assertEqual(details["test_failed_count"], 1)
+        self.assertEqual(details["remote_success_count"], 0)
+        self.assertEqual(details["remote_failed_count"], 0)
+
+    def test_a_remote_job_event_increments_the_printer_remote_counts_not_test_counts(self):
+        manager = Mock()
+        manager.renderer_registry.all_entries.return_value = []
+        manager.list_printers.return_value = [Printer("Office Driver", system_driver_available=True)]
+        self.api.printer_manager = manager
+        self.api.refresh_printers()
+
+        self.api.events.put(("job", ("Office", JobHistoryEntry(job_id="1", status="printed", printer_name="Office Driver"))))
+        self.api.events.put(("job", ("Office", JobHistoryEntry(job_id="2", status="failed", printer_name="Office Driver"))))
+        state = self.api._build_state()
+
+        details = next(p for p in state["printer_details"] if p["name"] == "Office Driver")
+        self.assertEqual(details["remote_success_count"], 1)
+        self.assertEqual(details["remote_failed_count"], 1)
+        self.assertEqual(details["test_success_count"], 0)
+        self.assertEqual(details["test_failed_count"], 0)
 
     def test_starts_and_stops_one_server(self):
         result = self.api.add_server({"name": "Office", "server_url": "https://office.example.test"})
