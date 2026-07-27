@@ -119,11 +119,11 @@ class PollingWorker:
         printer_name = resolve_printer_name(server, job, self.config.selected_printer)
         override = server.printer_profiles.get(printer_name) if server else None
         profile = override or self.config.printer_profiles.get(printer_name, PrinterProfile())
-        self._record_job(job.job_id, "reserved")
+        self._record_job(job.job_id, "reserved", printer_name=printer_name)
         try:
             payload = decode_payload(job.payload_base64)
             client.report_printing(job.job_id)
-            self._record_job(job.job_id, "printing")
+            self._record_job(job.job_id, "printing", printer_name=printer_name)
             submission_method = profile.submission_method or None
             for copy_number in range(job.copies):
                 logger.info("Printing job %s copy %s of %s", job.job_id, copy_number + 1, job.copies)
@@ -139,7 +139,7 @@ class PollingWorker:
                     explicit_renderer=job.renderer or None,
                 )
             client.report_printed(job.job_id)
-            self._record_job(job.job_id, "printed")
+            self._record_job(job.job_id, "printed", printer_name=printer_name)
         except (ApiError, PrinterError, ValueError) as exc:
             message = _safe_error_message(exc)
             logger.warning("Job %s failed: %s", job.job_id, message)
@@ -147,15 +147,15 @@ class PollingWorker:
                 client.report_failed(job.job_id, message)
             except ApiError as report_exc:
                 logger.warning("Could not report failed job %s: %s", job.job_id, _safe_error_message(report_exc))
-            self._record_job(job.job_id, "failed", message)
+            self._record_job(job.job_id, "failed", message, printer_name=printer_name)
 
     def _set_status(self, status: str) -> None:
         self.state.status = status
         if self.on_status:
             self.on_status(status)
 
-    def _record_job(self, job_id: str, status: str, detail: str = "") -> None:
-        entry = JobHistoryEntry(job_id=job_id, status=status, detail=detail)
+    def _record_job(self, job_id: str, status: str, detail: str = "", printer_name: str = "") -> None:
+        entry = JobHistoryEntry(job_id=job_id, status=status, detail=detail, printer_name=printer_name)
         if self.on_job:
             self.on_job(entry)
 
