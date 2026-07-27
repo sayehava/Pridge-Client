@@ -164,6 +164,7 @@ window.PridgeStrings = Object.freeze({
   rescanning_plugins: "Rescanning…",
   plugins_rescanned: "Plugins rescanned.",
   app_mappings: "External Application Mappings",
+  mappings_count: "{count} mappings configured",
   app_mappings_hint: "Map file types to installed applications that convert them to PDF.",
   no_app_mappings: "No application mappings configured.",
   add_mapping: "Add Mapping",
