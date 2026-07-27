@@ -178,8 +178,8 @@ class PrinterManager:
                 f"Renderer plugin {plugin.plugin_id} failed while converting the document: {exc}"
             ) from exc
         logger.info(
-            "Renderer %s produced %d bytes in %.3fs (reason=%s)",
-            plugin.plugin_id, len(pdf_data), time.monotonic() - t0, reason,
+            f"Renderer {plugin.plugin_id} produced {len(pdf_data)} bytes in "
+            f"{time.monotonic() - t0:.3f}s (reason={reason})"
         )
 
         try:
@@ -188,14 +188,10 @@ class PrinterManager:
             raise PrinterError(str(exc)) from exc
 
         method = submission_method or _default_submission_method(self.system)
-        logger.info(
-            "Submitting system-driver job to printer %s (submission_method=%s)", printer_name, method
-        )
+        logger.info(f"Submitting system-driver job to printer {printer_name} (submission_method={method})")
         t0 = time.monotonic()
         self.backend.print_driver_pdf(printer_name, pdf_data, settings, job_name, method)
-        logger.info(
-            "Native submission of %d bytes completed in %.3fs", len(pdf_data), time.monotonic() - t0
-        )
+        logger.info(f"Native submission of {len(pdf_data)} bytes completed in {time.monotonic() - t0:.3f}s")
 
     def print_raw(self, printer_name: str, data: bytes, job_name: str = "Pridge Job") -> None:
         self.print_job(printer_name, data, mode="raw", job_name=job_name)
