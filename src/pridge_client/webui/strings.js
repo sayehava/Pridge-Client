@@ -10,6 +10,7 @@ window.PridgeStrings = Object.freeze({
   plugins_hint: "Manage the plugins that extend Pridge Client, grouped by category.",
   plugins_count: "{count} plugins installed",
   servers: "Servers",
+  servers_count: "{count} servers configured",
   printers: "Printers",
   printers_hint: "Configure the default printing mode, driver settings, and submission method for each installed printer, independent of any server. Test print here before adding a server.",
   default_printer: "Default",
