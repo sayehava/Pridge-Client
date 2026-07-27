@@ -1603,19 +1603,8 @@ button.stone-option.selected {
   flex-shrink: 0;
 }
 
-.renderer-order {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  flex: 0 0 auto;
-  margin-top: 1px;
-}
-
-.renderer-order-btn {
-  padding: 1px 7px;
-  font-size: 0.75rem;
-  line-height: 1.5;
-  min-width: 0;
+.renderer-row .widget-drag-handle {
+  margin-top: 2px;
 }
 
 .renderer-types {
