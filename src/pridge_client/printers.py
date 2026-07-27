@@ -205,6 +205,7 @@ class PrinterManager:
         printer_name: str,
         mode: str,
         driver_settings: Mapping[str, str] | None = None,
+        submission_method: str | None = None,
     ) -> None:
         if mode != "system_driver":
             raise PrinterError("Test printing is available only in System Driver mode.")
@@ -215,6 +216,7 @@ class PrinterManager:
             driver_settings=driver_settings,
             content_type="application/pdf",
             job_name="Pridge Test Page",
+            submission_method=submission_method,
         )
 
     def install_renderer_plugin(self, source: Path) -> str:
