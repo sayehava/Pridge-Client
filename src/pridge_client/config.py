@@ -8,6 +8,7 @@ import json
 import os
 import platform
 import re
+import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -65,6 +66,21 @@ class AppearanceConfig:
 
 
 @dataclass
+class DashboardWidget:
+    id: str
+    widget_type: str
+    page: int = 0
+    position: int = 0
+
+
+def _default_dashboard_widgets() -> list[DashboardWidget]:
+    return [
+        DashboardWidget(id="recent-jobs", widget_type="recent_jobs", page=0, position=0),
+        DashboardWidget(id="logs-status", widget_type="logs", page=0, position=1),
+    ]
+
+
+@dataclass
 class ClientConfig:
     server_url: str = ""
     servers: list[ServerConfig] = field(default_factory=list)
@@ -76,6 +92,7 @@ class ClientConfig:
     start_at_login: bool = False
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     appearance: AppearanceConfig = field(default_factory=AppearanceConfig)
+    dashboard_widgets: list[DashboardWidget] = field(default_factory=_default_dashboard_widgets)
 
 
 class ConfigError(ValueError):
@@ -126,6 +143,7 @@ class ConfigStore:
             appearance=AppearanceConfig(
                 darkness_grade=_appearance_grade(appearance_raw),
             ),
+            dashboard_widgets=_parse_dashboard_widgets(raw.get("dashboard_widgets")),
         )
         if migrate_legacy:
             self.save(config)
@@ -374,6 +392,33 @@ def _parse_printer_profiles(raw: Any) -> dict[str, PrinterProfile]:
             mode=mode, driver_settings=settings, submission_method=raw_method
         )
     return profiles
+
+
+def _parse_dashboard_widgets(raw: Any) -> list[DashboardWidget]:
+    if not isinstance(raw, list):
+        return _default_dashboard_widgets()
+
+    widgets: list[DashboardWidget] = []
+    seen_ids: set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        widget_type = str(item.get("widget_type", "")).strip()
+        if not widget_type:
+            continue
+        widget_id = str(item.get("id", "")).strip() or uuid.uuid4().hex
+        if widget_id in seen_ids:
+            widget_id = uuid.uuid4().hex
+        seen_ids.add(widget_id)
+        widgets.append(
+            DashboardWidget(
+                id=widget_id,
+                widget_type=widget_type,
+                page=_positive_int(item.get("page", 0), 0),
+                position=_positive_int(item.get("position", 0), 0),
+            )
+        )
+    return widgets
 
 
 def _token_username(server_id: str) -> str:
