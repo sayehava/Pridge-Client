@@ -629,7 +629,7 @@ class ClientApi:
                         "widget_type": widget.widget_type,
                         "title": meta.get("title", widget.widget_type),
                         "source": meta.get("source", "unknown"),
-                        "script_url": meta.get("script_url", ""),
+                        "script_source": meta.get("script_source", ""),
                     }
                 )
             pages.append(page)
@@ -654,12 +654,16 @@ class ClientApi:
             script_path = Path(entry.source_path) / manifest.widget_entry
             if not script_path.is_file():
                 continue
+            try:
+                script_source = script_path.read_text(encoding="utf-8")
+            except OSError:
+                continue
             catalog.append(
                 {
                     "type": entry.plugin.plugin_id,
                     "title": manifest.widget_title,
                     "source": "plugin",
-                    "script_url": script_path.resolve().as_uri(),
+                    "script_source": script_source,
                 }
             )
         return catalog
