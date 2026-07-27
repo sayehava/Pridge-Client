@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import platform
+import re
 import textwrap
 import time
 from dataclasses import dataclass, field
@@ -21,6 +22,49 @@ _LOGO_PATH = Path(__file__).resolve().parent / "webui" / "assets" / "Logo.png"
 _PAGE_WIDTH = 612
 _PAGE_HEIGHT = 792
 _MARGIN = 72
+
+_PAGE_SIZES_PT: dict[str, tuple[float, float]] = {
+    "letter": (612.0, 792.0),
+    "legal": (612.0, 1008.0),
+    "executive": (522.0, 756.0),
+    "statement": (396.0, 612.0),
+    "folio": (612.0, 936.0),
+    "tabloid": (792.0, 1224.0),
+    "ledger": (1224.0, 792.0),
+    "a3": (842.0, 1191.0),
+    "a4": (595.0, 842.0),
+    "a5": (420.0, 595.0),
+    "a6": (298.0, 420.0),
+    "b5": (499.0, 709.0),
+}
+_PWG_SIZE_RE = re.compile(r"_(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)(in|mm)$", re.IGNORECASE)
+_CUSTOM_SIZE_RE = re.compile(r"^custom\.(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)", re.IGNORECASE)
+
+
+def _page_size_for_option(value_id: str) -> tuple[float, float] | None:
+    """Resolve a CUPS/PPD PageSize option value (e.g. "A4", "Custom.420x595",
+    or a PWG self-describing name like "iso_a5_148x210mm") to (width_pt, height_pt).
+    Returns None for unrecognized values so callers can fall back to a default.
+    """
+    if not value_id:
+        return None
+    key = value_id.strip().lower()
+
+    match = _CUSTOM_SIZE_RE.match(key)
+    if match:
+        return float(match.group(1)), float(match.group(2))
+
+    match = _PWG_SIZE_RE.search(key)
+    if match:
+        width, height, unit = match.groups()
+        factor = 72.0 if unit.lower() == "in" else 72.0 / 25.4
+        return float(width) * factor, float(height) * factor
+
+    simplified = key.rsplit("_", 1)[-1] if "_" in key else key
+    for candidate in (key, simplified):
+        if candidate in _PAGE_SIZES_PT:
+            return _PAGE_SIZES_PT[candidate]
+    return None
 
 
 class PrinterError(RuntimeError):
