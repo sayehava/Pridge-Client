@@ -17,12 +17,36 @@ from pridge_client.printers import (
     PrinterCapabilities,
     PrinterError,
     PrinterManager,
+    _page_size_for_option,
     create_test_page_pdf,
     validate_driver_settings,
 )
 
 
 FIXTURE_PLUGIN_DIR = Path(__file__).resolve().parent / "fixtures" / "example_renderer_plugin"
+
+
+class PageSizeResolutionTests(unittest.TestCase):
+    def test_resolves_common_ppd_keywords(self) -> None:
+        self.assertEqual(_page_size_for_option("Letter"), (612.0, 792.0))
+        self.assertEqual(_page_size_for_option("A4"), (595.0, 842.0))
+        self.assertEqual(_page_size_for_option("a5"), (420.0, 595.0))
+
+    def test_resolves_custom_cups_page_sizes(self) -> None:
+        self.assertEqual(_page_size_for_option("Custom.300x400"), (300.0, 400.0))
+
+    def test_resolves_pwg_self_describing_names(self) -> None:
+        width, height = _page_size_for_option("na_letter_8.5x11in")
+        self.assertAlmostEqual(width, 612.0, delta=1.0)
+        self.assertAlmostEqual(height, 792.0, delta=1.0)
+
+        width, height = _page_size_for_option("iso_a5_148x210mm")
+        self.assertAlmostEqual(width, 420.0, delta=2.0)
+        self.assertAlmostEqual(height, 595.0, delta=2.0)
+
+    def test_returns_none_for_an_unrecognized_value(self) -> None:
+        self.assertIsNone(_page_size_for_option("SomeWeirdMediaName"))
+        self.assertIsNone(_page_size_for_option(""))
 
 
 class DriverCapabilityTests(unittest.TestCase):
@@ -38,6 +62,16 @@ class DriverCapabilityTests(unittest.TestCase):
         document = create_test_page_pdf()
 
         self.assertIn(b"/Subtype /Image", document)
+
+    def test_media_box_matches_the_requested_page_size(self) -> None:
+        document = create_test_page_pdf(420.0, 595.0)
+
+        self.assertIn(b"/MediaBox [0 0 420 595]", document)
+
+    def test_defaults_to_letter_when_no_page_size_is_given(self) -> None:
+        document = create_test_page_pdf()
+
+        self.assertIn(b"/MediaBox [0 0 612 792]", document)
         self.assertIn(b"/Im1", document)
 
     def test_parses_cups_option_ids_labels_choices_and_defaults(self) -> None:
@@ -163,6 +197,44 @@ class PrinterManagerTests(unittest.TestCase):
         self.assertTrue(call_args.args[1].startswith(b"%PDF-1.4"))
         self.assertEqual(call_args.args[2], {})
         self.assertEqual(call_args.args[3], "Pridge Test Page")
+
+    def test_test_page_fits_the_printers_default_page_size(self) -> None:
+        self.manager.backend.get_capabilities.return_value = PrinterCapabilities(
+            printer_name="Labels",
+            system_driver_available=True,
+            options=(
+                DriverOption(
+                    id="PageSize",
+                    label="Media Size",
+                    choices=(DriverChoice("A4", "A4"), DriverChoice("Letter", "Letter")),
+                    default="A4",
+                ),
+            ),
+        )
+
+        self.manager.print_test_page("Labels", "system_driver")
+
+        pdf_data = self.manager.backend.print_driver_pdf.call_args.args[1]
+        self.assertIn(b"/MediaBox [0 0 595 842]", pdf_data)
+
+    def test_test_page_fits_an_explicit_page_size_override(self) -> None:
+        self.manager.backend.get_capabilities.return_value = PrinterCapabilities(
+            printer_name="Labels",
+            system_driver_available=True,
+            options=(
+                DriverOption(
+                    id="PageSize",
+                    label="Media Size",
+                    choices=(DriverChoice("A4", "A4"), DriverChoice("A5", "A5")),
+                    default="A4",
+                ),
+            ),
+        )
+
+        self.manager.print_test_page("Labels", "system_driver", driver_settings={"PageSize": "A5"})
+
+        pdf_data = self.manager.backend.print_driver_pdf.call_args.args[1]
+        self.assertIn(b"/MediaBox [0 0 420 595]", pdf_data)
 
     def test_does_not_inject_a_generic_test_payload_in_raw_mode(self) -> None:
         with self.assertRaises(PrinterError):
