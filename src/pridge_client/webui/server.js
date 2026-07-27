@@ -58,6 +58,7 @@
     const [setupPrinter, setSetupPrinter] = useState("");
     const [printerCapabilities, setPrinterCapabilities] = useState(null);
     const [printerProfile, setPrinterProfile] = useState({ mode: "system_driver", driver_settings: {} });
+    const [platformSystem, setPlatformSystem] = useState("");
     const [profileBusy, setProfileBusy] = useState(false);
     const [profileError, setProfileError] = useState("");
     const [profileMessage, setProfileMessage] = useState("");
@@ -203,6 +204,7 @@
         }
         setPrinterCapabilities(result.capabilities || null);
         setPrinterProfile(result.profile || { mode: "system_driver", driver_settings: {} });
+        setPlatformSystem(result.platform_system || "");
       });
     };
 
@@ -242,6 +244,12 @@
         ...printerProfile,
         driver_settings: { ...(printerProfile.driver_settings || {}), [optionId]: valueId },
       };
+      setPrinterProfile(nextProfile);
+      persistPrinterProfile(nextProfile);
+    };
+
+    const setSubmissionMethod = (event) => {
+      const nextProfile = { ...printerProfile, submission_method: event.target.value };
       setPrinterProfile(nextProfile);
       persistPrinterProfile(nextProfile);
     };
@@ -438,6 +446,24 @@
                                   ? html`<strong>${printerCapabilities.driver_name}</strong>`
                                   : null}
                               </div>
+
+                              ${platformSystem && platformSystem !== "Windows"
+                                ? html`
+                                    <div class="field">
+                                      <label class="field-label">${S.submission_method}</label>
+                                      <select
+                                        value=${printerProfile.submission_method || ""}
+                                        onChange=${setSubmissionMethod}
+                                        disabled=${profileBusy}
+                                      >
+                                        <option value="">${S.submission_method_automatic}</option>
+                                        <option value="direct_pdf">${S.submission_method_direct_pdf}</option>
+                                        <option value="pdfium">${S.submission_method_pdfium}</option>
+                                      </select>
+                                      <small>${S.submission_method_hint}</small>
+                                    </div>
+                                  `
+                                : null}
 
                               ${printerCapabilities && printerCapabilities.supports_native_dialog
                                 ? html`
