@@ -181,16 +181,16 @@ Printing mode and page/job settings are stored once per installed local printer,
 
 The client does not interpret or transform RAW payloads. Base64 is decoded to bytes and sent as received, including null bytes, line endings, and printer-control commands. Generic page setup is intentionally unavailable in RAW mode.
 
-`system_driver` mode submits the document through the operating system printing path:
+`system_driver` mode routes the document through a renderer plugin, which converts it to a normalized PDF, then submits that PDF through the operating system printing path:
 
-- Windows: the registered `PrintTo` document handler and the installed printer driver; `Open Driver Settings` displays the driver's native preferences window, which owns and saves its supported options
-- Linux/macOS: CUPS `lp`; `lpoptions` supplies the exact option IDs, choices, display labels, and defaults shown in Pridge Client
+- Windows: rendered in memory with PDFium and drawn to the printer's device context through GDI (no OS file-association handler involved); `Open Driver Settings` displays the driver's native preferences window, which owns and saves its supported options
+- Linux/macOS: CUPS `lp`, either passing the PDF straight through (`direct_pdf`) or pre-rendered page-by-page with PDFium (`pdfium`); `lpoptions` supplies the exact option IDs, choices, display labels, and defaults shown in Pridge Client
 
-Printer setup changes save automatically. `Test Print` generates a local PDF test page and submits it through the selected printer's system driver. Test printing is unavailable in RAW mode because arbitrary printers do not share a safe, universal RAW test language.
+Printer setup changes save automatically. `Test Print` generates a local PDF test page — the Pridge logo, a large pass/fail status line, and a short explanation — and submits it through the selected printer's system driver. Test printing is unavailable in RAW mode because arbitrary printers do not share a safe, universal RAW test language.
 
 CUPS options can include media or label size, orientation, resolution, input source, media type, duplex, cutter behavior, and other driver-specific controls. Only options reported by the current driver are shown. Saved values are validated again before each system-driver job; removed or changed choices fall back to the driver's current default.
 
-System-driver payloads should include an accurate `content_type`, such as `application/pdf` or `image/png`. On Windows, the document type must also have an installed application that supports the operating system's `PrintTo` action. Rendering and conversion remain the responsibility of that application, the operating system, and the printer driver.
+System-driver payloads should include an accurate `content_type`, such as `application/pdf` or `image/png`, so the correct renderer plugin is selected; unknown types fall back to MIME/extension/magic-byte detection. See [PLUGINS.md](PLUGINS.md) for the renderer plugin system, including how to install a third-party plugin from the Plugins window and how to write your own.
 
 ## Background Operation
 
@@ -269,7 +269,9 @@ Pridge Client is built on the following open-source libraries. Their authors' wo
 | --- | --- | --- |
 | [pywebview](https://github.com/r0x0r/pywebview) | Desktop window and native webview shell | BSD-3-Clause |
 | [pystray](https://github.com/moses-palmer/pystray) | System tray icon and menu | LGPL-3.0 |
-| [Pillow](https://python-pillow.org/) | Tray/window icon and test-page image handling | MIT-CMU (HPND) |
+| [Pillow](https://python-pillow.org/) | Tray/window icon, test-page image handling, and Windows GDI page drawing | MIT-CMU (HPND) |
+| [pypdfium2](https://github.com/pypdfium2-team/pypdfium2) (PDFium) | In-memory PDF validation and page rendering for the renderer plugin pipeline | Apache-2.0 / BSD-3-Clause |
+| [cairosvg](https://github.com/Kozea/CairoSVG) | Optional SVG-to-PDF renderer plugin | LGPL-3.0 |
 | [keyring](https://github.com/jaraco/keyring) | Operating system credential store for client tokens | MIT |
 | [requests](https://requests.readthedocs.io/) | HTTP client for the Pridge Server API | Apache-2.0 |
 | [pyobjc](https://github.com/ronaldoussoren/pyobjc) (Cocoa, Quartz, WebKit, Security, UniformTypeIdentifiers) | macOS native window, menu, and keychain integration | MIT |
