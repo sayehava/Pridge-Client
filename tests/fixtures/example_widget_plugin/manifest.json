@@ -1,0 +1,12 @@
+{
+  "id": "org.example.pridge.widget.example",
+  "name": "Example Widget Plugin",
+  "version": "1.0.0",
+  "api_version": 1,
+  "category": "renderer",
+  "entry_point": "plugin:ExampleWidgetRendererPlugin",
+  "supported_mime_types": [],
+  "supported_extensions": [],
+  "widget_title": "Example Widget",
+  "widget_entry": "widget.js"
+}
