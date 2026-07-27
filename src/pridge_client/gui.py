@@ -562,6 +562,7 @@ class ClientApi:
                 "is_builtin": entry.is_builtin,
                 "load_error": entry.load_error,
                 "source_path": entry.source_path,
+                "has_settings": entry.plugin.plugin_id == self.printer_manager.app_mapping_plugin.plugin_id,
             }
             for entry in entries_sorted
         ]
