@@ -91,7 +91,7 @@
         </div>`;
   }
 
-  function WidgetCard({ widget, recentJobs, logs, onRemove, isDragging, onDragStart, onDragEnd, onDropOn }) {
+  function WidgetCard({ widget, recentJobs, logs, printerDetails, onRemove, isDragging, onDragStart, onDragEnd, onDropOn }) {
     const containerId = `pridge-widget-${widget.id}`;
     const scriptLoaded = useRef(false);
 
@@ -111,6 +111,22 @@
         : html`<div class="scroll-panel">${recentJobs.map((line, i) => html`<div class="job-line" key=${i}>${line}</div>`)}</div>`;
     } else if (widget.widget_type === "logs") {
       body = html`<${LogsPanel} logs=${logs} />`;
+    } else if (widget.widget_type === "printer_stats") {
+      body = printerDetails.length === 0
+        ? html`<div class="scroll-panel empty">${S.no_printers}</div>`
+        : html`<div class="scroll-panel">
+            ${printerDetails.map(
+              (printer) => html`
+                <div class="printer-stat-row" key=${printer.name}>
+                  <span class="printer-stat-name">${printer.name}</span>
+                  <span class="printer-stat-counts">
+                    <span class="printer-stat-success">${printer.success_count}</span>
+                    <span class="printer-stat-failed">${printer.failed_count}</span>
+                  </span>
+                </div>
+              `
+            )}
+          </div>`;
     } else {
       body = html`<div id=${containerId} class="widget-plugin-mount"></div>`;
     }
@@ -171,7 +187,7 @@
     `;
   }
 
-  function WidgetArea({ recentJobs, logs }) {
+  function WidgetArea({ recentJobs, logs, printerDetails }) {
     const [layout, setLayout] = useState(null);
     const [pageIndex, setPageIndex] = useState(0);
     const [showPicker, setShowPicker] = useState(false);
@@ -237,6 +253,7 @@
                 widget=${widget}
                 recentJobs=${recentJobs}
                 logs=${logs}
+                printerDetails=${printerDetails}
                 onRemove=${() => removeWidget(widget.id)}
                 isDragging=${draggingId === widget.id}
                 onDragStart=${() => setDraggingId(widget.id)}
@@ -316,7 +333,7 @@
             onStart=${() => callApi("start_workers").then(applyResult)}
             onStop=${() => callApi("stop_workers").then(applyResult)}
           />
-          <${WidgetArea} recentJobs=${state.recent_jobs} logs=${state.logs} />
+          <${WidgetArea} recentJobs=${state.recent_jobs} logs=${state.logs} printerDetails=${state.printer_details} />
         </div>
         ${error ? html`<div class="toast">${error}</div>` : null}
       </div>
