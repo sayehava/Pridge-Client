@@ -315,26 +315,59 @@ button {
   color: var(--text-dim);
 }
 
-/* Content grid */
+/* Content layout */
 .content {
   flex: 1;
   padding: var(--gap);
   overflow-y: auto;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: auto auto 1fr;
-  grid-template-areas:
-    "server polling"
-    "server polling"
-    "jobs   logs";
+  display: flex;
+  flex-direction: column;
   gap: var(--gap);
   min-height: 0;
 }
 
-.area-server { grid-area: server; }
-.area-polling { grid-area: polling; }
-.area-jobs { grid-area: jobs; min-height: 220px; }
-.area-logs { grid-area: logs; min-height: 220px; }
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 12px 18px;
+  background: linear-gradient(145deg, var(--card-highlight), var(--card-bg));
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-card);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055), 0 18px 45px rgba(0, 0, 0, 0.22);
+  flex: 0 0 auto;
+}
+
+.status-bar-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.status-bar-copy strong {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.status-bar .badge-row {
+  margin-bottom: 0;
+  gap: 8px;
+}
+
+.status-bar .button-row {
+  margin-top: 0;
+}
+
+.summary-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap);
+  flex: 0 0 auto;
+}
 
 /* Cards */
 .card {
@@ -348,6 +381,33 @@ button {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055), 0 18px 45px rgba(0, 0, 0, 0.22);
   backdrop-filter: blur(18px) saturate(125%);
   -webkit-backdrop-filter: blur(18px) saturate(125%);
+}
+
+/* .card overrides: must come after the base .card rule above so their
+   flex-direction wins over it for these specific card variants. */
+.jobs-logs-card {
+  flex: 1;
+  flex-direction: row;
+  min-height: 220px;
+  gap: var(--gap);
+}
+
+.jobs-logs-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.jobs-logs-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+}
+
+.summary-card {
+  min-height: 0;
 }
 
 .card-title {
@@ -696,15 +756,6 @@ button.page-number.active {
   color: var(--text);
   font-weight: 700;
   margin-bottom: 5px;
-}
-
-.controls-actions {
-  margin-top: auto;
-  padding-top: 8px;
-}
-
-.controls-hint {
-  margin: -4px 0 18px;
 }
 
 /* Scrollable panels (jobs / logs) */
@@ -1419,14 +1470,22 @@ button.stone-option.selected {
 }
 
 @media (max-width: 1040px) {
-  .content {
+  .summary-row {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto minmax(220px, 1fr) minmax(220px, 1fr);
-    grid-template-areas:
-      "server"
-      "polling"
-      "jobs"
-      "logs";
+  }
+
+  .status-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .jobs-logs-card {
+    flex-direction: column;
+  }
+
+  .jobs-logs-divider {
+    width: auto;
+    height: 1px;
   }
 }
 
