@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 
 from pridge_client.api import ApiError, ReservedJob, ServerInstructions, parse_server_instructions
 from pridge_client.config import ClientConfig, PrinterMapping, PrinterProfile, ServerConfig
+from pridge_client.printers import PrinterError
 from pridge_client.worker import PollingWorker, decode_payload, resolve_printer_name
 
 
@@ -153,6 +154,37 @@ class WorkerPrintingModeTests(unittest.TestCase):
             submission_method="pdfium",
             explicit_renderer=None,
         )
+
+    def test_job_history_entries_carry_the_printer_name_on_success(self) -> None:
+        server = ServerConfig(id="office", default_printer="Office Driver")
+        config = ClientConfig(server_url="https://example.test", servers=[server])
+        printer_manager = Mock()
+        client = Mock()
+        entries = []
+        worker = PollingWorker(config, "token", printer_manager=printer_manager, on_job=entries.append)
+        job = ReservedJob(job_id="42", payload_base64="JVBERg==", content_type="application/pdf")
+
+        worker._process_job(client, job)
+
+        printed = [entry for entry in entries if entry.status == "printed"]
+        self.assertEqual(len(printed), 1)
+        self.assertEqual(printed[0].printer_name, "Office Driver")
+
+    def test_job_history_entries_carry_the_printer_name_on_failure(self) -> None:
+        server = ServerConfig(id="office", default_printer="Office Driver")
+        config = ClientConfig(server_url="https://example.test", servers=[server])
+        printer_manager = Mock()
+        printer_manager.print_job.side_effect = PrinterError("no paper")
+        client = Mock()
+        entries = []
+        worker = PollingWorker(config, "token", printer_manager=printer_manager, on_job=entries.append)
+        job = ReservedJob(job_id="42", payload_base64="JVBERg==", content_type="application/pdf")
+
+        worker._process_job(client, job)
+
+        failed = [entry for entry in entries if entry.status == "failed"]
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(failed[0].printer_name, "Office Driver")
 
 
 class WorkerStatusRecoveryTests(unittest.TestCase):
