@@ -584,37 +584,6 @@ class ClientApi:
         self._save_dashboard_widgets([widgets for widgets in pages if widgets])
         return self.get_dashboard_layout()
 
-    def move_dashboard_widget(self, widget_id: str, direction: str) -> dict:
-        widget_id = str(widget_id).strip()
-        direction = str(direction).strip().lower()
-        pages = self._grouped_dashboard_widgets()
-        location = None
-        for page_index, widgets in enumerate(pages):
-            for position, widget in enumerate(widgets):
-                if widget.id == widget_id:
-                    location = (page_index, position)
-                    break
-            if location:
-                break
-
-        if location is not None:
-            page_index, position = location
-            widgets = pages[page_index]
-            if direction == "up" and position > 0:
-                widgets[position - 1], widgets[position] = widgets[position], widgets[position - 1]
-            elif direction == "down" and position < len(widgets) - 1:
-                widgets[position + 1], widgets[position] = widgets[position], widgets[position + 1]
-            elif direction == "left" and page_index > 0 and len(pages[page_index - 1]) < MAX_DASHBOARD_WIDGETS_PER_PAGE:
-                pages[page_index - 1].append(widgets.pop(position))
-            elif direction == "right":
-                if page_index == len(pages) - 1:
-                    pages.append([])
-                if len(pages[page_index + 1]) < MAX_DASHBOARD_WIDGETS_PER_PAGE:
-                    pages[page_index + 1].append(widgets.pop(position))
-
-        self._save_dashboard_widgets([widgets for widgets in pages if widgets])
-        return self.get_dashboard_layout()
-
     def reorder_dashboard_widget(self, widget_id: str, target_page: int, target_position: int) -> dict:
         widget_id = str(widget_id).strip()
         try:
