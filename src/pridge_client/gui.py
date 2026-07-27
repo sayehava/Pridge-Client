@@ -437,11 +437,12 @@ class ClientApi:
         self.selected_printer = str(name)
         return self._ok()
 
-    def get_printer_capabilities(self, printer_name: str) -> dict:
+    def get_printer_capabilities(self, printer_name: str, server_id: str = "") -> dict:
         name = str(printer_name).strip()
         if name not in {printer.name for printer in self.printers}:
             return self._error("The selected printer is no longer available.")
-        profile = self.config.printer_profiles.get(name, PrinterProfile())
+        store = self._profile_store(server_id)
+        profile = store.get(name, PrinterProfile())
         try:
             capabilities = self.printer_manager.get_capabilities(name)
         except PrinterError as exc:
@@ -450,7 +451,7 @@ class ClientApi:
         validated = validate_driver_settings(capabilities, profile.driver_settings)
         if capabilities.system_driver_available and validated != profile.driver_settings:
             profile.driver_settings = validated
-            self.config.printer_profiles[name] = profile
+            store[name] = profile
             self.config_store.save(self._current_config())
         return {
             "ok": True,
@@ -461,7 +462,7 @@ class ClientApi:
             "state": self._build_state(),
         }
 
-    def update_printer_profile(self, printer_name: str, fields: dict) -> dict:
+    def update_printer_profile(self, printer_name: str, fields: dict, server_id: str = "") -> dict:
         name = str(printer_name).strip()
         if name not in {printer.name for printer in self.printers}:
             return self._error("The selected printer is no longer available.")
@@ -469,7 +470,8 @@ class ClientApi:
         if mode not in PRINT_MODES:
             return self._error("The selected printing mode is not supported.")
 
-        existing = self.config.printer_profiles.get(name, PrinterProfile())
+        store = self._profile_store(server_id)
+        existing = store.get(name, PrinterProfile())
         raw_settings = fields.get("driver_settings", existing.driver_settings)
         settings = self._driver_settings(raw_settings)
         submission_method = str(fields.get("submission_method", existing.submission_method)).strip().lower()
@@ -486,7 +488,7 @@ class ClientApi:
             settings = validate_driver_settings(capabilities, settings)
 
         profile = PrinterProfile(mode=mode, driver_settings=settings, submission_method=submission_method)
-        self.config.printer_profiles[name] = profile
+        store[name] = profile
         self.config = self._current_config()
         self.config_store.save(self.config)
         logger.info("Updated printing mode for printer %s", name)
@@ -499,7 +501,7 @@ class ClientApi:
             "state": self._build_state(),
         }
 
-    def open_printer_driver_settings(self, printer_name: str) -> dict:
+    def open_printer_driver_settings(self, printer_name: str, server_id: str = "") -> dict:
         name = str(printer_name).strip()
         if name not in {printer.name for printer in self.printers}:
             return self._error("The selected printer is no longer available.")
@@ -507,13 +509,13 @@ class ClientApi:
             self.printer_manager.open_driver_settings(name)
         except PrinterError as exc:
             return self._error(str(exc))
-        return self.get_printer_capabilities(name)
+        return self.get_printer_capabilities(name, server_id)
 
-    def test_printer(self, printer_name: str) -> dict:
+    def test_printer(self, printer_name: str, server_id: str = "") -> dict:
         name = str(printer_name).strip()
         if name not in {printer.name for printer in self.printers}:
             return self._error("The selected printer is no longer available.")
-        profile = self.config.printer_profiles.get(name, PrinterProfile())
+        profile = self._profile_store(server_id).get(name, PrinterProfile())
         if profile.mode != "system_driver":
             return self._error(MESSAGE_TEST_PRINT_DRIVER_ONLY)
         try:
@@ -532,6 +534,14 @@ class ClientApi:
             "message": MESSAGE_TEST_PRINT_SUBMITTED,
             "state": self._build_state(),
         }
+
+    def _profile_store(self, server_id: str) -> dict[str, PrinterProfile]:
+        server_id = str(server_id or "").strip()
+        if server_id:
+            server = self._server_by_id(server_id)
+            if server is not None:
+                return server.printer_profiles
+        return self.config.printer_profiles
 
     def set_start_polling_on_launch(self, value: bool) -> dict:
         self.start_polling_on_launch = bool(value)
