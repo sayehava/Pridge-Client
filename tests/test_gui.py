@@ -184,7 +184,10 @@ class ClientApiTests(unittest.TestCase):
         )
 
         self.assertTrue(result["ok"])
-        self.assertEqual(result["profile"], {"mode": "system_driver", "driver_settings": {"PageSize": "A4"}})
+        self.assertEqual(
+            result["profile"],
+            {"mode": "system_driver", "driver_settings": {"PageSize": "A4"}, "submission_method": ""},
+        )
         self.assertEqual(self.api.config_store.load().printer_profiles["Office Driver"].mode, "system_driver")
 
     def test_exposes_driver_capabilities_with_saved_profile(self):
