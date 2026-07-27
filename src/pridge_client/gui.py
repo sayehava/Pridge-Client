@@ -26,6 +26,7 @@ from pridge_client.build_info import BUILD_SYSTEM, BUILD_VARIANT
 from pridge_client.config import (
     DARKNESS_GRADES,
     PRINT_MODES,
+    SUBMISSION_METHODS,
     ClientTokenStore,
     ConfigStore,
     ClientConfig,
@@ -470,6 +471,9 @@ class ClientApi:
         existing = self.config.printer_profiles.get(name, PrinterProfile())
         raw_settings = fields.get("driver_settings", existing.driver_settings)
         settings = self._driver_settings(raw_settings)
+        submission_method = str(fields.get("submission_method", existing.submission_method)).strip().lower()
+        if submission_method not in SUBMISSION_METHODS:
+            submission_method = existing.submission_method
         capabilities = None
         if mode == "system_driver":
             try:
@@ -480,7 +484,7 @@ class ClientApi:
                 return self._error("The selected printer does not have an available system driver.")
             settings = validate_driver_settings(capabilities, settings)
 
-        profile = PrinterProfile(mode=mode, driver_settings=settings)
+        profile = PrinterProfile(mode=mode, driver_settings=settings, submission_method=submission_method)
         self.config.printer_profiles[name] = profile
         self.config = self._current_config()
         self.config_store.save(self.config)
