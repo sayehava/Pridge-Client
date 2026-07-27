@@ -68,6 +68,7 @@ from pridge_client.strings import (
     MENU_ABOUT,
     MENU_PLUGINS,
     MENU_QUIT,
+    MENU_SERVERS,
     MENU_SETTINGS,
     STATUS_RUNNING,
     STATUS_STOPPED,
@@ -76,6 +77,7 @@ from pridge_client.strings import (
     WINDOW_APP_MAPPING,
     WINDOW_EDIT_SERVER,
     WINDOW_PLUGINS,
+    WINDOW_SERVERS,
     WINDOW_SETTINGS,
     WINDOW_TITLE,
 )
@@ -303,6 +305,15 @@ class ClientApi:
             page="plugins.html",
             width=680,
             height=760,
+        )
+
+    def open_servers_window(self) -> dict:
+        return self._open_utility_window(
+            key="servers",
+            title=WINDOW_SERVERS,
+            page="servers.html",
+            width=760,
+            height=780,
         )
 
     def open_app_mapping_window(self) -> dict:
@@ -1124,6 +1135,7 @@ def _run_gui_normal() -> None:
     api = ClientApi(gui_smoke_test=False)
     menu_actions = [
         (MENU_PLUGINS, api.open_plugins_window),
+        (MENU_SERVERS, api.open_servers_window),
         (MENU_SETTINGS, api.open_settings_window),
         (MENU_ABOUT, api.open_about_window),
         (MENU_QUIT, api.quit_application),
