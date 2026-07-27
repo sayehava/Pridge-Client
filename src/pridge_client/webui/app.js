@@ -68,7 +68,7 @@
     `;
   }
 
-  function Sidebar({ state, onSettings, onAbout, onQuit }) {
+  function Sidebar({ state, onPlugins, onSettings, onAbout, onQuit }) {
     return html`
       <div class="sidebar">
         <div class="sidebar-title">${state.app_name}</div>
@@ -79,6 +79,7 @@
         </div>
         <div class="sidebar-spacer"></div>
         <div class="sidebar-footer">
+          <button class="sidebar-nav full-width" onClick=${onPlugins}><span aria-hidden="true">🧩</span>${S.plugins}</button>
           <button class="sidebar-nav full-width" onClick=${onSettings}><span aria-hidden="true">⚙</span>${S.settings}</button>
           <button class="sidebar-nav full-width" onClick=${onAbout}><span aria-hidden="true">ⓘ</span>${S.about}</button>
           <button class="danger full-width" onClick=${onQuit}>${S.quit}</button>
@@ -305,6 +306,7 @@
       <div class="app">
         <${Sidebar}
           state=${state}
+          onPlugins=${() => callApi("open_plugins_window").then(applyResult)}
           onSettings=${() => callApi("open_settings_window").then(applyResult)}
           onAbout=${() => callApi("open_about_window").then(applyResult)}
           onQuit=${() => callApi("quit_application")}

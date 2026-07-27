@@ -1506,6 +1506,12 @@ button.stone-option.selected {
   margin: 8px 0 0;
 }
 
+.plugin-install-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
 .app-mappings-section {
   margin-top: 18px;
   padding-top: 14px;
