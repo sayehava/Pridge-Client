@@ -91,7 +91,7 @@
         </div>`;
   }
 
-  function WidgetCard({ widget, index, widgetCount, pageIndex, pageCount, recentJobs, logs, onRemove, onMove }) {
+  function WidgetCard({ widget, recentJobs, logs, onRemove, isDragging, onDragStart, onDragEnd, onDropOn }) {
     const containerId = `pridge-widget-${widget.id}`;
     const scriptLoaded = useRef(false);
 
@@ -116,16 +116,28 @@
     }
 
     return html`
-      <div class="card widget-card">
+      <div
+        class=${"card widget-card" + (isDragging ? " widget-card-dragging" : "")}
+        onDragOver=${(event) => event.preventDefault()}
+        onDrop=${(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onDropOn();
+        }}
+      >
         <div class="widget-card-header">
+          <span
+            class="widget-drag-handle"
+            draggable="true"
+            title=${S.drag_to_reorder}
+            onDragStart=${(event) => {
+              event.dataTransfer.effectAllowed = "move";
+              onDragStart();
+            }}
+            onDragEnd=${onDragEnd}
+          >⋮⋮</span>
           <h4>${widget.title}</h4>
-          <div class="widget-card-actions">
-            <button class="widget-move-btn" title=${S.move_left} disabled=${pageIndex === 0 && index === 0} onClick=${() => onMove("left")}>◀</button>
-            <button class="widget-move-btn" title=${S.move_up} disabled=${index === 0} onClick=${() => onMove("up")}>▲</button>
-            <button class="widget-move-btn" title=${S.move_down} disabled=${index === widgetCount - 1} onClick=${() => onMove("down")}>▼</button>
-            <button class="widget-move-btn" title=${S.move_right} onClick=${() => onMove("right")}>▶</button>
-            <button class="widget-remove-btn" title=${S.remove_widget} onClick=${onRemove}>×</button>
-          </div>
+          <button class="widget-remove-btn" title=${S.remove_widget} onClick=${onRemove}>×</button>
         </div>
         <div class="widget-card-body">${body}</div>
       </div>
@@ -163,6 +175,7 @@
     const [layout, setLayout] = useState(null);
     const [pageIndex, setPageIndex] = useState(0);
     const [showPicker, setShowPicker] = useState(false);
+    const [draggingId, setDraggingId] = useState(null);
 
     const refreshLayout = () => {
       callApi("get_dashboard_layout").then((result) => {
@@ -190,7 +203,10 @@
       });
     };
     const removeWidget = (id) => callApi("remove_dashboard_widget", id).then(applyLayout);
-    const moveWidget = (id, direction) => callApi("move_dashboard_widget", id, direction).then(applyLayout);
+    const dropAt = (targetPosition) => {
+      if (draggingId) callApi("reorder_dashboard_widget", draggingId, currentPage, targetPosition).then(applyLayout);
+      setDraggingId(null);
+    };
 
     return html`
       <div class="card widget-area">
@@ -206,20 +222,26 @@
               `
             : null}
         </div>
-        <div class="widget-grid">
+        <div
+          class="widget-grid"
+          onDragOver=${(event) => event.preventDefault()}
+          onDrop=${(event) => {
+            event.preventDefault();
+            dropAt(widgets.length);
+          }}
+        >
           ${widgets.map(
             (widget, index) => html`
               <${WidgetCard}
                 key=${widget.id}
                 widget=${widget}
-                index=${index}
-                widgetCount=${widgets.length}
-                pageIndex=${currentPage}
-                pageCount=${pageCount}
                 recentJobs=${recentJobs}
                 logs=${logs}
                 onRemove=${() => removeWidget(widget.id)}
-                onMove=${(direction) => moveWidget(widget.id, direction)}
+                isDragging=${draggingId === widget.id}
+                onDragStart=${() => setDraggingId(widget.id)}
+                onDragEnd=${() => setDraggingId(null)}
+                onDropOn=${() => dropAt(index)}
               />
             `
           )}
