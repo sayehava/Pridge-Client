@@ -34,6 +34,42 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(manifest.api_version, 1)
         self.assertEqual(manifest.entry_point, "plugin:ExampleRendererPlugin")
         self.assertIn(".example", manifest.supported_extensions)
+        self.assertFalse(manifest.has_widget)
+
+    def test_widget_fields_are_optional_but_reported_when_both_present(self) -> None:
+        with TemporaryDirectory() as scratch:
+            manifest_path = Path(scratch) / "manifest.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "id": "x",
+                        "name": "X",
+                        "entry_point": "a:B",
+                        "category": "renderer",
+                        "widget_title": "My Widget",
+                        "widget_entry": "widget.js",
+                    }
+                )
+            )
+
+            manifest = load_manifest(manifest_path)
+
+        self.assertTrue(manifest.has_widget)
+        self.assertEqual(manifest.widget_title, "My Widget")
+        self.assertEqual(manifest.widget_entry, "widget.js")
+
+    def test_has_widget_is_false_when_only_one_widget_field_is_set(self) -> None:
+        with TemporaryDirectory() as scratch:
+            manifest_path = Path(scratch) / "manifest.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {"id": "x", "name": "X", "entry_point": "a:B", "category": "renderer", "widget_title": "Only Title"}
+                )
+            )
+
+            manifest = load_manifest(manifest_path)
+
+        self.assertFalse(manifest.has_widget)
 
     def test_rejects_missing_id(self) -> None:
         with TemporaryDirectory() as scratch:
