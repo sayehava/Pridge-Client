@@ -12,6 +12,7 @@ window.PridgeStrings = Object.freeze({
   servers: "Servers",
   servers_count: "{count} servers configured",
   printers: "Printers",
+  printers_count: "{count} printers found",
   printers_hint: "Configure the default printing mode, driver settings, and submission method for each installed printer, independent of any server. Test print here before adding a server.",
   default_printer: "Default",
   settings: "Settings",
