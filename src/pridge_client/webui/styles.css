@@ -423,24 +423,37 @@ button {
   margin: 0;
   font-size: 13px;
   font-weight: 700;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.widget-card-actions {
-  display: flex;
-  gap: 4px;
+.widget-drag-handle {
   flex: 0 0 auto;
+  cursor: grab;
+  color: var(--text-muted);
+  letter-spacing: -2px;
+  padding: 0 2px;
+  user-select: none;
 }
 
-.widget-move-btn,
+.widget-drag-handle:active {
+  cursor: grabbing;
+}
+
 .widget-remove-btn {
   padding: 1px 6px;
   font-size: 0.72rem;
   line-height: 1.5;
   min-width: 0;
+  flex: 0 0 auto;
+  color: var(--danger);
 }
 
-.widget-remove-btn {
-  color: var(--danger);
+.widget-card-dragging {
+  opacity: 0.4;
 }
 
 .widget-card-body {
