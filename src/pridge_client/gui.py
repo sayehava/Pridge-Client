@@ -521,6 +521,7 @@ class ClientApi:
                 name,
                 mode=profile.mode,
                 driver_settings=profile.driver_settings,
+                submission_method=profile.submission_method or None,
             )
         except PrinterError as exc:
             return self._error(str(exc))
