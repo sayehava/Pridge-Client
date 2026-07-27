@@ -133,6 +133,23 @@ class PrinterManagerTests(unittest.TestCase):
         with self.assertRaises(PrinterError):
             self.manager.print_job("Labels", b"document", mode="system_driver")
 
+    def test_an_unexpected_backend_error_is_surfaced_as_a_printer_error(self) -> None:
+        self.manager.backend.get_capabilities.return_value = PrinterCapabilities(
+            printer_name="Labels",
+            system_driver_available=True,
+        )
+        self.manager.backend.print_driver_pdf.side_effect = AttributeError(
+            "module 'pypdfium2' has no attribute 'BitmapType'"
+        )
+
+        with self.assertRaises(PrinterError):
+            self.manager.print_job(
+                "Labels",
+                create_test_page_pdf(),
+                mode="system_driver",
+                content_type="application/pdf",
+            )
+
     def test_submits_pdf_test_page_through_system_driver(self) -> None:
         self.manager.backend.get_capabilities.return_value = PrinterCapabilities(
             printer_name="Labels",
