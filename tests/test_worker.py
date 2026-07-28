@@ -118,6 +118,7 @@ class WorkerPrintingModeTests(unittest.TestCase):
             job_name="Pridge 42",
             submission_method=None,
             explicit_renderer=None,
+            fit_mode="fit",
         )
         client.report_printed.assert_called_once_with("42")
 
@@ -153,6 +154,7 @@ class WorkerPrintingModeTests(unittest.TestCase):
             job_name="Pridge 42",
             submission_method="pdfium",
             explicit_renderer=None,
+            fit_mode="fit",
         )
 
     def test_job_history_entries_carry_the_printer_name_on_success(self) -> None:
