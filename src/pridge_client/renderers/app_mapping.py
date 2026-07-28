@@ -72,6 +72,7 @@ class AppMappingRendererPlugin:
     display_name = "External Application Mapper"
     version = "1.0.0"
     api_version = PRIDGE_RENDERER_API_VERSION
+    settings_window = "app_mapping"
     supported_mime_types: frozenset[str] = frozenset()
     supported_extensions: frozenset[str] = frozenset()
 
