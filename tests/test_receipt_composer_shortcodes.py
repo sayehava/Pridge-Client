@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from pridge_client.receipt_composer.shortcodes import render_template
+from pridge_client.receipt_composer.shortcodes import render_template, render_template_blocks
 from pridge_client.receipt_composer.store import ReceiptComposerStore
 
 
@@ -15,6 +15,11 @@ def _render(template: str, store: ReceiptComposerStore, printer_name: str = "Kit
     kwargs.setdefault("paper_width_dots", 384)
     kwargs.setdefault("chars_per_line", 10)
     return render_template(template, printer_name=printer_name, store=store, **kwargs)
+
+
+def _blocks(template: str, store: ReceiptComposerStore, printer_name: str = "Kitchen Printer", **kwargs):
+    kwargs.setdefault("chars_per_line", 10)
+    return render_template_blocks(template, printer_name=printer_name, store=store, **kwargs)
 
 
 class ShortcodeTagTests(unittest.TestCase):
@@ -169,6 +174,65 @@ class ShortcodeImageTests(unittest.TestCase):
 
     def test_no_image_id_resolves_to_nothing(self) -> None:
         self.assertEqual(_render("[image:]", self.store), b"")
+
+
+class ShortcodePreviewBlockTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary_directory = TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.store = ReceiptComposerStore(Path(self.temporary_directory.name))
+
+    def test_plain_text_becomes_a_single_text_block(self) -> None:
+        self.assertEqual(_blocks("Thank you!", self.store), [{"type": "text", "value": "Thank you!"}])
+
+    def test_align_bold_italic_and_layout_tags_become_typed_blocks(self) -> None:
+        self.assertEqual(
+            _blocks("[align:center][bold]Hi[/bold][italic]Yo[/italic][hr][blank][newline]", self.store),
+            [
+                {"type": "align", "value": "center"},
+                {"type": "bold_start"},
+                {"type": "text", "value": "Hi"},
+                {"type": "bold_end"},
+                {"type": "italic_start"},
+                {"type": "text", "value": "Yo"},
+                {"type": "italic_end"},
+                {"type": "hr", "width": 10},
+                {"type": "blank"},
+                {"type": "newline"},
+            ],
+        )
+
+    def test_unrecognized_align_value_falls_back_to_left(self) -> None:
+        self.assertEqual(_blocks("[align:diagonal]", self.store), [{"type": "align", "value": "left"}])
+
+    def test_print_number_and_counter_are_peeked_not_incremented(self) -> None:
+        blocks = _blocks("[print_number][counter:vip]", self.store)
+
+        self.assertEqual(blocks, [{"type": "text", "value": "1"}, {"type": "text", "value": "1"}])
+        self.assertEqual(self.store.get_counters("Kitchen Printer"), {})
+
+    def test_image_tag_becomes_an_image_block(self) -> None:
+        self.assertEqual(_blocks("[image:abc123]", self.store), [{"type": "image", "image_id": "abc123"}])
+
+    def test_empty_image_tag_is_dropped(self) -> None:
+        self.assertEqual(_blocks("[image:]", self.store), [])
+
+    def test_cut_drawer_feed_and_hex_become_marker_blocks(self) -> None:
+        self.assertEqual(
+            _blocks("[cut:full][drawer][feed:6][hex:1D 56 00]", self.store),
+            [
+                {"type": "marker", "label": "cut:full"},
+                {"type": "marker", "label": "drawer"},
+                {"type": "marker", "label": "feed:6"},
+                {"type": "marker", "label": "hex"},
+            ],
+        )
+
+    def test_unknown_tag_is_dropped(self) -> None:
+        self.assertEqual(_blocks("[blod]", self.store), [])
+
+    def test_empty_template_returns_no_blocks(self) -> None:
+        self.assertEqual(_blocks("", self.store), [])
 
 
 if __name__ == "__main__":
