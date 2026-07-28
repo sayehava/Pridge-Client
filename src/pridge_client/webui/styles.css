@@ -2253,3 +2253,81 @@ button.stone-option.selected {
 .receipt-upload-input {
   display: none;
 }
+
+.receipt-guide {
+  background: linear-gradient(145deg, var(--card-highlight), var(--card-bg));
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-card);
+  padding: 4px 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055), 0 16px 38px rgba(0, 0, 0, 0.18);
+}
+
+.receipt-guide summary {
+  padding: 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text);
+  list-style: none;
+}
+
+.receipt-guide summary::-webkit-details-marker {
+  display: none;
+}
+
+.receipt-guide summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1em;
+  color: var(--accent-bright);
+  transition: transform 0.15s ease;
+}
+
+.receipt-guide[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.receipt-guide-body {
+  padding-bottom: 14px;
+}
+
+.receipt-guide-group {
+  margin-top: 14px;
+}
+
+.receipt-guide-group h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent-bright);
+}
+
+.receipt-guide-list {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(180px, auto) 1fr;
+  gap: 4px 14px;
+}
+
+.receipt-guide-list dt {
+  margin: 0;
+  padding: 4px 0;
+}
+
+.receipt-guide-list dt code {
+  background: var(--control-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  white-space: pre;
+}
+
+.receipt-guide-list dd {
+  margin: 0;
+  padding: 4px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
