@@ -38,6 +38,8 @@ def configure_logging(config: ClientConfig, log_dir: Path | None = None) -> None
     global _active_handler
     level = getattr(logging, config.logging.level.upper(), logging.INFO)
     root = logging.getLogger()
+    for handler in root.handlers[:]:
+        handler.close()
     root.handlers.clear()
     root.setLevel(level)
 
