@@ -8,6 +8,14 @@ import io
 
 RASTER_COMMAND_PREFIX = b"\x1d\x76\x30"  # GS v 0
 _MAX_DIMENSION = 0xFFFF
+# A generous cap for a header/footer image - well beyond any real logo or
+# banner (2000 dots is ~25cm at the common 203 DPI thermal-printer
+# resolution) but far short of the multi-meter runaway print an image with
+# an extreme aspect ratio (e.g. a tall scrolling screenshot resized to a
+# narrow receipt width) would otherwise produce. The protocol-level
+# _MAX_DIMENSION above is a wire-format limit, not a sanity limit - it would
+# happily accept a print several meters long.
+_MAX_HEIGHT_DOTS = 2000
 
 
 def image_to_escpos_raster(image_bytes: bytes, *, target_width_dots: int, dither: bool = True) -> bytes:
@@ -42,6 +50,11 @@ def image_to_escpos_raster(image_bytes: bytes, *, target_width_dots: int, dither
 
     scale = target_width_dots / original_width
     target_height_dots = max(1, round(original_height * scale))
+    if target_height_dots > _MAX_HEIGHT_DOTS:
+        raise ValueError(
+            f"Image would print {target_height_dots} dots tall at this paper width "
+            f"(limit {_MAX_HEIGHT_DOTS}) - crop it or use a wider paper width."
+        )
     resized = grayscale.resize((target_width_dots, target_height_dots))
 
     dither_mode = Image.FLOYDSTEINBERG if dither else Image.NONE
