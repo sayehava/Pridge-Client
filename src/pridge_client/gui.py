@@ -9,7 +9,6 @@ import logging
 import os
 import platform
 import queue
-import shutil
 import sys
 import uuid
 from datetime import datetime
@@ -33,8 +32,15 @@ from pridge_client.config import (
     DashboardWidget,
     PrinterMapping,
     PrinterProfile,
-    default_log_dir,
     ServerConfig,
+)
+from pridge_client.logging_setup import (
+    clear_log_files,
+    configure_logging,
+    export_logs_to,
+    has_log_files,
+    log_directory_for,
+    parse_log_export_date,
 )
 from pridge_client.models import JobHistoryEntry
 from pridge_client.platform_window import (
@@ -51,9 +57,13 @@ from pridge_client.strings import (
     MESSAGE_READY,
     MESSAGE_CONNECTION_FAILED,
     MESSAGE_CONNECTION_SUCCESS,
+    MESSAGE_LOG_DIRECTORY_FAILED,
     MESSAGE_LOG_EXPORTED,
     MESSAGE_LOG_EXPORT_FAILED,
+    MESSAGE_LOGS_CLEARED,
+    MESSAGE_NO_LOG_ENTRIES_IN_RANGE,
     MESSAGE_NO_LOG_FILE,
+    MESSAGE_NOTHING_TO_CLEAR,
     MESSAGE_PLUGIN_INSTALLED,
     MESSAGE_PLUGIN_INSTALL_FAILED,
     MESSAGE_PLUGIN_REMOVED,
@@ -740,6 +750,26 @@ class ClientApi:
         darkness_grade = str(fields.get("darkness_grade", self.config.appearance.darkness_grade)).strip().title()
         if darkness_grade in DARKNESS_GRADES:
             self.config.appearance.darkness_grade = darkness_grade
+
+        previous_logging = (
+            self.config.logging.file_enabled,
+            self.config.logging.retention_days,
+            self.config.logging.directory,
+        )
+        if "log_file_enabled" in fields:
+            self.config.logging.file_enabled = bool(fields["log_file_enabled"])
+        if "log_retention_days" in fields:
+            self.config.logging.retention_days = self._safe_int(
+                fields["log_retention_days"], self.config.logging.retention_days, 1, 365
+            )
+        if "log_directory" in fields:
+            self.config.logging.directory = str(fields["log_directory"] or "").strip()
+        logging_changed = (
+            self.config.logging.file_enabled,
+            self.config.logging.retention_days,
+            self.config.logging.directory,
+        ) != previous_logging
+
         self._broadcast_appearance()
         self.config = self._current_config()
         self.config_store.save(self.config)
@@ -747,6 +777,9 @@ class ClientApi:
             set_start_at_login(self.config.start_at_login)
         except AutoStartError as exc:
             logger.warning("Could not update auto-start setting: %s", exc)
+        if logging_changed:
+            configure_logging(self.config)
+            self._install_log_handler()
         logger.info(MESSAGE_SETTINGS_SAVED)
         return {
             "ok": True,
@@ -900,9 +933,9 @@ class ClientApi:
             registry.set_priority(ordered_id, (position + 1) * 10)
         return self.get_renderer_plugins()
 
-    def export_log(self) -> dict:
-        log_path = default_log_dir() / "client.log"
-        if not log_path.is_file():
+    def export_log(self, start_date: str = "", end_date: str = "") -> dict:
+        directory = log_directory_for(self.config)
+        if not has_log_files(directory):
             return self._error(MESSAGE_NO_LOG_FILE)
 
         window = self._utility_windows.get("settings") or self._window
@@ -918,16 +951,42 @@ class ClientApi:
 
         if not selection:
             return self._ok()
-        destination = selection[0] if isinstance(selection, (list, tuple)) else selection
+        destination = Path(selection[0] if isinstance(selection, (list, tuple)) else selection)
 
+        parsed_start = parse_log_export_date(start_date)
+        parsed_end = parse_log_export_date(end_date)
         try:
-            shutil.copyfile(log_path, destination)
+            wrote_any = export_logs_to(directory, destination, parsed_start, parsed_end)
         except OSError as exc:
             logger.warning("Could not export the run log: %s", exc)
             return self._error(MESSAGE_LOG_EXPORT_FAILED)
 
+        if not wrote_any:
+            destination.unlink(missing_ok=True)
+            return self._error(MESSAGE_NO_LOG_ENTRIES_IN_RANGE)
+
         logger.info("Run log exported to %s", destination)
         return {"ok": True, "error": None, "message": MESSAGE_LOG_EXPORTED, "state": self._build_state()}
+
+    def clear_logs(self) -> dict:
+        if not clear_log_files():
+            return self._error(MESSAGE_NOTHING_TO_CLEAR)
+        logger.info("Logs cleared")
+        return {"ok": True, "error": None, "message": MESSAGE_LOGS_CLEARED, "state": self._build_state()}
+
+    def choose_log_directory(self) -> dict:
+        window = self._utility_windows.get("settings") or self._window
+        if window is None:
+            return self._error(MESSAGE_LOG_DIRECTORY_FAILED)
+        try:
+            selection = window.create_file_dialog(webview.FileDialog.FOLDER)
+        except Exception as exc:
+            logger.warning("Could not open the log directory dialog: %s", exc)
+            return self._error(MESSAGE_LOG_DIRECTORY_FAILED)
+        if not selection:
+            return self._ok()
+        directory = selection[0] if isinstance(selection, (list, tuple)) else selection
+        return {"ok": True, "error": None, "directory": str(directory), "state": self._build_state()}
 
     def start_workers(self) -> dict:
         self.save_settings()
@@ -1074,6 +1133,11 @@ class ClientApi:
             "start_at_login": self.start_at_login,
             "appearance": {
                 "darkness_grade": self.config.appearance.darkness_grade,
+            },
+            "logging": {
+                "file_enabled": self.config.logging.file_enabled,
+                "retention_days": self.config.logging.retention_days,
+                "directory": self.config.logging.directory,
             },
             "recent_jobs": list(self.recent_jobs),
             "logs": list(self.logs),
