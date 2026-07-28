@@ -757,6 +757,7 @@
     const [footerPreview, setFooterPreview] = useState([]);
     const [newCounterKey, setNewCounterKey] = useState("");
     const [newCounterLabel, setNewCounterLabel] = useState("");
+    const [testBusy, setTestBusy] = useState(false);
     const saveTimer = useRef(null);
     const previewTimer = useRef(null);
     const skipNextSave = useRef(false);
@@ -804,6 +805,18 @@
         setHeaderBlocks(parseTemplate(result.profile.raw_header_template).map((b) => ({ id: uid(), ...b })));
         setFooterBlocks(parseTemplate(result.profile.raw_footer_template).map((b) => ({ id: uid(), ...b })));
         refreshCounters(name);
+      });
+    };
+
+    const testPrinter = () => {
+      if (!selectedPrinter) return;
+      setTestBusy(true);
+      setMessage("");
+      callApi("test_printer", selectedPrinter).then((result) => {
+        setTestBusy(false);
+        if (!result) return;
+        setMessage(result.ok ? result.message || S.test_print_submitted : result.error || S.test_print_failed);
+        if (result.ok) refreshCounters(selectedPrinter);
       });
     };
 
@@ -924,10 +937,23 @@
           <section class="settings-section">
             <div class="field">
               <label class="field-label">${S.receipt_composer_select_printer}</label>
-              <select value=${selectedPrinter} onChange=${selectPrinter}>
-                <option value="">—</option>
-                ${printers.map((name) => html`<option value=${name} key=${name}>${name}</option>`)}
-              </select>
+              <div class="field-row">
+                <select value=${selectedPrinter} onChange=${selectPrinter}>
+                  <option value="">—</option>
+                  ${printers.map((name) => html`<option value=${name} key=${name}>${name}</option>`)}
+                </select>
+                <button
+                  type="button"
+                  class="btn-secondary"
+                  onClick=${testPrinter}
+                  disabled=${!selectedPrinter || !profile || profile.mode !== "raw" || testBusy}
+                >
+                  ${testBusy ? S.working : S.receipt_test_print}
+                </button>
+              </div>
+              ${selectedPrinter && profile && profile.mode !== "raw"
+                ? html`<small class="field-hint">${S.receipt_test_print_raw_only}</small>`
+                : null}
             </div>
             ${printers.length === 0 ? html`<p class="hint-text">${S.receipt_composer_no_printers}</p>` : null}
 
