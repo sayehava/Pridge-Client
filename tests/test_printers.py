@@ -18,40 +18,12 @@ from pridge_client.printers import (
     PrinterError,
     PrinterManager,
     _page_size_for_option,
-    _resolve_raw_macro,
     create_test_page_pdf,
     validate_driver_settings,
 )
 
 
 FIXTURE_PLUGIN_DIR = Path(__file__).resolve().parent / "fixtures" / "example_renderer_plugin"
-
-
-class RawMacroResolutionTests(unittest.TestCase):
-    def test_resolves_full_cut(self) -> None:
-        self.assertEqual(_resolve_raw_macro("full_cut", ""), b"\x1d\x56\x00")
-
-    def test_resolves_partial_cut(self) -> None:
-        self.assertEqual(_resolve_raw_macro("partial_cut", ""), b"\x1d\x56\x01")
-
-    def test_resolves_open_drawer(self) -> None:
-        self.assertEqual(_resolve_raw_macro("open_drawer", ""), b"\x1b\x70\x00\x19\xfa")
-
-    def test_resolves_feed(self) -> None:
-        self.assertEqual(_resolve_raw_macro("feed", ""), b"\x1b\x64\x04")
-
-    def test_empty_preset_resolves_to_no_bytes(self) -> None:
-        self.assertEqual(_resolve_raw_macro("", ""), b"")
-
-    def test_custom_hex_accepts_spaces_and_separators(self) -> None:
-        self.assertEqual(_resolve_raw_macro("custom", "1D 56 00"), b"\x1d\x56\x00")
-        self.assertEqual(_resolve_raw_macro("custom", "1d:56:00"), b"\x1d\x56\x00")
-        self.assertEqual(_resolve_raw_macro("custom", "1d-56-00"), b"\x1d\x56\x00")
-        self.assertEqual(_resolve_raw_macro("custom", "1d5600"), b"\x1d\x56\x00")
-
-    def test_malformed_custom_hex_resolves_to_no_bytes_instead_of_raising(self) -> None:
-        self.assertEqual(_resolve_raw_macro("custom", "not hex at all"), b"")
-        self.assertEqual(_resolve_raw_macro("custom", "1d5"), b"")
 
 
 class PageSizeResolutionTests(unittest.TestCase):
@@ -138,11 +110,14 @@ class DriverCapabilityTests(unittest.TestCase):
 class PrinterManagerTests(unittest.TestCase):
     def setUp(self) -> None:
         from unittest.mock import MagicMock
+        from pridge_client.receipt_composer import ReceiptComposerStore
         from pridge_client.renderers import (
             PDFValidationService,
             RendererSelectionService,
             build_default_registry,
         )
+        self.temporary_directory = TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
         self.manager = PrinterManager.__new__(PrinterManager)
         self.manager.system = "Test"
         self.manager.backend = Mock()
@@ -151,6 +126,7 @@ class PrinterManagerTests(unittest.TestCase):
         self.manager._renderer_selector = RendererSelectionService(
             self.manager._registry, self.manager._validation
         )
+        self.manager._receipt_composer_store = ReceiptComposerStore(Path(self.temporary_directory.name))
 
     def test_raw_mode_preserves_payload_and_does_not_request_capabilities(self) -> None:
         payload = b"\x00\xff\r\n"
@@ -160,7 +136,7 @@ class PrinterManagerTests(unittest.TestCase):
         self.manager.backend.print_raw.assert_called_once_with("Labels", payload, "Raw job")
         self.manager.backend.get_capabilities.assert_not_called()
 
-    def test_raw_mode_wraps_payload_with_header_and_footer_presets(self) -> None:
+    def test_raw_mode_wraps_payload_with_header_and_footer_templates(self) -> None:
         payload = b"HELLO\n"
 
         self.manager.print_job(
@@ -168,28 +144,50 @@ class PrinterManagerTests(unittest.TestCase):
             payload,
             mode="raw",
             job_name="Raw job",
-            raw_header_preset="feed",
-            raw_footer_preset="full_cut",
+            raw_header_template="[feed:4]",
+            raw_footer_template="[cut:full]",
         )
 
         self.manager.backend.print_raw.assert_called_once_with(
             "Labels", b"\x1b\x64\x04HELLO\n\x1d\x56\x00", "Raw job"
         )
 
-    def test_raw_mode_wraps_payload_with_custom_hex_footer(self) -> None:
+    def test_raw_mode_wraps_payload_with_a_hex_footer_shortcode(self) -> None:
         payload = b"HELLO\n"
 
         self.manager.print_job(
             "Labels",
             payload,
             mode="raw",
-            raw_footer_preset="custom",
-            raw_footer_custom_hex="1D 56 01",
+            raw_footer_template="[hex:1D 56 01]",
         )
 
         self.manager.backend.print_raw.assert_called_once_with(
             "Labels", payload + b"\x1d\x56\x01", "Pridge Job"
         )
+
+    def test_raw_mode_resolves_an_image_shortcode_and_increments_print_number(self) -> None:
+        import io
+
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("Pillow not installed")
+        buf = io.BytesIO()
+        Image.new("RGB", (8, 8), color=(0, 0, 0)).save(buf, format="PNG")
+        image = self.manager._receipt_composer_store.add_image("Logo", buf.getvalue())
+
+        self.manager.print_job(
+            "Labels",
+            b"HELLO\n",
+            mode="raw",
+            raw_header_template=f"[image:{image.id}][print_number]",
+        )
+
+        sent = self.manager.backend.print_raw.call_args.args[1]
+        self.assertTrue(sent.startswith(b"\x1d\x76\x30"))
+        self.assertTrue(sent.endswith(b"1HELLO\n"))
+        self.assertEqual(self.manager._receipt_composer_store.get_counters("Labels")["__default__"]["value"], 1)
 
     def test_system_driver_mode_validates_and_submits_options(self) -> None:
         self.manager.backend.get_capabilities.return_value = PrinterCapabilities(
@@ -325,11 +323,18 @@ class PrinterManagerTests(unittest.TestCase):
         pdf_data = self.manager.backend.print_driver_pdf.call_args.args[1]
         self.assertIn(b"/MediaBox [0 0 420 595]", pdf_data)
 
-    def test_does_not_inject_a_generic_test_payload_in_raw_mode(self) -> None:
-        with self.assertRaises(PrinterError):
-            self.manager.print_test_page("Labels", "raw")
+    def test_raw_mode_test_print_sends_a_synthetic_body_through_the_real_raw_path(self) -> None:
+        self.manager.print_test_page(
+            "Labels",
+            "raw",
+            raw_header_template="[feed:4]",
+            raw_footer_template="[cut:full]",
+        )
 
-        self.manager.backend.print_raw.assert_not_called()
+        sent = self.manager.backend.print_raw.call_args.args[1]
+        self.assertTrue(sent.startswith(b"\x1b\x64\x04"))
+        self.assertIn(b"PRIDGE TEST PAGE", sent)
+        self.assertTrue(sent.endswith(b"\x1d\x56\x00"))
 
 
 class PrinterManagerPluginLifecycleTests(unittest.TestCase):
