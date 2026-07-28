@@ -34,6 +34,20 @@
     document.documentElement.dataset.darkness = (state.appearance.darkness_grade || "Onyx").toLowerCase();
   }
 
+  // Resolves where a drag-and-drop reorder should land: `items` is the
+  // current list, `fromId` the dragged item's id, `targetId` the item it's
+  // hovering over (null = the end), `placeAfter` which side of the target.
+  // Returns the resulting index in post-removal terms, which is what
+  // reorder_dashboard_widget expects - computed this way (id-relative, not
+  // a raw hovered-row index) so the same target always means the same
+  // thing regardless of which direction the drag came from.
+  function resolveDropIndex(items, fromId, targetId, placeAfter) {
+    const withoutDragged = items.filter((item) => item.id !== fromId);
+    if (targetId == null) return withoutDragged.length;
+    const targetIndex = withoutDragged.findIndex((item) => item.id === targetId);
+    return targetIndex === -1 ? withoutDragged.length : placeAfter ? targetIndex + 1 : targetIndex;
+  }
+
   function Badge({ text, active = false }) {
     return html`<span class=${active ? "badge badge-active" : "badge"}>${text}</span>`;
   }
@@ -181,7 +195,21 @@
         </div>`;
   }
 
-  function WidgetCard({ widget, recentJobs, logs, printerDetails, servers, onRemove, onConfigure, isDragging, onDragStart, onDragEnd, onDropOn }) {
+  function WidgetCard({
+    widget,
+    recentJobs,
+    logs,
+    printerDetails,
+    servers,
+    onRemove,
+    onConfigure,
+    isDragging,
+    dropPosition,
+    onDragStart,
+    onDragEnd,
+    onDragOverCard,
+    onDropOn,
+  }) {
     const containerId = `pridge-widget-${widget.id}`;
     const scriptLoaded = useRef(false);
     const hasAlert = widget.widget_type === "server_status" && trackedServers(widget, servers).some(isServerErrored);
@@ -238,8 +266,17 @@
 
     return html`
       <div
-        class=${"card widget-card" + (isDragging ? " widget-card-dragging" : "") + (hasAlert ? " widget-server-alert" : "")}
-        onDragOver=${(event) => event.preventDefault()}
+        class=${[
+          "card",
+          "widget-card",
+          isDragging ? "widget-card-dragging" : "",
+          hasAlert ? "widget-server-alert" : "",
+          dropPosition === "before" ? "dnd-drop-before" : "",
+          dropPosition === "after" ? "dnd-drop-after" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        onDragOver=${onDragOverCard}
         onDrop=${(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -372,6 +409,8 @@
     const [pageIndex, setPageIndex] = useState(0);
     const [showPicker, setShowPicker] = useState(false);
     const [draggingId, setDraggingId] = useState(null);
+    const [dropTargetId, setDropTargetId] = useState(null);
+    const [dropAfter, setDropAfter] = useState(false);
     const [configuringId, setConfiguringId] = useState(null);
 
     const refreshLayout = () => {
@@ -400,9 +439,17 @@
       });
     };
     const removeWidget = (id) => callApi("remove_dashboard_widget", id).then(applyLayout);
-    const dropAt = (targetPosition) => {
-      if (draggingId) callApi("reorder_dashboard_widget", draggingId, currentPage, targetPosition).then(applyLayout);
+    const clearDropTarget = () => {
+      setDropTargetId(null);
+      setDropAfter(false);
+    };
+    const finishDrop = () => {
+      if (draggingId != null) {
+        const targetPosition = resolveDropIndex(widgets, draggingId, dropTargetId, dropAfter);
+        callApi("reorder_dashboard_widget", draggingId, currentPage, targetPosition).then(applyLayout);
+      }
       setDraggingId(null);
+      clearDropTarget();
     };
     const saveWidgetConfig = (id, config) =>
       callApi("update_dashboard_widget_config", id, config).then((result) => {
@@ -427,14 +474,17 @@
         </div>
         <div
           class="widget-grid"
-          onDragOver=${(event) => event.preventDefault()}
+          onDragOver=${(event) => {
+            event.preventDefault();
+            if (draggingId != null) clearDropTarget();
+          }}
           onDrop=${(event) => {
             event.preventDefault();
-            dropAt(widgets.length);
+            finishDrop();
           }}
         >
           ${widgets.map(
-            (widget, index) => html`
+            (widget) => html`
               <${WidgetCard}
                 key=${widget.id}
                 widget=${widget}
@@ -445,13 +495,43 @@
                 onRemove=${() => removeWidget(widget.id)}
                 onConfigure=${() => setConfiguringId(widget.id)}
                 isDragging=${draggingId === widget.id}
+                dropPosition=${dropTargetId === widget.id ? (dropAfter ? "after" : "before") : null}
                 onDragStart=${() => setDraggingId(widget.id)}
-                onDragEnd=${() => setDraggingId(null)}
-                onDropOn=${() => dropAt(index)}
+                onDragEnd=${() => {
+                  setDraggingId(null);
+                  clearDropTarget();
+                }}
+                onDragOverCard=${(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (draggingId == null) return;
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  setDropTargetId(widget.id);
+                  setDropAfter(event.clientY - rect.top > rect.height / 2);
+                }}
+                onDropOn=${finishDrop}
               />
             `
           )}
         </div>
+        ${draggingId != null
+          ? html`
+              <div
+                class=${"dnd-drop-end" + (dropTargetId === null ? " dnd-drop-end-active" : "")}
+                onDragOver=${(event) => {
+                  event.preventDefault();
+                  setDropTargetId(null);
+                  setDropAfter(false);
+                }}
+                onDrop=${(event) => {
+                  event.preventDefault();
+                  finishDrop();
+                }}
+              >
+                ${S.drop_at_end}
+              </div>
+            `
+          : null}
         ${showPicker
           ? html`<${WidgetPicker} catalog=${layout.catalog} onPick=${addWidget} onClose=${() => setShowPicker(false)} />`
           : null}
