@@ -72,10 +72,10 @@ def register_third_party_renderers(registry: RendererRegistry, config_dir: Path)
     """
     registered_ids: list[str] = []
     for plugin_dir in discover_plugin_directories(renderer_plugins_dir(config_dir)):
+        category = ""
         try:
             manifest = load_manifest(plugin_dir / MANIFEST_FILE_NAME)
-            if manifest.category != "renderer":
-                raise ManifestError(f"Plugin category '{manifest.category}' is not a renderer plugin.")
+            category = manifest.category
             if manifest.api_version != PRIDGE_RENDERER_API_VERSION:
                 raise ManifestError(
                     f"Plugin declares renderer API version {manifest.api_version}, but Pridge "
@@ -88,10 +88,11 @@ def register_third_party_renderers(registry: RendererRegistry, config_dir: Path)
                 priority=THIRD_PARTY_RENDERER_PRIORITY,
                 is_builtin=False,
                 source_path=str(plugin_dir),
+                category=category,
             )
             registered_ids.append(plugin.plugin_id)
         except (ManifestError, ValueError) as exc:
-            registry.register_error(plugin_dir.name, str(exc), source_path=str(plugin_dir))
+            registry.register_error(plugin_dir.name, str(exc), source_path=str(plugin_dir), category=category)
         except Exception as exc:  # noqa: BLE001 - a broken third-party plugin must never crash startup
-            registry.register_error(plugin_dir.name, str(exc), source_path=str(plugin_dir))
+            registry.register_error(plugin_dir.name, str(exc), source_path=str(plugin_dir), category=category)
     return registered_ids
