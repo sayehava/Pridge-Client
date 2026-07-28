@@ -254,6 +254,10 @@
       persistPrinterProfile(nextProfile);
     };
 
+    const openReceiptComposer = () => {
+      callApi("open_receipt_composer_window");
+    };
+
     const openNativeDriverSettings = () => {
       setProfileBusy(true);
       setProfileError("");
@@ -436,7 +440,12 @@
                         </div>
 
                         ${printerProfile.mode === "raw"
-                          ? html`<div class="driver-mode-note">${S.raw_mode_hint}</div>`
+                          ? html`
+                              <div class="driver-mode-note">${S.raw_mode_hint}</div>
+                              <button type="button" class="btn-secondary" onClick=${openReceiptComposer}>
+                                ${S.open_receipt_composer}
+                              </button>
+                            `
                           : printerCapabilities && !printerCapabilities.system_driver_available
                           ? html`<div class="connection-result error-result">${S.system_driver_unavailable}</div>`
                           : html`
