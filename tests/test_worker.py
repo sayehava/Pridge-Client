@@ -119,6 +119,10 @@ class WorkerPrintingModeTests(unittest.TestCase):
             submission_method=None,
             explicit_renderer=None,
             fit_mode="fit",
+            raw_header_preset="",
+            raw_header_custom_hex="",
+            raw_footer_preset="",
+            raw_footer_custom_hex="",
         )
         client.report_printed.assert_called_once_with("42")
 
@@ -155,6 +159,10 @@ class WorkerPrintingModeTests(unittest.TestCase):
             submission_method="pdfium",
             explicit_renderer=None,
             fit_mode="fit",
+            raw_header_preset="",
+            raw_header_custom_hex="",
+            raw_footer_preset="",
+            raw_footer_custom_hex="",
         )
 
     def test_job_history_entries_carry_the_printer_name_on_success(self) -> None:
