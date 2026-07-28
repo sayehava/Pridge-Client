@@ -138,10 +138,10 @@ class PollingWorker:
                     submission_method=submission_method,
                     explicit_renderer=job.renderer or None,
                     fit_mode=profile.fit_mode,
-                    raw_header_preset=profile.raw_header_preset,
-                    raw_header_custom_hex=profile.raw_header_custom_hex,
-                    raw_footer_preset=profile.raw_footer_preset,
-                    raw_footer_custom_hex=profile.raw_footer_custom_hex,
+                    raw_header_template=profile.raw_header_template,
+                    raw_footer_template=profile.raw_footer_template,
+                    raw_paper_width_dots=profile.raw_paper_width_dots,
+                    raw_chars_per_line=profile.raw_chars_per_line,
                 )
             client.report_printed(job.job_id)
             self._record_job(job.job_id, "printed", printer_name=printer_name)
