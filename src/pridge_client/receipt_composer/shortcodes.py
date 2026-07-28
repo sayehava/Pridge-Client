@@ -93,6 +93,105 @@ def render_template(
     return bytes(output)
 
 
+def render_template_blocks(
+    template: str,
+    *,
+    printer_name: str,
+    store: "ReceiptComposerStore",
+    chars_per_line: int,
+) -> list[dict[str, Any]]:
+    """Dry-run parse of a shortcode template into structured preview blocks.
+
+    Used by the settings-window live preview to render an approximate CSS
+    representation of the composed receipt. Counters are always peeked, never
+    incremented — this must be safe to call on every keystroke.
+    """
+    if not template:
+        return []
+
+    blocks: list[dict[str, Any]] = []
+    pos = 0
+    for match in TAG_RE.finditer(template):
+        literal = template[pos : match.start()]
+        if literal:
+            blocks.append({"type": "text", "value": literal})
+        pos = match.end()
+
+        closing, name, arg = match.group(1), match.group(2).lower(), match.group(3)
+        block = (
+            _preview_closing_block(name)
+            if closing
+            else _preview_block(name, arg, printer_name=printer_name, store=store, chars_per_line=chars_per_line)
+        )
+        if block is not None:
+            blocks.append(block)
+
+    trailing = template[pos:]
+    if trailing:
+        blocks.append({"type": "text", "value": trailing})
+
+    return blocks
+
+
+def _preview_block(
+    name: str,
+    arg: str | None,
+    *,
+    printer_name: str,
+    store: "ReceiptComposerStore",
+    chars_per_line: int,
+) -> dict[str, Any] | None:
+    if name == "align":
+        value = (arg or "").strip().lower()
+        return {"type": "align", "value": value if value in _ALIGN_BYTES else "left"}
+    if name == "bold":
+        return {"type": "bold_start"}
+    if name == "italic":
+        return {"type": "italic_start"}
+    if name == "hr":
+        return {"type": "hr", "width": max(1, chars_per_line)}
+    if name == "blank":
+        return {"type": "blank"}
+    if name == "newline":
+        return {"type": "newline"}
+    if name == "date":
+        fmt = (arg or "").strip() or DEFAULT_DATE_FORMAT
+        try:
+            return {"type": "text", "value": datetime.now().strftime(fmt)}
+        except ValueError:
+            return {"type": "text", "value": datetime.now().strftime(DEFAULT_DATE_FORMAT)}
+    if name == "random":
+        digits = max(1, min(_safe_positive_int(arg, DEFAULT_RANDOM_DIGITS), 12))
+        return {"type": "text", "value": str(random.randint(0, 10**digits - 1)).zfill(digits)}
+    if name == "print_number":
+        return {"type": "text", "value": str(_peek_counter(store, printer_name, DEFAULT_COUNTER_KEY))}
+    if name == "counter":
+        key = (arg or "").strip()
+        if not key:
+            return None
+        return {"type": "text", "value": str(_peek_counter(store, printer_name, key))}
+    if name == "image":
+        image_id = (arg or "").strip()
+        return {"type": "image", "image_id": image_id} if image_id else None
+    if name == "cut":
+        return {"type": "marker", "label": f"cut:{(arg or '').strip().lower() or 'full'}"}
+    if name == "drawer":
+        return {"type": "marker", "label": "drawer"}
+    if name == "feed":
+        return {"type": "marker", "label": f"feed:{_safe_positive_int(arg, 4)}"}
+    if name == "hex":
+        return {"type": "marker", "label": "hex"}
+    return None
+
+
+def _preview_closing_block(name: str) -> dict[str, Any] | None:
+    if name == "bold":
+        return {"type": "bold_end"}
+    if name == "italic":
+        return {"type": "italic_end"}
+    return None
+
+
 def _resolve_tag(
     name: str,
     arg: str | None,
