@@ -94,6 +94,12 @@
     return Number.isNaN(date.getTime()) ? S.server_status_no_heartbeat : date.toLocaleTimeString();
   }
 
+  function hasBeenUsed(printer) {
+    return (
+      printer.test_success_count + printer.test_failed_count + printer.remote_success_count + printer.remote_failed_count
+    ) > 0;
+  }
+
   function ServerStatusWidget({ widget, servers }) {
     const tracked = trackedServers(widget, servers);
     const [pageIndex, setPageIndex] = useState(0);
@@ -197,10 +203,12 @@
     } else if (widget.widget_type === "logs") {
       body = html`<${LogsPanel} logs=${logs} />`;
     } else if (widget.widget_type === "printer_stats") {
-      body = printerDetails.length === 0
-        ? html`<div class="scroll-panel empty">${S.no_printers}</div>`
+      const usedOnly = !!(widget.config && widget.config.used_only);
+      const visiblePrinters = usedOnly ? printerDetails.filter(hasBeenUsed) : printerDetails;
+      body = visiblePrinters.length === 0
+        ? html`<div class="scroll-panel empty">${usedOnly ? S.no_used_printers : S.no_printers}</div>`
         : html`<div class="scroll-panel">
-            ${printerDetails.map(
+            ${visiblePrinters.map(
               (printer) => html`
                 <div class="printer-stat-group" key=${printer.name}>
                   <div class="printer-stat-name">${printer.name}</div>
@@ -250,7 +258,7 @@
             onDragEnd=${onDragEnd}
           >⋮⋮</span>
           <h4>${widget.title}</h4>
-          ${widget.widget_type === "server_status"
+          ${widget.widget_type === "server_status" || widget.widget_type === "printer_stats"
             ? html`<button class="widget-config-btn" title=${S.configure_widget} onClick=${onConfigure}>⚙</button>`
             : null}
           <button class="widget-remove-btn" title=${S.remove_widget} onClick=${onRemove}>×</button>
@@ -281,6 +289,29 @@
           </div>
           <div class="utility-actions">
             <button onClick=${onClose}>${S.close}</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function PrinterActivitySettings({ widget, onSave, onClose }) {
+    const config = widget.config || {};
+    const [usedOnly, setUsedOnly] = useState(!!config.used_only);
+
+    return html`
+      <div class="modal-backdrop" role="presentation" onMouseDown=${(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}>
+        <div class="widget-picker" role="dialog" aria-modal="true" aria-label=${S.printer_activity_settings_title}>
+          <h3>${S.printer_activity_settings_title}</h3>
+          <label class="checkbox-row">
+            <input type="checkbox" checked=${usedOnly} onChange=${(event) => setUsedOnly(event.target.checked)} />
+            <span>${S.printer_activity_used_only}</span>
+          </label>
+          <div class="utility-actions">
+            <button onClick=${onClose}>${S.cancel}</button>
+            <button class="primary" onClick=${() => onSave({ used_only: usedOnly })}>${S.save}</button>
           </div>
         </div>
       </div>
@@ -424,10 +455,17 @@
         ${showPicker
           ? html`<${WidgetPicker} catalog=${layout.catalog} onPick=${addWidget} onClose=${() => setShowPicker(false)} />`
           : null}
-        ${configuringWidget
+        ${configuringWidget && configuringWidget.widget_type === "server_status"
           ? html`<${ServerStatusSettings}
               widget=${configuringWidget}
               servers=${servers}
+              onSave=${(config) => saveWidgetConfig(configuringWidget.id, config)}
+              onClose=${() => setConfiguringId(null)}
+            />`
+          : null}
+        ${configuringWidget && configuringWidget.widget_type === "printer_stats"
+          ? html`<${PrinterActivitySettings}
+              widget=${configuringWidget}
               onSave=${(config) => saveWidgetConfig(configuringWidget.id, config)}
               onClose=${() => setConfiguringId(null)}
             />`
