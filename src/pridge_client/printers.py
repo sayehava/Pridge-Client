@@ -141,7 +141,7 @@ class PrinterManager:
         self._registry = build_default_registry()
         self._app_mapping_store = AppMappingStore(self._config_dir)
         self._app_mapping_plugin = AppMappingRendererPlugin(self._app_mapping_store.load())
-        self._registry.register(self._app_mapping_plugin, priority=100, is_builtin=False)
+        self._registry.register(self._app_mapping_plugin, priority=100, is_builtin=True, category="Mapper")
         self._third_party_renderer_ids = register_third_party_renderers(self._registry, self._config_dir)
         self._validation = PDFValidationService()
         self._renderer_selector = RendererSelectionService(self._registry, self._validation)
