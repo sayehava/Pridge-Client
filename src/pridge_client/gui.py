@@ -915,7 +915,7 @@ class ClientApi:
         self.printer_manager.app_mapping_store.save(mappings)
         return self.get_app_mappings()
 
-    def reorder_renderer_plugin(self, plugin_id: str, target_index: int) -> dict:
+    def reorder_renderer_plugin(self, plugin_id: str, target_index: int, category: str = "") -> dict:
         plugin_id = str(plugin_id).strip()
         try:
             target_index = int(target_index)
@@ -923,13 +923,29 @@ class ClientApi:
             return self.get_renderer_plugins()
 
         registry = self.printer_manager.renderer_registry
-        ordered_ids = [entry.plugin.plugin_id for entry in sorted(registry.all_entries(), key=lambda e: e.priority)]
+        entries = sorted(registry.all_entries(), key=lambda e: e.priority)
+        ordered_ids = [entry.plugin.plugin_id for entry in entries]
         if plugin_id not in ordered_ids:
             return self.get_renderer_plugins()
 
-        ordered_ids.remove(plugin_id)
-        target_index = max(0, min(target_index, len(ordered_ids)))
-        ordered_ids.insert(target_index, plugin_id)
+        category = str(category or "")
+        if category:
+            id_to_category = {entry.plugin.plugin_id: entry.category for entry in entries}
+            group_ids = [pid for pid in ordered_ids if id_to_category.get(pid) == category]
+            if plugin_id not in group_ids:
+                return self.get_renderer_plugins()
+            group_ids.remove(plugin_id)
+            target_index = max(0, min(target_index, len(group_ids)))
+            group_ids.insert(target_index, plugin_id)
+            group_iter = iter(group_ids)
+            ordered_ids = [
+                next(group_iter) if id_to_category.get(pid) == category else pid for pid in ordered_ids
+            ]
+        else:
+            ordered_ids.remove(plugin_id)
+            target_index = max(0, min(target_index, len(ordered_ids)))
+            ordered_ids.insert(target_index, plugin_id)
+
         for position, ordered_id in enumerate(ordered_ids):
             registry.set_priority(ordered_id, (position + 1) * 10)
         return self.get_renderer_plugins()
