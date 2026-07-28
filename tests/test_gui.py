@@ -31,9 +31,14 @@ class MemoryTokenStore:
 
 class NoPrinters:
     def __init__(self):
+        from tempfile import TemporaryDirectory
+
+        from pridge_client.receipt_composer import ReceiptComposerStore
         from pridge_client.renderers.registry import RendererRegistry
 
         self.renderer_registry = RendererRegistry()
+        self._receipt_composer_scratch = TemporaryDirectory()
+        self.receipt_composer_store = ReceiptComposerStore(Path(self._receipt_composer_scratch.name))
 
     def list_printers(self):
         return []
@@ -943,6 +948,152 @@ class ClientApiTests(unittest.TestCase):
         utility_window.destroy.assert_called_once()
         self.assertEqual(api._utility_windows, {})
         main_window.destroy.assert_called_once()
+
+
+def _tiny_png_bytes() -> bytes:
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), color=(0, 0, 0)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+class ReceiptComposerApiTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        config_path = Path(self.temporary_directory.name) / "config.json"
+        self.api = ClientApi(
+            config_store=ConfigStore(config_path),
+            token_store=MemoryTokenStore(),
+            printer_manager=NoPrinters(),
+        )
+
+    def tearDown(self):
+        self.temporary_directory.cleanup()
+
+    def test_open_receipt_composer_window_dispatches_through_the_generalized_opener(self):
+        with patch.object(self.api, "open_receipt_composer_window", return_value={"ok": True}) as opener:
+            result = self.api.open_plugin_settings_window("receipt_composer")
+
+        self.assertTrue(result["ok"])
+        opener.assert_called_once()
+
+    def test_get_receipt_images_starts_empty(self):
+        result = self.api.get_receipt_images()
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["images"], [])
+
+    def test_add_receipt_image_round_trips_through_get_receipt_images(self):
+        try:
+            import PIL  # noqa: F401
+        except ImportError:
+            self.skipTest("Pillow not installed")
+        import base64
+
+        data_base64 = base64.b64encode(_tiny_png_bytes()).decode("ascii")
+
+        result = self.api.add_receipt_image("Logo", data_base64)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(result["images"]), 1)
+        image = result["images"][0]
+        self.assertEqual(image["name"], "Logo")
+        self.assertEqual(image["width"], 8)
+        self.assertTrue(image["data_base64"])
+
+    def test_add_receipt_image_rejects_invalid_base64(self):
+        result = self.api.add_receipt_image("Logo", "not-valid-base64!!")
+
+        self.assertFalse(result["ok"])
+
+    def test_add_receipt_image_rejects_data_that_is_not_an_image(self):
+        import base64
+
+        result = self.api.add_receipt_image("Logo", base64.b64encode(b"not an image").decode("ascii"))
+
+        self.assertFalse(result["ok"])
+
+    def test_remove_receipt_image_drops_it_from_the_list(self):
+        try:
+            import PIL  # noqa: F401
+        except ImportError:
+            self.skipTest("Pillow not installed")
+        import base64
+
+        added = self.api.add_receipt_image("Logo", base64.b64encode(_tiny_png_bytes()).decode("ascii"))
+        image_id = added["images"][0]["id"]
+
+        result = self.api.remove_receipt_image(image_id)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["images"], [])
+
+    def test_get_receipt_counters_starts_empty_for_an_unused_printer(self):
+        result = self.api.get_receipt_counters("Kitchen Printer")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["counters"], {})
+
+    def test_add_receipt_counter_creates_a_named_counter_at_zero(self):
+        result = self.api.add_receipt_counter("Kitchen Printer", "vip", "VIP receipts")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["counters"]["vip"], {"value": 0, "label": "VIP receipts"})
+
+    def test_add_receipt_counter_rejects_the_reserved_default_key(self):
+        result = self.api.add_receipt_counter("Kitchen Printer", "__default__", "")
+
+        self.assertFalse(result["ok"])
+
+    def test_reset_receipt_counter_sets_a_new_value(self):
+        self.api.add_receipt_counter("Kitchen Printer", "vip", "VIP")
+
+        result = self.api.reset_receipt_counter("Kitchen Printer", "vip", 42)
+
+        self.assertEqual(result["counters"]["vip"]["value"], 42)
+
+    def test_reset_receipt_counter_clamps_negative_values_to_zero(self):
+        self.api.add_receipt_counter("Kitchen Printer", "vip", "VIP")
+
+        result = self.api.reset_receipt_counter("Kitchen Printer", "vip", -5)
+
+        self.assertEqual(result["counters"]["vip"]["value"], 0)
+
+    def test_remove_receipt_counter_drops_a_named_counter(self):
+        self.api.add_receipt_counter("Kitchen Printer", "vip", "VIP")
+
+        result = self.api.remove_receipt_counter("Kitchen Printer", "vip")
+
+        self.assertTrue(result["ok"])
+        self.assertNotIn("vip", result["counters"])
+
+    def test_remove_receipt_counter_rejects_the_default_counter(self):
+        result = self.api.remove_receipt_counter("Kitchen Printer", "__default__")
+
+        self.assertFalse(result["ok"])
+
+    def test_preview_receipt_template_does_not_increment_counters(self):
+        result = self.api.preview_receipt_template("[print_number]", printer_name="Kitchen Printer")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["blocks"], [{"type": "text", "value": "1"}])
+        self.assertEqual(self.api.get_receipt_counters("Kitchen Printer")["counters"], {})
+
+    def test_preview_receipt_template_uses_the_printer_s_saved_chars_per_line(self):
+        manager = Mock()
+        manager.renderer_registry.all_entries.return_value = []
+        manager.list_printers.return_value = [Printer("Kitchen Printer", system_driver_available=True)]
+        manager.receipt_composer_store = self.api.printer_manager.receipt_composer_store
+        self.api.printer_manager = manager
+        self.api.refresh_printers()
+        self.api.update_printer_profile("Kitchen Printer", {"mode": "raw", "raw_chars_per_line": 12})
+
+        result = self.api.preview_receipt_template("[hr]", printer_name="Kitchen Printer")
+
+        self.assertEqual(result["blocks"], [{"type": "hr", "width": 12}])
 
 
 class DashboardWidgetTests(unittest.TestCase):
