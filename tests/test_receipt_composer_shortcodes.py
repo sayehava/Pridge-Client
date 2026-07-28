@@ -78,6 +78,18 @@ class ShortcodeTagTests(unittest.TestCase):
         self.assertEqual(_render("[cut:full]", self.store), b"\x1d\x56\x00")
         self.assertEqual(_render("[cut:partial]", self.store), b"\x1d\x56\x01")
 
+    def test_cut_with_a_feed_count_feeds_before_cutting(self) -> None:
+        self.assertEqual(_render("[cut:full:6]", self.store), b"\x1b\x64\x06\x1d\x56\x00")
+        self.assertEqual(_render("[cut:partial:2]", self.store), b"\x1b\x64\x02\x1d\x56\x01")
+
+    def test_cut_with_a_zero_or_missing_feed_count_behaves_like_before(self) -> None:
+        self.assertEqual(_render("[cut:full:0]", self.store), b"\x1d\x56\x00")
+        self.assertEqual(_render("[cut:full:]", self.store), b"\x1d\x56\x00")
+
+    def test_cut_with_a_negative_or_malformed_feed_count_is_ignored(self) -> None:
+        self.assertEqual(_render("[cut:full:-3]", self.store), b"\x1d\x56\x00")
+        self.assertEqual(_render("[cut:full:not-a-number]", self.store), b"\x1d\x56\x00")
+
     def test_drawer(self) -> None:
         self.assertEqual(_render("[drawer]", self.store), b"\x1b\x70\x00\x19\xfa")
 
@@ -241,6 +253,10 @@ class ShortcodePreviewBlockTests(unittest.TestCase):
                 {"type": "marker", "label": "dec"},
             ],
         )
+
+    def test_cut_marker_shows_the_feed_count_when_set(self) -> None:
+        self.assertEqual(_blocks("[cut:full:6]", self.store), [{"type": "marker", "label": "cut:full +6feed"}])
+        self.assertEqual(_blocks("[cut:full:0]", self.store), [{"type": "marker", "label": "cut:full"}])
 
     def test_unknown_tag_is_dropped(self) -> None:
         self.assertEqual(_blocks("[blod]", self.store), [])
