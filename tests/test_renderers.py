@@ -225,9 +225,16 @@ class RendererSelectionTests(unittest.TestCase):
             )
 
     def test_raw_jobs_bypass_renderer_selection(self) -> None:
-        from pridge_client.printers import PrinterManager
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
         from unittest.mock import Mock
+
+        from pridge_client.printers import PrinterManager
+        from pridge_client.receipt_composer import ReceiptComposerStore
         from pridge_client.renderers import PDFValidationService, build_default_registry
+
+        scratch = TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
 
         manager = PrinterManager.__new__(PrinterManager)
         manager.system = "Test"
@@ -235,6 +242,7 @@ class RendererSelectionTests(unittest.TestCase):
         manager._registry = build_default_registry()
         manager._validation = PDFValidationService()
         manager._renderer_selector = RendererSelectionService(manager._registry)
+        manager._receipt_composer_store = ReceiptComposerStore(Path(scratch.name))
 
         manager.print_job("Labels", b"\x1b@raw-esc-pos", mode="raw", job_name="RAW")
 
