@@ -103,6 +103,86 @@ class ConfigStoreTests(unittest.TestCase):
         self.assertEqual(profile.raw_footer_preset, "custom")
         self.assertEqual(profile.raw_footer_custom_hex, "1D 56 00")
 
+    def test_saves_and_loads_raw_composer_template_settings(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            store = ConfigStore(path)
+            store.save(
+                ClientConfig(
+                    printer_profiles={
+                        "Receipt": PrinterProfile(
+                            raw_header_template="[align:center][image:logo1][bold]Thanks![/bold]",
+                            raw_footer_template="[cut:full]",
+                            raw_paper_width_dots=576,
+                            raw_chars_per_line=48,
+                        )
+                    }
+                )
+            )
+
+            config = store.load()
+
+        profile = config.printer_profiles["Receipt"]
+        self.assertEqual(profile.raw_header_template, "[align:center][image:logo1][bold]Thanks![/bold]")
+        self.assertEqual(profile.raw_footer_template, "[cut:full]")
+        self.assertEqual(profile.raw_paper_width_dots, 576)
+        self.assertEqual(profile.raw_chars_per_line, 48)
+
+    def test_migrates_each_legacy_raw_preset_to_an_equivalent_shortcode(self) -> None:
+        cases = [
+            ({"raw_header_preset": "full_cut"}, "[cut:full]"),
+            ({"raw_header_preset": "partial_cut"}, "[cut:partial]"),
+            ({"raw_header_preset": "open_drawer"}, "[drawer]"),
+            ({"raw_header_preset": "feed"}, "[feed:4]"),
+            ({"raw_header_preset": "custom", "raw_header_custom_hex": "1D 56 00"}, "[hex:1D5600]"),
+        ]
+        for profile_fields, expected_template in cases:
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "config.json"
+                path.write_text(
+                    json.dumps({"printer_profiles": {"Receipt": profile_fields}}),
+                    encoding="utf-8",
+                )
+
+                config = ConfigStore(path).load()
+
+            self.assertEqual(
+                config.printer_profiles["Receipt"].raw_header_template, expected_template, profile_fields
+            )
+
+    def test_does_not_overwrite_an_explicit_raw_template_with_a_migrated_legacy_preset(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "printer_profiles": {
+                            "Receipt": {
+                                "raw_header_preset": "full_cut",
+                                "raw_header_template": "[drawer]",
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            config = ConfigStore(path).load()
+
+        self.assertEqual(config.printer_profiles["Receipt"].raw_header_template, "[drawer]")
+
+    def test_raw_paper_width_dots_is_rounded_down_to_a_byte_boundary_and_clamped(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            path.write_text(
+                json.dumps({"printer_profiles": {"Receipt": {"raw_paper_width_dots": 401}}}),
+                encoding="utf-8",
+            )
+
+            config = ConfigStore(path).load()
+
+        self.assertEqual(config.printer_profiles["Receipt"].raw_paper_width_dots, 400)
+
     def test_invalid_raw_presets_fall_back_to_none(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.json"
