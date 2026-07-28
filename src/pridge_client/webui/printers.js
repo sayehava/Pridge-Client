@@ -28,35 +28,17 @@
     mode: "system_driver",
     driver_settings: {},
     fit_mode: "fit",
-    raw_header_preset: "",
-    raw_header_custom_hex: "",
-    raw_footer_preset: "",
-    raw_footer_custom_hex: "",
+    raw_header_template: "",
+    raw_footer_template: "",
+    raw_paper_width_dots: 384,
+    raw_chars_per_line: 32,
   };
 
-  function RawMacroField({ label, preset, customHex, onPresetChange, onCustomHexChange, disabled }) {
+  function RawTemplateSummary({ label, template }) {
     return html`
       <div class="field">
         <label class="field-label">${label}</label>
-        <select value=${preset || ""} onChange=${onPresetChange} disabled=${disabled}>
-          <option value="">${S.raw_macro_none}</option>
-          <option value="full_cut">${S.raw_macro_full_cut}</option>
-          <option value="partial_cut">${S.raw_macro_partial_cut}</option>
-          <option value="open_drawer">${S.raw_macro_open_drawer}</option>
-          <option value="feed">${S.raw_macro_feed}</option>
-          <option value="custom">${S.raw_macro_custom}</option>
-        </select>
-        ${preset === "custom"
-          ? html`
-              <input
-                type="text"
-                placeholder=${S.raw_macro_custom_placeholder}
-                value=${customHex || ""}
-                onChange=${onCustomHexChange}
-                disabled=${disabled}
-              />
-            `
-          : null}
+        <div class="driver-mode-note">${template ? template : S.receipt_template_not_set}</div>
       </div>
     `;
   }
@@ -157,10 +139,8 @@
       persistPrinterProfile(nextProfile);
     };
 
-    const setRawField = (key, value) => {
-      const nextProfile = { ...printerProfile, [key]: value };
-      setPrinterProfile(nextProfile);
-      persistPrinterProfile(nextProfile);
+    const openReceiptComposer = () => {
+      callApi("open_receipt_composer_window");
     };
 
     const openNativeDriverSettings = () => {
@@ -255,22 +235,11 @@
                         ${printerProfile.mode === "raw"
                           ? html`
                               <div class="driver-mode-note">${S.raw_mode_hint}</div>
-                              <${RawMacroField}
-                                label=${S.raw_header_label}
-                                preset=${printerProfile.raw_header_preset}
-                                customHex=${printerProfile.raw_header_custom_hex}
-                                disabled=${profileBusy}
-                                onPresetChange=${(event) => setRawField("raw_header_preset", event.target.value)}
-                                onCustomHexChange=${(event) => setRawField("raw_header_custom_hex", event.target.value)}
-                              />
-                              <${RawMacroField}
-                                label=${S.raw_footer_label}
-                                preset=${printerProfile.raw_footer_preset}
-                                customHex=${printerProfile.raw_footer_custom_hex}
-                                disabled=${profileBusy}
-                                onPresetChange=${(event) => setRawField("raw_footer_preset", event.target.value)}
-                                onCustomHexChange=${(event) => setRawField("raw_footer_custom_hex", event.target.value)}
-                              />
+                              <${RawTemplateSummary} label=${S.raw_header_label} template=${printerProfile.raw_header_template} />
+                              <${RawTemplateSummary} label=${S.raw_footer_label} template=${printerProfile.raw_footer_template} />
+                              <button type="button" class="btn-secondary" onClick=${openReceiptComposer}>
+                                ${S.open_receipt_composer}
+                              </button>
                             `
                           : printerCapabilities && !printerCapabilities.system_driver_available
                           ? html`<div class="connection-result error-result">${S.system_driver_unavailable}</div>`
