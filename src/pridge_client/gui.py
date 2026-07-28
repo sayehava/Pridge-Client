@@ -622,6 +622,20 @@ class ClientApi:
         self._save_dashboard_widgets([widgets for widgets in pages if widgets])
         return self.get_dashboard_layout()
 
+    def update_dashboard_widget_config(self, widget_id: str, config: dict) -> dict:
+        widget_id = str(widget_id).strip()
+        if not isinstance(config, dict):
+            return {"ok": False, "error": "Invalid widget configuration.", **self._dashboard_layout_payload()}
+
+        pages = self._grouped_dashboard_widgets()
+        for widgets in pages:
+            for widget in widgets:
+                if widget.id == widget_id:
+                    widget.config = config
+
+        self._save_dashboard_widgets(pages)
+        return self.get_dashboard_layout()
+
     def _dashboard_layout_payload(self) -> dict:
         catalog = self._dashboard_catalog()
         catalog_by_type = {item["type"]: item for item in catalog}
@@ -637,6 +651,7 @@ class ClientApi:
                         "title": meta.get("title", widget.widget_type),
                         "source": meta.get("source", "unknown"),
                         "script_source": meta.get("script_source", ""),
+                        "config": widget.config,
                     }
                 )
             pages.append(page)
@@ -647,6 +662,7 @@ class ClientApi:
             {"type": "recent_jobs", "title": "Recent Jobs", "source": "builtin"},
             {"type": "logs", "title": "Logs / Status", "source": "builtin"},
             {"type": "printer_stats", "title": "Printer Activity", "source": "builtin"},
+            {"type": "server_status", "title": "Server Status", "source": "builtin", "configurable": True},
         ]
         from pridge_client.plugins.manifest import MANIFEST_FILE_NAME, load_manifest
 
@@ -688,7 +704,13 @@ class ClientApi:
         for page_index, widgets in enumerate(pages):
             for position, widget in enumerate(widgets):
                 flattened.append(
-                    DashboardWidget(id=widget.id, widget_type=widget.widget_type, page=page_index, position=position)
+                    DashboardWidget(
+                        id=widget.id,
+                        widget_type=widget.widget_type,
+                        page=page_index,
+                        position=position,
+                        config=widget.config,
+                    )
                 )
         self.config.dashboard_widgets = flattened
         self.config = self._current_config()
@@ -1079,6 +1101,10 @@ class ClientApi:
             "running": bool(worker and worker.state.running),
             "status": worker.state.status if worker else STATUS_STOPPED,
             "compatibility_warning": worker.state.compatibility_warning if worker else "",
+            "last_heartbeat_at": (
+                worker.state.last_heartbeat_at.isoformat() if worker and worker.state.last_heartbeat_at else None
+            ),
+            "last_error": worker.state.last_error if worker else "",
         }
 
     def _current_config(self) -> ClientConfig:
