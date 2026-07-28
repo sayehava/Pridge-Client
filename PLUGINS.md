@@ -138,6 +138,26 @@ than caching it, since the next widget added overwrites it for its own
 script. A complete example lives at
 [`tests/fixtures/example_widget_plugin/`](tests/fixtures/example_widget_plugin/).
 
+## Settings window (core plugins only)
+
+A plugin object can carry an optional `settings_window: str` attribute (a
+plain Python class/instance attribute, not a manifest field). When present
+and non-empty, the Plugins window shows a **Settings** button on that
+plugin's row; clicking it calls `open_plugin_settings_window(settings_window)`
+in `gui.py`, which dispatches through a small `openers` dict to the matching
+`_open_utility_window(...)` call (see `open_app_mapping_window` and
+`open_receipt_composer_window`).
+
+This attribute exists so Pridge Client's own built-in plugins (App Mapping,
+Receipt Composer) don't each need bespoke, hardcoded wiring in the Plugins
+window — `has_settings`/`settings_window` are read generically via
+`getattr`. It is **not** yet a general extension point for third-party
+manifest-based plugins: the `openers` dict only recognizes the window keys
+Pridge Client ships with, so setting an arbitrary `settings_window` value on
+a third-party plugin will show a Settings button that errors when clicked.
+Registering a plugin-supplied settings window is a possible future addition,
+not something available today.
+
 Widget scripts are **not sandboxed**: your code runs with full access to the
 live dashboard page (its DOM, its `pywebview.api` bridge, everything else on
 the page), exactly like Pridge's own UI code. Only install widget plugins
