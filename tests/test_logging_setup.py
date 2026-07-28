@@ -20,6 +20,13 @@ from pridge_client.logging_setup import (
 )
 
 
+def _close_and_clear_root_handlers() -> None:
+    root = logging.getLogger()
+    for handler in root.handlers[:]:
+        handler.close()
+    root.handlers.clear()
+
+
 class RedactionTests(unittest.TestCase):
     def test_redacts_bearer_token(self) -> None:
         self.assertEqual(redact("Authorization: Bearer abcdef1234567890"), "Authorization: Bearer [redacted]")
@@ -33,7 +40,7 @@ class ConfigureLoggingTests(unittest.TestCase):
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.log_dir = Path(self.temporary_directory.name)
         self.addCleanup(self.temporary_directory.cleanup)
-        self.addCleanup(logging.getLogger().handlers.clear)
+        self.addCleanup(_close_and_clear_root_handlers)
 
     def test_writes_to_the_configured_directory(self) -> None:
         configure_logging(ClientConfig(), log_dir=self.log_dir)
