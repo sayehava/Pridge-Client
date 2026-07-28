@@ -23,10 +23,10 @@ def build_default_registry() -> RendererRegistry:
     from pridge_client.renderers.svg_plugin import SvgRendererPlugin
 
     registry = RendererRegistry()
-    registry.register(PdfRendererPlugin(), priority=10)
-    registry.register(ImageRendererPlugin(), priority=20)
-    registry.register(TextRendererPlugin(), priority=30)
-    registry.register(SvgRendererPlugin(), priority=40)
+    registry.register(PdfRendererPlugin(), priority=10, category="Renderer")
+    registry.register(ImageRendererPlugin(), priority=20, category="Renderer")
+    registry.register(TextRendererPlugin(), priority=30, category="Renderer")
+    registry.register(SvgRendererPlugin(), priority=40, category="Renderer")
     return registry
 
 
