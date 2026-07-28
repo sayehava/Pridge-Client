@@ -87,8 +87,8 @@
       });
     };
 
-    const openPluginSettings = () => {
-      callApi("open_app_mapping_window");
+    const openPluginSettings = (settingsWindow) => {
+      callApi("open_plugin_settings_window", settingsWindow);
     };
 
     const categoryLabel = (category) => category || S.plugin_category_unknown;
@@ -140,7 +140,7 @@
             ${thirdParty ? html`<small class="renderer-types">${plugin.source_path}</small>` : null}
             ${plugin.load_error ? html`<small class="renderer-error">${S.renderer_load_error}: ${plugin.load_error}</small>` : null}
           </div>
-          ${plugin.has_settings ? html`<button class="btn-secondary" onClick=${openPluginSettings}>${S.plugin_settings}</button>` : null}
+          ${plugin.has_settings ? html`<button class="btn-secondary" onClick=${() => openPluginSettings(plugin.settings_window)}>${S.plugin_settings}</button>` : null}
           ${thirdParty ? html`<button class="btn-danger-small" onClick=${() => removePlugin(plugin.plugin_id, plugin.display_name)}>${S.remove}</button>` : null}
         </div>
       `;
