@@ -754,6 +754,18 @@ class ClientApiTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual([p["plugin_id"] for p in result["plugins"]], ["builtin.one"])
 
+    def test_get_renderer_plugins_reports_each_entry_s_category(self):
+        manager = FakePluginPrinterManager()
+        manager.renderer_registry.register(
+            FakeRendererPlugin("mapper.one"), priority=100, is_builtin=True, category="Mapper"
+        )
+        self.api.printer_manager = manager
+
+        result = self.api.get_renderer_plugins()
+
+        by_id = {plugin["plugin_id"]: plugin["category"] for plugin in result["plugins"]}
+        self.assertEqual(by_id["mapper.one"], "Mapper")
+
     def test_remove_plugin_removes_a_third_party_plugin(self):
         manager = FakePluginPrinterManager()
         manager.install_renderer_plugin(Path(self.temporary_directory.name) / "my-plugin")
