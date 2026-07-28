@@ -42,10 +42,18 @@ class PrinterProfile:
     driver_settings: dict[str, str] = field(default_factory=dict)
     submission_method: str = ""
     fit_mode: str = "fit"
+    # Deprecated: superseded by raw_header_template/raw_footer_template (Receipt
+    # Composer). Kept so older config.json files still parse; migrated to an
+    # equivalent shortcode template on load by _migrate_legacy_raw_macro and no
+    # longer editable from the UI.
     raw_header_preset: str = ""
     raw_header_custom_hex: str = ""
     raw_footer_preset: str = ""
     raw_footer_custom_hex: str = ""
+    raw_header_template: str = ""
+    raw_footer_template: str = ""
+    raw_paper_width_dots: int = 384
+    raw_chars_per_line: int = 32
 
 
 @dataclass
@@ -375,6 +383,25 @@ def _parse_printer_mappings(raw: Any) -> list[PrinterMapping]:
     return mappings
 
 
+def _migrate_legacy_raw_macro(preset: str, custom_hex: str) -> str:
+    """Translate a legacy raw_header_preset/raw_footer_preset (+ custom hex)
+    into the equivalent Receipt Composer shortcode, so profiles saved before
+    that feature existed keep behaving the same way after loading.
+    """
+    if preset == "full_cut":
+        return "[cut:full]"
+    if preset == "partial_cut":
+        return "[cut:partial]"
+    if preset == "open_drawer":
+        return "[drawer]"
+    if preset == "feed":
+        return "[feed:4]"
+    if preset == "custom":
+        cleaned = re.sub(r"[\s:-]", "", custom_hex)
+        return f"[hex:{cleaned}]" if cleaned else ""
+    return ""
+
+
 def _parse_printer_profiles(raw: Any) -> dict[str, PrinterProfile]:
     if not isinstance(raw, dict):
         return {}
@@ -406,18 +433,36 @@ def _parse_printer_profiles(raw: Any) -> dict[str, PrinterProfile]:
         raw_header_preset = str(raw_profile.get("raw_header_preset", "")).strip().lower()
         if raw_header_preset not in RAW_MACROS:
             raw_header_preset = ""
+        raw_header_custom_hex = str(raw_profile.get("raw_header_custom_hex", "")).strip()
         raw_footer_preset = str(raw_profile.get("raw_footer_preset", "")).strip().lower()
         if raw_footer_preset not in RAW_MACROS:
             raw_footer_preset = ""
+        raw_footer_custom_hex = str(raw_profile.get("raw_footer_custom_hex", "")).strip()
+
+        raw_header_template = str(raw_profile.get("raw_header_template", "")).strip()
+        if not raw_header_template and raw_header_preset:
+            raw_header_template = _migrate_legacy_raw_macro(raw_header_preset, raw_header_custom_hex)
+        raw_footer_template = str(raw_profile.get("raw_footer_template", "")).strip()
+        if not raw_footer_template and raw_footer_preset:
+            raw_footer_template = _migrate_legacy_raw_macro(raw_footer_preset, raw_footer_custom_hex)
+
+        raw_paper_width_dots = _bounded_int(raw_profile.get("raw_paper_width_dots", 384), 384, 8, 4096)
+        raw_paper_width_dots = max(8, (raw_paper_width_dots // 8) * 8)
+        raw_chars_per_line = _bounded_int(raw_profile.get("raw_chars_per_line", 32), 32, 8, 128)
+
         profiles[name] = PrinterProfile(
             mode=mode,
             driver_settings=settings,
             submission_method=raw_method,
             fit_mode=fit_mode,
             raw_header_preset=raw_header_preset,
-            raw_header_custom_hex=str(raw_profile.get("raw_header_custom_hex", "")).strip(),
+            raw_header_custom_hex=raw_header_custom_hex,
             raw_footer_preset=raw_footer_preset,
-            raw_footer_custom_hex=str(raw_profile.get("raw_footer_custom_hex", "")).strip(),
+            raw_footer_custom_hex=raw_footer_custom_hex,
+            raw_header_template=raw_header_template,
+            raw_footer_template=raw_footer_template,
+            raw_paper_width_dots=raw_paper_width_dots,
+            raw_chars_per_line=raw_chars_per_line,
         )
     return profiles
 
