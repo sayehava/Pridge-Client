@@ -24,6 +24,7 @@ from pridge_client.autostart import AutoStartError, set_start_at_login
 from pridge_client.build_info import BUILD_SYSTEM, BUILD_VARIANT
 from pridge_client.config import (
     DARKNESS_GRADES,
+    FIT_MODES,
     PRINT_MODES,
     SUBMISSION_METHODS,
     ClientTokenStore,
@@ -501,6 +502,9 @@ class ClientApi:
         submission_method = str(fields.get("submission_method", existing.submission_method)).strip().lower()
         if submission_method not in SUBMISSION_METHODS:
             submission_method = existing.submission_method
+        fit_mode = str(fields.get("fit_mode", existing.fit_mode)).strip().lower()
+        if fit_mode not in FIT_MODES:
+            fit_mode = existing.fit_mode
         capabilities = None
         if mode == "system_driver":
             try:
@@ -511,7 +515,9 @@ class ClientApi:
                 return self._error("The selected printer does not have an available system driver.")
             settings = validate_driver_settings(capabilities, settings)
 
-        profile = PrinterProfile(mode=mode, driver_settings=settings, submission_method=submission_method)
+        profile = PrinterProfile(
+            mode=mode, driver_settings=settings, submission_method=submission_method, fit_mode=fit_mode
+        )
         store[name] = profile
         self.config = self._current_config()
         self.config_store.save(self.config)
@@ -548,6 +554,7 @@ class ClientApi:
                 mode=profile.mode,
                 driver_settings=profile.driver_settings,
                 submission_method=profile.submission_method or None,
+                fit_mode=profile.fit_mode,
             )
         except PrinterError as exc:
             self._bump_printer_stat(name, origin="test", success=False)
@@ -1341,6 +1348,7 @@ class ClientApi:
             "mode": profile.mode,
             "driver_settings": dict(profile.driver_settings),
             "submission_method": profile.submission_method,
+            "fit_mode": profile.fit_mode,
         }
 
     def _server_by_id(self, server_id: str) -> ServerConfig | None:
