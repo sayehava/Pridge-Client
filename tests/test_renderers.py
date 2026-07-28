@@ -31,6 +31,26 @@ class RendererRegistryTests(unittest.TestCase):
         self.assertIsNotNone(entry)
         self.assertIs(entry.plugin, plugin)
 
+    def test_registers_and_reports_a_plugin_s_category(self) -> None:
+        registry = RendererRegistry()
+        registry.register(PdfRendererPlugin(), priority=0, category="Renderer")
+
+        entry = registry.get_entry("pridge.renderer.pdf")
+        self.assertEqual(entry.category, "Renderer")
+
+    def test_register_error_records_a_category_when_known(self) -> None:
+        registry = RendererRegistry()
+        registry.register_error("broken.plugin", "boom", category="BingiBongo")
+
+        entry = registry.get_entry("broken.plugin")
+        self.assertEqual(entry.category, "BingiBongo")
+
+    def test_build_default_registry_assigns_the_renderer_category_to_every_builtin(self) -> None:
+        registry = build_default_registry()
+
+        categories = {entry.plugin.plugin_id: entry.category for entry in registry.all_entries()}
+        self.assertTrue(all(category == "Renderer" for category in categories.values()), categories)
+
     def test_enabled_plugins_returns_only_enabled_plugins_sorted_by_priority(self) -> None:
         registry = RendererRegistry()
         pdf = PdfRendererPlugin()
