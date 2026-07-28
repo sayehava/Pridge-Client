@@ -25,6 +25,7 @@ LEGACY_KEYRING_SERVICES = ("printbridge-client", "printbridge-endpoint")
 DARKNESS_GRADES = ("Quartz", "Moonstone", "Labradorite", "Onyx", "Obsidian", "Jet")
 PRINT_MODES = ("raw", "system_driver")
 SUBMISSION_METHODS = ("", "direct_pdf", "pdfium")
+FIT_MODES = ("fit", "actual_size")
 
 
 @dataclass
@@ -39,6 +40,7 @@ class PrinterProfile:
     mode: str = "system_driver"
     driver_settings: dict[str, str] = field(default_factory=dict)
     submission_method: str = ""
+    fit_mode: str = "fit"
 
 
 @dataclass
@@ -393,8 +395,11 @@ def _parse_printer_profiles(raw: Any) -> dict[str, PrinterProfile]:
         raw_method = str(raw_profile.get("submission_method", "")).strip().lower()
         if raw_method not in SUBMISSION_METHODS:
             raw_method = ""
+        fit_mode = str(raw_profile.get("fit_mode", "fit")).strip().lower()
+        if fit_mode not in FIT_MODES:
+            fit_mode = "fit"
         profiles[name] = PrinterProfile(
-            mode=mode, driver_settings=settings, submission_method=raw_method
+            mode=mode, driver_settings=settings, submission_method=raw_method, fit_mode=fit_mode
         )
     return profiles
 
