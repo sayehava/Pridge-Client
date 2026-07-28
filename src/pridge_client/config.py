@@ -26,6 +26,7 @@ DARKNESS_GRADES = ("Quartz", "Moonstone", "Labradorite", "Onyx", "Obsidian", "Je
 PRINT_MODES = ("raw", "system_driver")
 SUBMISSION_METHODS = ("", "direct_pdf", "pdfium")
 FIT_MODES = ("fit", "actual_size")
+RAW_MACROS = ("", "full_cut", "partial_cut", "open_drawer", "feed", "custom")
 
 
 @dataclass
@@ -41,6 +42,10 @@ class PrinterProfile:
     driver_settings: dict[str, str] = field(default_factory=dict)
     submission_method: str = ""
     fit_mode: str = "fit"
+    raw_header_preset: str = ""
+    raw_header_custom_hex: str = ""
+    raw_footer_preset: str = ""
+    raw_footer_custom_hex: str = ""
 
 
 @dataclass
@@ -398,8 +403,21 @@ def _parse_printer_profiles(raw: Any) -> dict[str, PrinterProfile]:
         fit_mode = str(raw_profile.get("fit_mode", "fit")).strip().lower()
         if fit_mode not in FIT_MODES:
             fit_mode = "fit"
+        raw_header_preset = str(raw_profile.get("raw_header_preset", "")).strip().lower()
+        if raw_header_preset not in RAW_MACROS:
+            raw_header_preset = ""
+        raw_footer_preset = str(raw_profile.get("raw_footer_preset", "")).strip().lower()
+        if raw_footer_preset not in RAW_MACROS:
+            raw_footer_preset = ""
         profiles[name] = PrinterProfile(
-            mode=mode, driver_settings=settings, submission_method=raw_method, fit_mode=fit_mode
+            mode=mode,
+            driver_settings=settings,
+            submission_method=raw_method,
+            fit_mode=fit_mode,
+            raw_header_preset=raw_header_preset,
+            raw_header_custom_hex=str(raw_profile.get("raw_header_custom_hex", "")).strip(),
+            raw_footer_preset=raw_footer_preset,
+            raw_footer_custom_hex=str(raw_profile.get("raw_footer_custom_hex", "")).strip(),
         )
     return profiles
 
