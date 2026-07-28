@@ -175,7 +175,7 @@
         </div>`;
   }
 
-  function WidgetCard({ widget, recentJobs, logs, printerDetails, servers, onRemove, isDragging, onDragStart, onDragEnd, onDropOn }) {
+  function WidgetCard({ widget, recentJobs, logs, printerDetails, servers, onRemove, onConfigure, isDragging, onDragStart, onDragEnd, onDropOn }) {
     const containerId = `pridge-widget-${widget.id}`;
     const scriptLoaded = useRef(false);
     const hasAlert = widget.widget_type === "server_status" && trackedServers(widget, servers).some(isServerErrored);
@@ -250,6 +250,9 @@
             onDragEnd=${onDragEnd}
           >⋮⋮</span>
           <h4>${widget.title}</h4>
+          ${widget.widget_type === "server_status"
+            ? html`<button class="widget-config-btn" title=${S.configure_widget} onClick=${onConfigure}>⚙</button>`
+            : null}
           <button class="widget-remove-btn" title=${S.remove_widget} onClick=${onRemove}>×</button>
         </div>
         <div class="widget-card-body">${body}</div>
@@ -284,11 +287,61 @@
     `;
   }
 
+  function ServerStatusSettings({ widget, servers, onSave, onClose }) {
+    const config = widget.config || {};
+    const [selected, setSelected] = useState(new Set(Array.isArray(config.server_ids) ? config.server_ids : []));
+    const [autoRotate, setAutoRotate] = useState(!!config.auto_rotate);
+
+    const toggle = (id) => {
+      setSelected((current) => {
+        const next = new Set(current);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+    };
+
+    return html`
+      <div class="modal-backdrop" role="presentation" onMouseDown=${(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}>
+        <div class="widget-picker" role="dialog" aria-modal="true" aria-label=${S.server_status_settings_title}>
+          <h3>${S.server_status_settings_title}</h3>
+          <div class="field-label">${S.server_status_pick_servers}</div>
+          <div class="widget-settings-list">
+            ${servers.length === 0
+              ? html`<div class="server-empty-copy">${S.no_servers}</div>`
+              : servers.map(
+                  (server) => html`
+                    <label class="checkbox-row" key=${server.id}>
+                      <input type="checkbox" checked=${selected.has(server.id)} onChange=${() => toggle(server.id)} />
+                      <span>${server.name}</span>
+                    </label>
+                  `
+                )}
+          </div>
+          <label class="checkbox-row">
+            <input type="checkbox" checked=${autoRotate} onChange=${(event) => setAutoRotate(event.target.checked)} />
+            <span>${S.server_status_auto_rotate}</span>
+          </label>
+          <div class="utility-actions">
+            <button onClick=${onClose}>${S.cancel}</button>
+            <button
+              class="primary"
+              onClick=${() => onSave({ server_ids: Array.from(selected), auto_rotate: autoRotate })}
+            >${S.save}</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function WidgetArea({ recentJobs, logs, printerDetails, servers }) {
     const [layout, setLayout] = useState(null);
     const [pageIndex, setPageIndex] = useState(0);
     const [showPicker, setShowPicker] = useState(false);
     const [draggingId, setDraggingId] = useState(null);
+    const [configuringId, setConfiguringId] = useState(null);
 
     const refreshLayout = () => {
       callApi("get_dashboard_layout").then((result) => {
@@ -320,6 +373,12 @@
       if (draggingId) callApi("reorder_dashboard_widget", draggingId, currentPage, targetPosition).then(applyLayout);
       setDraggingId(null);
     };
+    const saveWidgetConfig = (id, config) =>
+      callApi("update_dashboard_widget_config", id, config).then((result) => {
+        applyLayout(result);
+        setConfiguringId(null);
+      });
+    const configuringWidget = widgets.find((widget) => widget.id === configuringId) || null;
 
     return html`
       <div class="card widget-area">
@@ -353,6 +412,7 @@
                 printerDetails=${printerDetails}
                 servers=${servers}
                 onRemove=${() => removeWidget(widget.id)}
+                onConfigure=${() => setConfiguringId(widget.id)}
                 isDragging=${draggingId === widget.id}
                 onDragStart=${() => setDraggingId(widget.id)}
                 onDragEnd=${() => setDraggingId(null)}
@@ -363,6 +423,14 @@
         </div>
         ${showPicker
           ? html`<${WidgetPicker} catalog=${layout.catalog} onPick=${addWidget} onClose=${() => setShowPicker(false)} />`
+          : null}
+        ${configuringWidget
+          ? html`<${ServerStatusSettings}
+              widget=${configuringWidget}
+              servers=${servers}
+              onSave=${(config) => saveWidgetConfig(configuringWidget.id, config)}
+              onClose=${() => setConfiguringId(null)}
+            />`
           : null}
       </div>
     `;
