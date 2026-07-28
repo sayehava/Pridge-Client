@@ -158,6 +158,8 @@ class ClientApiTests(unittest.TestCase):
         self.assertEqual(server["heartbeat_interval_seconds"], 41)
         self.assertEqual(server["default_printer"], "Backup Printer")
         self.assertEqual(server["printer_mappings"][0]["local_printer_name"], "EPSON TM-T88")
+        self.assertIsNone(server["last_heartbeat_at"])
+        self.assertEqual(server["last_error"], "")
 
     def test_saves_validated_system_driver_profile(self):
         manager = Mock()
@@ -778,7 +780,10 @@ class DashboardWidgetTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(len(result["pages"]), 1)
         self.assertEqual([w["widget_type"] for w in result["pages"][0]], ["recent_jobs", "logs"])
-        self.assertEqual({item["type"] for item in result["catalog"]}, {"recent_jobs", "logs", "printer_stats"})
+        self.assertEqual(
+            {item["type"] for item in result["catalog"]},
+            {"recent_jobs", "logs", "printer_stats", "server_status"},
+        )
 
     def test_add_widget_rejects_an_unknown_type(self):
         result = self.api.add_dashboard_widget("not-a-real-widget")
@@ -803,6 +808,20 @@ class DashboardWidgetTests(unittest.TestCase):
         result = self.api.remove_dashboard_widget(second_id)
 
         self.assertEqual(result["pages"], [[]])
+
+    def test_update_widget_config_persists_and_survives_reorder(self):
+        added = self.api.add_dashboard_widget("server_status")
+        widget_id = added["pages"][-1][-1]["id"]
+
+        result = self.api.update_dashboard_widget_config(
+            widget_id, {"server_ids": ["srv-1"], "auto_rotate": True}
+        )
+        widget = next(w for page in result["pages"] for w in page if w["id"] == widget_id)
+        self.assertEqual(widget["config"], {"server_ids": ["srv-1"], "auto_rotate": True})
+
+        reordered = self.api.reorder_dashboard_widget(widget_id, 0, 0)
+        widget = next(w for page in reordered["pages"] for w in page if w["id"] == widget_id)
+        self.assertEqual(widget["config"], {"server_ids": ["srv-1"], "auto_rotate": True})
 
     def test_reorder_moves_a_widget_within_the_same_page(self):
         layout = self.api.get_dashboard_layout()
@@ -868,7 +887,9 @@ class DashboardWidgetTests(unittest.TestCase):
 
         result = self.api.get_dashboard_layout()
 
-        self.assertEqual([item["source"] for item in result["catalog"]], ["builtin", "builtin", "builtin"])
+        self.assertEqual(
+            [item["source"] for item in result["catalog"]], ["builtin", "builtin", "builtin", "builtin"]
+        )
 
 
 if __name__ == "__main__":
