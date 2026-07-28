@@ -671,7 +671,7 @@ class ClientApi:
         catalog = [
             {"type": "recent_jobs", "title": "Recent Jobs", "source": "builtin"},
             {"type": "logs", "title": "Logs / Status", "source": "builtin"},
-            {"type": "printer_stats", "title": "Printer Activity", "source": "builtin"},
+            {"type": "printer_stats", "title": "Printer Activity", "source": "builtin", "configurable": True},
             {"type": "server_status", "title": "Server Status", "source": "builtin", "configurable": True},
         ]
         from pridge_client.plugins.manifest import MANIFEST_FILE_NAME, load_manifest
