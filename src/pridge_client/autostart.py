@@ -109,7 +109,11 @@ def _set_windows_run_key(enabled: bool) -> None:
     key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
     value_name = "Pridge Client"
     legacy_value_names = ("PrintBridge Client", "PrintBridge Client Agent", "PrintBridge Endpoint Agent")
-    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
+    try:
+        key = winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE)
+    except OSError as exc:
+        raise AutoStartError(f"Could not open the Windows Run registry key: {exc}") from exc
+    with key:
         if enabled:
             value = " ".join(f'"{part}"' if " " in part else part for part in command())
             winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, value)
