@@ -53,6 +53,8 @@ class UnsupportedPrinterBackend:
         settings: Mapping[str, str],
         job_name: str,
         submission_method: str = "direct_pdf",
+        fit_mode: str = "fit",
+        target_page_size_pt: tuple[float, float] | None = None,
     ) -> None:
         raise PrinterError(f"Unsupported platform: {self.system}")
 
@@ -152,11 +154,13 @@ class PosixPrinterBackend:
         settings: Mapping[str, str],
         job_name: str,
         submission_method: str = "direct_pdf",
+        fit_mode: str = "fit",
+        target_page_size_pt: tuple[float, float] | None = None,
     ) -> None:
         if submission_method == "pdfium":
-            self._print_pdf_via_pdfium(printer_name, pdf_data, settings, job_name)
+            self._print_pdf_via_pdfium(printer_name, pdf_data, settings, job_name, fit_mode, target_page_size_pt)
         else:
-            self._print_pdf_direct(printer_name, pdf_data, settings, job_name)
+            self._print_pdf_direct(printer_name, pdf_data, settings, job_name, fit_mode)
 
     def _print_pdf_direct(
         self,
@@ -164,12 +168,14 @@ class PosixPrinterBackend:
         pdf_data: bytes,
         settings: Mapping[str, str],
         job_name: str,
+        fit_mode: str = "fit",
     ) -> None:
         self._require_printer(printer_name)
         command = ["lp", "-d", printer_name, "-t", job_name]
         for option_id, value_id in settings.items():
             command.extend(["-o", f"{option_id}={value_id}"])
         command.extend(["-o", "document-format=application/pdf"])
+        command.extend(["-o", f"print-scaling={'fit' if fit_mode != 'actual_size' else 'none'}"])
         completed = subprocess.run(
             command,
             input=pdf_data,
@@ -187,6 +193,8 @@ class PosixPrinterBackend:
         pdf_data: bytes,
         settings: Mapping[str, str],
         job_name: str,
+        fit_mode: str = "fit",
+        target_page_size_pt: tuple[float, float] | None = None,
     ) -> None:
         from pridge_client.pdfium_service import PDFiumRenderService
 
@@ -196,11 +204,17 @@ class PosixPrinterBackend:
             raise PrinterError("PDFium produced no pages from the document.")
 
         if self.system == "Darwin":
-            self._macos_print_rendered_pages(printer_name, rendered_pages, settings, job_name)
+            self._macos_print_rendered_pages(
+                printer_name, rendered_pages, settings, job_name, fit_mode, target_page_size_pt
+            )
         else:
-            self._linux_print_rendered_pages(printer_name, rendered_pages, settings, job_name)
+            self._linux_print_rendered_pages(
+                printer_name, rendered_pages, settings, job_name, fit_mode, target_page_size_pt
+            )
 
-    def _macos_print_rendered_pages(self, printer_name, rendered_pages, settings, job_name):
+    def _macos_print_rendered_pages(
+        self, printer_name, rendered_pages, settings, job_name, fit_mode="fit", target_page_size_pt=None
+    ):
         import io
         try:
             from PIL import Image
@@ -217,7 +231,10 @@ class PosixPrinterBackend:
                 "raw",
                 "BGRA" if page.has_alpha else "BGR",
             )
-            images.append(img.convert("RGB"))
+            img = img.convert("RGB")
+            if fit_mode != "actual_size" and target_page_size_pt:
+                img = _fit_image_to_page(img, page.dpi, target_page_size_pt)
+            images.append(img)
 
         buf = io.BytesIO()
         if images:
@@ -229,11 +246,15 @@ class PosixPrinterBackend:
                 resolution=rendered_pages[0].dpi,
             )
         pdf_data = buf.getvalue()
-        self._print_pdf_direct(printer_name, pdf_data, settings, job_name)
+        self._print_pdf_direct(printer_name, pdf_data, settings, job_name, fit_mode)
 
-    def _linux_print_rendered_pages(self, printer_name, rendered_pages, settings, job_name):
+    def _linux_print_rendered_pages(
+        self, printer_name, rendered_pages, settings, job_name, fit_mode="fit", target_page_size_pt=None
+    ):
         # Same approach as macOS: re-wrap rendered pages as PDF and submit via CUPS
-        self._macos_print_rendered_pages(printer_name, rendered_pages, settings, job_name)
+        self._macos_print_rendered_pages(
+            printer_name, rendered_pages, settings, job_name, fit_mode, target_page_size_pt
+        )
 
     def _require_printer(self, printer_name: str) -> None:
         if printer_name not in {printer.name for printer in self.list_printers()}:
@@ -309,8 +330,10 @@ class WindowsPrinterBackend:
         settings: Mapping[str, str],
         job_name: str,
         submission_method: str = "pdfium",
+        fit_mode: str = "fit",
+        target_page_size_pt: tuple[float, float] | None = None,
     ) -> None:
-        _windows_gdi_print_pdf(pdf_data, printer_name, settings, job_name)
+        _windows_gdi_print_pdf(pdf_data, printer_name, settings, job_name, fit_mode)
 
     @staticmethod
     def _open_printer(win32print, printer_name: str):
@@ -320,11 +343,30 @@ class WindowsPrinterBackend:
             raise PrinterError("The selected printer is no longer available.") from exc
 
 
+def _fit_image_to_page(img, dpi: float, target_page_size_pt: tuple[float, float]):
+    from PIL import Image
+
+    target_w_px = max(1, round(target_page_size_pt[0] / 72.0 * dpi))
+    target_h_px = max(1, round(target_page_size_pt[1] / 72.0 * dpi))
+    if img.width == target_w_px and img.height == target_h_px:
+        return img
+
+    scale = min(target_w_px / img.width, target_h_px / img.height)
+    new_w = max(1, round(img.width * scale))
+    new_h = max(1, round(img.height * scale))
+    resized = img.resize((new_w, new_h), Image.LANCZOS) if abs(scale - 1.0) > 0.01 else img
+
+    canvas = Image.new("RGB", (target_w_px, target_h_px), "white")
+    canvas.paste(resized, ((target_w_px - new_w) // 2, (target_h_px - new_h) // 2))
+    return canvas
+
+
 def _windows_gdi_print_pdf(
     pdf_data: bytes,
     printer_name: str,
     settings: Mapping[str, str],
     job_name: str,
+    fit_mode: str = "fit",
 ) -> None:
     try:
         import win32ui
@@ -376,7 +418,7 @@ def _windows_gdi_print_pdf(
                         "BGRA",
                     ).convert("RGB")
 
-                    scale = min(print_w / page.width_px, print_h / page.height_px)
+                    scale = 1.0 if fit_mode == "actual_size" else min(print_w / page.width_px, print_h / page.height_px)
                     dst_w = int(page.width_px * scale)
                     dst_h = int(page.height_px * scale)
                     dst_x = (print_w - dst_w) // 2
