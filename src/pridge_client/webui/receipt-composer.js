@@ -144,13 +144,29 @@
     return (blocks || []).map(blockToTag).join("");
   }
 
-  function moveItem(items, fromId, toIndex) {
+  // Positions the dragged item relative to another item's id rather than a
+  // raw numeric index. A plain "insert at index N" is ambiguous once you
+  // remove the dragged item first — the same target index means "before"
+  // or "after" the hovered row depending on whether you dragged upward or
+  // downward, which is exactly what made the old drag-and-drop impossible
+  // to predict. Re-finding the target by id after removal sidesteps that:
+  // "before/after this specific block" means the same thing regardless of
+  // drag direction.
+  function moveItemRelativeTo(items, fromId, targetId, placeAfter) {
     const fromIndex = items.findIndex((item) => item.id === fromId);
     if (fromIndex === -1) return items;
     const next = items.slice();
     const [moved] = next.splice(fromIndex, 1);
-    const clamped = Math.max(0, Math.min(toIndex, next.length));
-    next.splice(clamped, 0, moved);
+    if (targetId == null) {
+      next.push(moved);
+      return next;
+    }
+    const targetIndex = next.findIndex((item) => item.id === targetId);
+    if (targetIndex === -1) {
+      next.push(moved);
+      return next;
+    }
+    next.splice(placeAfter ? targetIndex + 1 : targetIndex, 0, moved);
     return next;
   }
 
@@ -204,6 +220,22 @@
     { value: "%Y-%m-%d %H:%M", label: "Date + time, 24h — 2026-07-28 14:35" },
     { value: "%Y-%m-%d %I:%M %p", label: "Date + time, 12h — 2026-07-28 02:35 PM" },
   ];
+
+  // Almost every thermal receipt printer is 203 DPI; that's what these
+  // presets and the live mm/in readout assume. It's a documented
+  // approximation, not a per-printer measurement - there's no way to query
+  // the printer's real DPI over a RAW connection.
+  const PAPER_WIDTH_DPI = 203;
+  const PAPER_WIDTH_PRESETS = [
+    { value: 384, label: "58mm roll — 384 dots" },
+    { value: 576, label: "80mm roll — 576 dots" },
+  ];
+
+  function dotsToPhysicalSizeLabel(dots) {
+    const inches = dots / PAPER_WIDTH_DPI;
+    const mm = inches * 25.4;
+    return `≈ ${mm.toFixed(1)}mm / ${inches.toFixed(2)}in at ${PAPER_WIDTH_DPI} DPI`;
+  }
 
   const ADD_BLOCK_KINDS = [
     "text",
@@ -263,14 +295,25 @@
     let bold = false;
     let italic = false;
     let current = { align, content: [] };
-    const flush = () => {
+    // Flushing on an align/hr boundary should only emit a line if there's
+    // actual content pending - an alignment change with nothing before it
+    // shouldn't produce a spurious blank row. An explicit [blank]/[newline]
+    // tag is different: it means "print an empty line" and must always
+    // produce a visible line even when nothing has been added since the
+    // last flush - the previous version used one flush for both cases and
+    // silently dropped consecutive blank lines as a result.
+    const flushIfNonEmpty = () => {
       if (current.content.length) lines.push(current);
+      current = { align, content: [] };
+    };
+    const flushAlways = () => {
+      lines.push(current);
       current = { align, content: [] };
     };
     (blocks || []).forEach((block) => {
       switch (block.type) {
         case "align":
-          flush();
+          flushIfNonEmpty();
           align = block.value || "left";
           current.align = align;
           break;
@@ -288,10 +331,10 @@
           break;
         case "blank":
         case "newline":
-          flush();
+          flushAlways();
           break;
         case "hr":
-          flush();
+          flushIfNonEmpty();
           lines.push({ align: "center", content: [{ type: "hr", width: block.width || 32 }] });
           break;
         case "text":
@@ -307,7 +350,7 @@
           break;
       }
     });
-    flush();
+    flushIfNonEmpty();
     return lines;
   }
 
@@ -477,24 +520,60 @@
     const [newKind, setNewKind] = useState("text");
     const [viewMode, setViewMode] = useState("blocks");
     const [textDraft, setTextDraft] = useState(() => serializeBlocks(blocks));
+    // Where the dragged block will land if dropped right now: dropTargetId
+    // is the block it's being positioned next to (null means "at the very
+    // end"), dropAfter says which side of that block. Both are shown as a
+    // highlighted insertion line so the landing spot is never a guess.
+    const [dropTargetId, setDropTargetId] = useState(null);
+    const [dropAfter, setDropAfter] = useState(false);
 
     useEffect(() => {
       if (viewMode !== "text") setTextDraft(serializeBlocks(blocks));
     }, [blocks, viewMode]);
 
+    // These all use the functional setState form (onChange is the parent's
+    // raw setHeaderBlocks/setFooterBlocks) rather than reading the `blocks`
+    // prop directly. Reading `blocks` here would close over a snapshot that
+    // can go stale if two edits land in the same render tick (e.g. adding
+    // several blocks in quick succession) - React would then apply the
+    // second update on top of the first's pre-update snapshot and silently
+    // clobber it, which is what caused blocks to vanish or reorder for no
+    // visible reason.
     const updateBlock = (id, patch) => {
-      onChange(blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+      onChange((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
     };
     const removeBlock = (id) => {
-      onChange(blocks.filter((b) => b.id !== id));
+      onChange((prev) => prev.filter((b) => b.id !== id));
     };
     const addBlock = () => {
-      onChange([...blocks, { id: uid(), ...defaultBlockForKind(newKind) }]);
+      onChange((prev) => [...prev, { id: uid(), ...defaultBlockForKind(newKind) }]);
     };
-    const dropAt = (targetIndex) => {
+    const clearDropTarget = () => {
+      setDropTargetId(null);
+      setDropAfter(false);
+    };
+    const hoverRow = (event, block) => {
+      event.preventDefault();
       if (draggingId == null) return;
-      onChange(moveItem(blocks, draggingId, targetIndex));
+      const rect = event.currentTarget.getBoundingClientRect();
+      const isAfter = event.clientY - rect.top > rect.height / 2;
+      setDropTargetId(block.id);
+      setDropAfter(isAfter);
+    };
+    const hoverEndZone = (event) => {
+      event.preventDefault();
+      if (draggingId == null) return;
+      setDropTargetId(null);
+      setDropAfter(false);
+    };
+    const finishDrop = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (draggingId != null) {
+        onChange((prev) => moveItemRelativeTo(prev, draggingId, dropTargetId, dropAfter));
+      }
       setDraggingId(null);
+      clearDropTarget();
     };
     const updateTextDraft = (value) => {
       setTextDraft(value);
@@ -532,26 +611,28 @@
               <p class="field-hint">${S.receipt_text_edit_hint}</p>
             `
           : html`
-              <div
-                class="receipt-block-list"
-                onDragOver=${(event) => event.preventDefault()}
-                onDrop=${(event) => {
-                  event.preventDefault();
-                  dropAt(Math.max(0, blocks.length - 1));
-                }}
-              >
+              <div class="receipt-add-block-row">
+                <select value=${newKind} onChange=${(e) => setNewKind(e.target.value)}>
+                  ${ADD_BLOCK_KINDS.map((kind) => html`<option value=${kind}>${blockKindLabel(kind)}</option>`)}
+                </select>
+                <button class="btn-secondary" onClick=${addBlock}>${S.receipt_add_block}</button>
+              </div>
+              <div class="receipt-block-list" onDrop=${finishDrop}>
                 ${blocks.length === 0 ? html`<p class="hint-text">${S.receipt_no_blocks}</p>` : null}
                 ${blocks.map(
-                  (block, index) => html`
+                  (block) => html`
                     <div
-                      class=${"receipt-block-row" + (draggingId === block.id ? " receipt-block-row-dragging" : "")}
+                      class=${[
+                        "receipt-block-row",
+                        draggingId === block.id ? "receipt-block-row-dragging" : "",
+                        dropTargetId === block.id && !dropAfter ? "receipt-block-drop-before" : "",
+                        dropTargetId === block.id && dropAfter ? "receipt-block-drop-after" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
                       key=${block.id}
-                      onDragOver=${(event) => event.preventDefault()}
-                      onDrop=${(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        dropAt(index);
-                      }}
+                      onDragOver=${(event) => hoverRow(event, block)}
+                      onDrop=${finishDrop}
                     >
                       <span
                         class="widget-drag-handle"
@@ -561,7 +642,10 @@
                           event.dataTransfer.effectAllowed = "move";
                           setDraggingId(block.id);
                         }}
-                        onDragEnd=${() => setDraggingId(null)}
+                        onDragEnd=${() => {
+                          setDraggingId(null);
+                          clearDropTarget();
+                        }}
                       >⋮⋮</span>
                       <span class="receipt-block-kind-label">${blockKindLabel(block.kind)}</span>
                       <div class="receipt-block-controls">
@@ -571,12 +655,17 @@
                     </div>
                   `
                 )}
-              </div>
-              <div class="receipt-add-block-row">
-                <select value=${newKind} onChange=${(e) => setNewKind(e.target.value)}>
-                  ${ADD_BLOCK_KINDS.map((kind) => html`<option value=${kind}>${blockKindLabel(kind)}</option>`)}
-                </select>
-                <button class="btn-secondary" onClick=${addBlock}>${S.receipt_add_block}</button>
+                ${draggingId != null
+                  ? html`
+                      <div
+                        class=${"receipt-block-drop-end" + (dropTargetId === null ? " receipt-block-drop-end-active" : "")}
+                        onDragOver=${hoverEndZone}
+                        onDrop=${finishDrop}
+                      >
+                        ${S.receipt_drop_at_end}
+                      </div>
+                    `
+                  : null}
               </div>
             `}
         <h3>${S.receipt_preview}</h3>
@@ -848,6 +937,20 @@
                   <div class="receipt-numeric-fields">
                     <div class="field">
                       <label class="field-label">${S.receipt_paper_width}</label>
+                      <select
+                        value=${PAPER_WIDTH_PRESETS.some((preset) => preset.value === profile.raw_paper_width_dots)
+                          ? profile.raw_paper_width_dots
+                          : "__custom__"}
+                        onChange=${(e) => {
+                          if (e.target.value === "__custom__") return;
+                          setProfile({ ...profile, raw_paper_width_dots: parseInt(e.target.value, 10) });
+                        }}
+                      >
+                        ${PAPER_WIDTH_PRESETS.map(
+                          (preset) => html`<option value=${preset.value}>${preset.label}</option>`
+                        )}
+                        <option value="__custom__">${S.receipt_paper_width_custom}</option>
+                      </select>
                       <input
                         type="number"
                         min="8"
@@ -855,6 +958,7 @@
                         value=${profile.raw_paper_width_dots}
                         onInput=${(e) => setProfile({ ...profile, raw_paper_width_dots: parseInt(e.target.value, 10) || 384 })}
                       />
+                      <small class="field-hint">${dotsToPhysicalSizeLabel(profile.raw_paper_width_dots)}</small>
                     </div>
                     <div class="field">
                       <label class="field-label">${S.receipt_chars_per_line}</label>
@@ -903,6 +1007,7 @@
                       ? html`<img src=${`data:image/png;base64,${image.data_base64}`} alt=${image.name} />`
                       : null}
                     <small>${image.name}</small>
+                    <small>${image.width}×${image.height}px</small>
                     <button class="btn-danger-small" onClick=${() => removeImage(image.id, image.name)}>${S.remove}</button>
                   </div>
                 `
