@@ -26,11 +26,28 @@
 
   const ALL_TAB = "__all__";
 
+  // Resolves where a drag-and-drop reorder should land: `items` is the
+  // current sorted list, `fromId` the dragged item, `targetId` the item
+  // it's hovering over (null = the end), `placeAfter` which side of the
+  // target. Returns the resulting index in post-removal terms, which is
+  // what the reorder_renderer_plugin/reorder_dashboard_widget APIs expect -
+  // computed this way (id-relative, not a raw hovered-row index) so the
+  // same target always means the same thing regardless of which direction
+  // the drag came from.
+  function resolveDropIndex(items, fromId, targetId, idKey, placeAfter) {
+    const withoutDragged = items.filter((item) => item[idKey] !== fromId);
+    if (targetId == null) return withoutDragged.length;
+    const targetIndex = withoutDragged.findIndex((item) => item[idKey] === targetId);
+    return targetIndex === -1 ? withoutDragged.length : placeAfter ? targetIndex + 1 : targetIndex;
+  }
+
   function Plugins() {
     const [plugins, setPlugins] = useState(null);
     const [message, setMessage] = useState("");
     const [busy, setBusy] = useState(false);
     const [draggingId, setDraggingId] = useState(null);
+    const [dropTargetId, setDropTargetId] = useState(null);
+    const [dropAfter, setDropAfter] = useState(false);
     const [activeTab, setActiveTab] = useState(ALL_TAB);
     const [statusFilter, setStatusFilter] = useState("all");
 
@@ -102,18 +119,33 @@
       : [];
     const countFor = (category) => (plugins || []).filter((plugin) => plugin.category === category).length;
 
-    const renderRow = (plugin, index, dropAt) => {
+    const clearDropTarget = () => {
+      setDropTargetId(null);
+      setDropAfter(false);
+    };
+
+    const renderRow = (plugin, finishDrop) => {
       const thirdParty = !plugin.is_builtin && !!plugin.source_path;
       return html`
         <div
-          class=${"setting-row renderer-row" + (draggingId === plugin.plugin_id ? " widget-card-dragging" : "")}
+          class=${[
+            "setting-row",
+            "renderer-row",
+            draggingId === plugin.plugin_id ? "widget-card-dragging" : "",
+            dropTargetId === plugin.plugin_id && !dropAfter ? "dnd-drop-before" : "",
+            dropTargetId === plugin.plugin_id && dropAfter ? "dnd-drop-after" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
           key=${plugin.plugin_id}
-          onDragOver=${(event) => event.preventDefault()}
-          onDrop=${(event) => {
+          onDragOver=${(event) => {
             event.preventDefault();
-            event.stopPropagation();
-            dropAt(index);
+            if (draggingId == null) return;
+            const rect = event.currentTarget.getBoundingClientRect();
+            setDropTargetId(plugin.plugin_id);
+            setDropAfter(event.clientY - rect.top > rect.height / 2);
           }}
+          onDrop=${finishDrop}
         >
           <span
             class="widget-drag-handle"
@@ -123,7 +155,10 @@
               event.dataTransfer.effectAllowed = "move";
               setDraggingId(plugin.plugin_id);
             }}
-            onDragEnd=${() => setDraggingId(null)}
+            onDragEnd=${() => {
+              setDraggingId(null);
+              clearDropTarget();
+            }}
           >⋮⋮</span>
           <input
             class="setting-check"
@@ -153,22 +188,37 @@
         .filter(matchesFilter);
       if (groupPlugins.length === 0) return null;
 
-      const dropAt = (targetIndex) => {
-        if (draggingId) reorderPlugin(draggingId, category, targetIndex);
+      const finishDrop = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (draggingId != null) {
+          const targetIndex = resolveDropIndex(groupPlugins, draggingId, dropTargetId, "plugin_id", dropAfter);
+          reorderPlugin(draggingId, category, targetIndex);
+        }
         setDraggingId(null);
+        clearDropTarget();
       };
 
       return html`
         <div key=${category || "__uncategorized__"}>
           ${showHeading ? html`<div class="plugin-category-separator"><span>${categoryLabel(category)}</span></div>` : null}
-          <div
-            onDragOver=${(event) => event.preventDefault()}
-            onDrop=${(event) => {
-              event.preventDefault();
-              dropAt(groupPlugins.length - 1);
-            }}
-          >
-            ${groupPlugins.map((plugin, index) => renderRow(plugin, index, dropAt))}
+          <div>
+            ${groupPlugins.map((plugin) => renderRow(plugin, finishDrop))}
+            ${draggingId != null && groupPlugins.some((plugin) => plugin.plugin_id === draggingId)
+              ? html`
+                  <div
+                    class=${"dnd-drop-end" + (dropTargetId === null ? " dnd-drop-end-active" : "")}
+                    onDragOver=${(event) => {
+                      event.preventDefault();
+                      setDropTargetId(null);
+                      setDropAfter(false);
+                    }}
+                    onDrop=${finishDrop}
+                  >
+                    ${S.drop_at_end}
+                  </div>
+                `
+              : null}
           </div>
         </div>
       `;
