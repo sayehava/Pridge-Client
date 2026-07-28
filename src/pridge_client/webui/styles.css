@@ -2141,6 +2141,33 @@ button.stone-option.selected {
   background: var(--card-highlight);
 }
 
+/* Shared drag-and-drop insertion-point feedback, reused by any
+   drag-to-reorder list (Plugins, dashboard widgets) so hovering during a
+   drag always shows exactly where the item will land. */
+.dnd-drop-before {
+  box-shadow: 0 -3px 0 0 var(--accent-bright);
+}
+
+.dnd-drop-after {
+  box-shadow: 0 3px 0 0 var(--accent-bright);
+}
+
+.dnd-drop-end {
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px dashed var(--border-bright);
+  border-radius: var(--radius-control);
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.dnd-drop-end-active {
+  border-color: var(--accent-bright);
+  color: var(--accent-bright);
+  background: var(--card-highlight);
+}
+
 .receipt-block-kind-label {
   flex: 0 0 auto;
   min-width: 78px;
