@@ -18,12 +18,40 @@ from pridge_client.printers import (
     PrinterError,
     PrinterManager,
     _page_size_for_option,
+    _resolve_raw_macro,
     create_test_page_pdf,
     validate_driver_settings,
 )
 
 
 FIXTURE_PLUGIN_DIR = Path(__file__).resolve().parent / "fixtures" / "example_renderer_plugin"
+
+
+class RawMacroResolutionTests(unittest.TestCase):
+    def test_resolves_full_cut(self) -> None:
+        self.assertEqual(_resolve_raw_macro("full_cut", ""), b"\x1d\x56\x00")
+
+    def test_resolves_partial_cut(self) -> None:
+        self.assertEqual(_resolve_raw_macro("partial_cut", ""), b"\x1d\x56\x01")
+
+    def test_resolves_open_drawer(self) -> None:
+        self.assertEqual(_resolve_raw_macro("open_drawer", ""), b"\x1b\x70\x00\x19\xfa")
+
+    def test_resolves_feed(self) -> None:
+        self.assertEqual(_resolve_raw_macro("feed", ""), b"\x1b\x64\x04")
+
+    def test_empty_preset_resolves_to_no_bytes(self) -> None:
+        self.assertEqual(_resolve_raw_macro("", ""), b"")
+
+    def test_custom_hex_accepts_spaces_and_separators(self) -> None:
+        self.assertEqual(_resolve_raw_macro("custom", "1D 56 00"), b"\x1d\x56\x00")
+        self.assertEqual(_resolve_raw_macro("custom", "1d:56:00"), b"\x1d\x56\x00")
+        self.assertEqual(_resolve_raw_macro("custom", "1d-56-00"), b"\x1d\x56\x00")
+        self.assertEqual(_resolve_raw_macro("custom", "1d5600"), b"\x1d\x56\x00")
+
+    def test_malformed_custom_hex_resolves_to_no_bytes_instead_of_raising(self) -> None:
+        self.assertEqual(_resolve_raw_macro("custom", "not hex at all"), b"")
+        self.assertEqual(_resolve_raw_macro("custom", "1d5"), b"")
 
 
 class PageSizeResolutionTests(unittest.TestCase):
@@ -131,6 +159,37 @@ class PrinterManagerTests(unittest.TestCase):
 
         self.manager.backend.print_raw.assert_called_once_with("Labels", payload, "Raw job")
         self.manager.backend.get_capabilities.assert_not_called()
+
+    def test_raw_mode_wraps_payload_with_header_and_footer_presets(self) -> None:
+        payload = b"HELLO\n"
+
+        self.manager.print_job(
+            "Labels",
+            payload,
+            mode="raw",
+            job_name="Raw job",
+            raw_header_preset="feed",
+            raw_footer_preset="full_cut",
+        )
+
+        self.manager.backend.print_raw.assert_called_once_with(
+            "Labels", b"\x1b\x64\x04HELLO\n\x1d\x56\x00", "Raw job"
+        )
+
+    def test_raw_mode_wraps_payload_with_custom_hex_footer(self) -> None:
+        payload = b"HELLO\n"
+
+        self.manager.print_job(
+            "Labels",
+            payload,
+            mode="raw",
+            raw_footer_preset="custom",
+            raw_footer_custom_hex="1D 56 01",
+        )
+
+        self.manager.backend.print_raw.assert_called_once_with(
+            "Labels", payload + b"\x1d\x56\x01", "Pridge Job"
+        )
 
     def test_system_driver_mode_validates_and_submits_options(self) -> None:
         self.manager.backend.get_capabilities.return_value = PrinterCapabilities(
