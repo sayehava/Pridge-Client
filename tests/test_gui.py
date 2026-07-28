@@ -194,10 +194,10 @@ class ClientApiTests(unittest.TestCase):
                 "driver_settings": {"PageSize": "A4"},
                 "submission_method": "",
                 "fit_mode": "fit",
-                "raw_header_preset": "",
-                "raw_header_custom_hex": "",
-                "raw_footer_preset": "",
-                "raw_footer_custom_hex": "",
+                "raw_header_template": "",
+                "raw_footer_template": "",
+                "raw_paper_width_dots": 384,
+                "raw_chars_per_line": 32,
             },
         )
         self.assertEqual(self.api.config_store.load().printer_profiles["Office Driver"].mode, "system_driver")
@@ -221,7 +221,7 @@ class ClientApiTests(unittest.TestCase):
             self.api.config_store.load().printer_profiles["Office Driver"].submission_method, "direct_pdf"
         )
 
-    def test_saves_raw_header_and_footer_presets(self):
+    def test_saves_raw_header_and_footer_templates(self):
         manager = Mock()
         manager.renderer_registry.all_entries.return_value = []
         manager.list_printers.return_value = [Printer("Receipt", system_driver_available=True)]
@@ -232,31 +232,33 @@ class ClientApiTests(unittest.TestCase):
             "Receipt",
             {
                 "mode": "raw",
-                "raw_header_preset": "feed",
-                "raw_footer_preset": "custom",
-                "raw_footer_custom_hex": "1D 56 00",
+                "raw_header_template": "[feed:4]",
+                "raw_footer_template": "[hex:1D 56 00]",
+                "raw_paper_width_dots": 576,
+                "raw_chars_per_line": 48,
             },
         )
 
         self.assertTrue(result["ok"])
-        self.assertEqual(result["profile"]["raw_header_preset"], "feed")
-        self.assertEqual(result["profile"]["raw_footer_preset"], "custom")
-        self.assertEqual(result["profile"]["raw_footer_custom_hex"], "1D 56 00")
+        self.assertEqual(result["profile"]["raw_header_template"], "[feed:4]")
+        self.assertEqual(result["profile"]["raw_footer_template"], "[hex:1D 56 00]")
+        self.assertEqual(result["profile"]["raw_paper_width_dots"], 576)
+        self.assertEqual(result["profile"]["raw_chars_per_line"], 48)
         saved = self.api.config_store.load().printer_profiles["Receipt"]
-        self.assertEqual(saved.raw_header_preset, "feed")
-        self.assertEqual(saved.raw_footer_custom_hex, "1D 56 00")
+        self.assertEqual(saved.raw_header_template, "[feed:4]")
+        self.assertEqual(saved.raw_footer_template, "[hex:1D 56 00]")
 
-    def test_falls_back_to_the_existing_raw_header_preset_when_invalid(self):
+    def test_falls_back_to_the_existing_raw_paper_width_when_invalid(self):
         manager = Mock()
         manager.renderer_registry.all_entries.return_value = []
         manager.list_printers.return_value = [Printer("Receipt", system_driver_available=True)]
         self.api.printer_manager = manager
         self.api.refresh_printers()
-        self.api.update_printer_profile("Receipt", {"mode": "raw", "raw_header_preset": "full_cut"})
+        self.api.update_printer_profile("Receipt", {"mode": "raw", "raw_paper_width_dots": 576})
 
-        result = self.api.update_printer_profile("Receipt", {"mode": "raw", "raw_header_preset": "self_destruct"})
+        result = self.api.update_printer_profile("Receipt", {"mode": "raw", "raw_paper_width_dots": "not-a-number"})
 
-        self.assertEqual(result["profile"]["raw_header_preset"], "full_cut")
+        self.assertEqual(result["profile"]["raw_paper_width_dots"], 576)
 
     def test_falls_back_to_the_existing_submission_method_when_invalid(self):
         manager = Mock()
@@ -352,6 +354,10 @@ class ClientApiTests(unittest.TestCase):
             driver_settings={},
             submission_method=None,
             fit_mode="fit",
+            raw_header_template="",
+            raw_footer_template="",
+            raw_paper_width_dots=384,
+            raw_chars_per_line=32,
         )
 
     def test_successful_test_print_increments_the_printer_test_success_count(self):
