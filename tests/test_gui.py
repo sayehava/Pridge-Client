@@ -40,13 +40,15 @@ class NoPrinters:
 
 
 class FakeRendererPlugin:
-    def __init__(self, plugin_id):
+    def __init__(self, plugin_id, settings_window=""):
         self.plugin_id = plugin_id
         self.display_name = plugin_id
         self.version = "1.0.0"
         self.api_version = 1
         self.supported_mime_types = frozenset()
         self.supported_extensions = frozenset()
+        if settings_window:
+            self.settings_window = settings_window
 
     def can_render(self, *, mime_type, filename, data):
         return False
@@ -818,6 +820,35 @@ class ClientApiTests(unittest.TestCase):
 
         by_id = {plugin["plugin_id"]: plugin["category"] for plugin in result["plugins"]}
         self.assertEqual(by_id["mapper.one"], "Mapper")
+
+    def test_get_renderer_plugins_reports_has_settings_generically(self):
+        manager = FakePluginPrinterManager()
+        manager.renderer_registry.register(
+            FakeRendererPlugin("with.settings", settings_window="app_mapping"),
+            priority=100,
+            is_builtin=True,
+        )
+        self.api.printer_manager = manager
+
+        result = self.api.get_renderer_plugins()
+
+        by_id = {plugin["plugin_id"]: plugin for plugin in result["plugins"]}
+        self.assertTrue(by_id["with.settings"]["has_settings"])
+        self.assertEqual(by_id["with.settings"]["settings_window"], "app_mapping")
+        self.assertFalse(by_id["builtin.one"]["has_settings"])
+        self.assertEqual(by_id["builtin.one"]["settings_window"], "")
+
+    def test_open_plugin_settings_window_dispatches_to_the_matching_opener(self):
+        with patch.object(self.api, "open_app_mapping_window", return_value={"ok": True}) as opener:
+            result = self.api.open_plugin_settings_window("app_mapping")
+
+        self.assertTrue(result["ok"])
+        opener.assert_called_once()
+
+    def test_open_plugin_settings_window_errors_for_an_unknown_key(self):
+        result = self.api.open_plugin_settings_window("not-a-real-window")
+
+        self.assertFalse(result["ok"])
 
     def test_remove_plugin_removes_a_third_party_plugin(self):
         manager = FakePluginPrinterManager()
