@@ -66,6 +66,32 @@ class ConfigStoreTests(unittest.TestCase):
         self.assertEqual(config.printer_profiles["Office Labels"].mode, "system_driver")
         self.assertEqual(config.printer_profiles["Office Labels"].driver_settings["PageSize"], "w288h432")
 
+    def test_saves_and_loads_a_printer_profile_s_fit_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            store = ConfigStore(path)
+            store.save(
+                ClientConfig(
+                    printer_profiles={"Receipt": PrinterProfile(fit_mode="actual_size")}
+                )
+            )
+
+            config = store.load()
+
+        self.assertEqual(config.printer_profiles["Receipt"].fit_mode, "actual_size")
+
+    def test_invalid_printer_profile_fit_mode_falls_back_to_fit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            path.write_text(
+                json.dumps({"printer_profiles": {"Receipt": {"fit_mode": "stretch-to-infinity"}}}),
+                encoding="utf-8",
+            )
+
+            config = ConfigStore(path).load()
+
+        self.assertEqual(config.printer_profiles["Receipt"].fit_mode, "fit")
+
     def test_invalid_printer_profile_mode_falls_back_to_system_driver(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.json"
