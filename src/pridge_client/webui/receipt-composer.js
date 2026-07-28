@@ -194,6 +194,17 @@
     }
   }
 
+  const DATE_FORMAT_PRESETS = [
+    { value: "", label: "Date — 2026-07-28" },
+    { value: "%d/%m/%Y", label: "Date (D/M/Y) — 28/07/2026" },
+    { value: "%m/%d/%Y", label: "Date (M/D/Y) — 07/28/2026" },
+    { value: "%H:%M", label: "Time, 24h — 14:35" },
+    { value: "%H:%M:%S", label: "Time, 24h + seconds — 14:35:09" },
+    { value: "%I:%M %p", label: "Time, 12h — 02:35 PM" },
+    { value: "%Y-%m-%d %H:%M", label: "Date + time, 24h — 2026-07-28 14:35" },
+    { value: "%Y-%m-%d %I:%M %p", label: "Date + time, 12h — 2026-07-28 02:35 PM" },
+  ];
+
   const ADD_BLOCK_KINDS = [
     "text",
     "image",
@@ -390,13 +401,26 @@
           </select>
           <small class="hint-text">${S.receipt_italic_hint}</small>
         `;
-      case "date":
-        return html`<input
-          type="text"
-          value=${block.format}
-          onInput=${(e) => onChange({ format: e.target.value })}
-          placeholder="%Y-%m-%d"
-        />`;
+      case "date": {
+        const isKnownPreset = DATE_FORMAT_PRESETS.some((preset) => preset.value === block.format);
+        return html`
+          <select
+            value=${isKnownPreset ? block.format : "__custom__"}
+            onChange=${(e) => {
+              if (e.target.value !== "__custom__") onChange({ format: e.target.value });
+            }}
+          >
+            ${DATE_FORMAT_PRESETS.map((preset) => html`<option value=${preset.value}>${preset.label}</option>`)}
+            <option value="__custom__">${S.receipt_date_format_custom}</option>
+          </select>
+          <input
+            type="text"
+            value=${block.format}
+            onInput=${(e) => onChange({ format: e.target.value })}
+            placeholder="%Y-%m-%d"
+          />
+        `;
+      }
       case "random":
         return html`<input
           type="number"
@@ -560,6 +584,72 @@
           <${PreviewLines} lines=${previewLines} images=${images} />
         </div>
       </div>
+    `;
+  }
+
+  function shortcodeGuideGroups() {
+    return [
+      {
+        title: S.receipt_guide_category_text,
+        items: [
+          { tag: "[align:left]  [align:center]  [align:right]", desc: S.receipt_guide_align_desc },
+          { tag: "[bold]...[/bold]", desc: S.receipt_guide_bold_desc },
+          { tag: "[italic]...[/italic]", desc: S.receipt_guide_italic_desc },
+          { tag: "[hr]", desc: S.receipt_guide_hr_desc },
+          { tag: "[blank]", desc: S.receipt_guide_blank_desc },
+          { tag: "[newline]", desc: S.receipt_guide_newline_desc },
+        ],
+      },
+      {
+        title: S.receipt_guide_category_dynamic,
+        items: [
+          { tag: "[date]", desc: S.receipt_guide_date_desc },
+          { tag: "[date:FORMAT]", desc: S.receipt_guide_date_format_desc },
+          { tag: "[random]  [random:N]", desc: S.receipt_guide_random_desc },
+          { tag: "[print_number]", desc: S.receipt_guide_print_number_desc },
+          { tag: "[counter:name]", desc: S.receipt_guide_counter_desc },
+        ],
+      },
+      {
+        title: S.receipt_guide_category_images,
+        items: [{ tag: "[image:id]", desc: S.receipt_guide_image_desc }],
+      },
+      {
+        title: S.receipt_guide_category_commands,
+        items: [
+          { tag: "[cut:full]  [cut:partial]", desc: S.receipt_guide_cut_desc },
+          { tag: "[drawer]", desc: S.receipt_guide_drawer_desc },
+          { tag: "[feed]  [feed:N]", desc: S.receipt_guide_feed_desc },
+          { tag: "[hex:1D 56 00]", desc: S.receipt_guide_hex_desc },
+          { tag: "[dec:29 86 0]", desc: S.receipt_guide_dec_desc },
+        ],
+      },
+    ];
+  }
+
+  function ShortcodeGuide() {
+    return html`
+      <details class="receipt-guide">
+        <summary>${S.receipt_guide_title}</summary>
+        <div class="receipt-guide-body">
+          <p class="hint-text">${S.receipt_guide_intro}</p>
+          ${shortcodeGuideGroups().map(
+            (group) => html`
+              <div class="receipt-guide-group" key=${group.title}>
+                <h4>${group.title}</h4>
+                <dl class="receipt-guide-list">
+                  ${group.items.map(
+                    (item) => html`
+                      <dt key=${item.tag + "-dt"}><code>${item.tag}</code></dt>
+                      <dd key=${item.tag + "-dd"}>${item.desc}</dd>
+                    `
+                  )}
+                </dl>
+              </div>
+            `
+          )}
+        </div>
+      </details>
     `;
   }
 
@@ -741,6 +831,7 @@
           <div class="utility-hero-copy"><h1>${S.receipt_composer}</h1><p>${S.receipt_composer_hint}</p></div>
         </div>
         <div class="utility-content">
+          <${ShortcodeGuide} />
           <section class="settings-section">
             <div class="field">
               <label class="field-label">${S.receipt_composer_select_printer}</label>
