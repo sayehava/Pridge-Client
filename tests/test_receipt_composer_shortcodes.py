@@ -96,6 +96,19 @@ class ShortcodeTagTests(unittest.TestCase):
         self.assertEqual(_render("[hex:not-valid-hex]", self.store), b"")
         self.assertEqual(_render("[hex:1d5]", self.store), b"")
 
+    def test_dec_accepts_space_and_comma_separated_byte_values(self) -> None:
+        self.assertEqual(_render("[dec:29 86 0]", self.store), b"\x1d\x56\x00")
+        self.assertEqual(_render("[dec:29,86,0]", self.store), b"\x1d\x56\x00")
+
+    def test_dec_malformed_or_out_of_range_resolves_to_nothing(self) -> None:
+        self.assertEqual(_render("[dec:not-a-number]", self.store), b"")
+        self.assertEqual(_render("[dec:29 256 0]", self.store), b"")
+        self.assertEqual(_render("[dec:29 -1 0]", self.store), b"")
+
+    def test_dec_empty_resolves_to_nothing(self) -> None:
+        self.assertEqual(_render("[dec:]", self.store), b"")
+        self.assertEqual(_render("[dec:   ]", self.store), b"")
+
     def test_unknown_tag_resolves_to_nothing_not_literal_text(self) -> None:
         self.assertEqual(_render("[blod]", self.store), b"")
 
@@ -217,14 +230,15 @@ class ShortcodePreviewBlockTests(unittest.TestCase):
     def test_empty_image_tag_is_dropped(self) -> None:
         self.assertEqual(_blocks("[image:]", self.store), [])
 
-    def test_cut_drawer_feed_and_hex_become_marker_blocks(self) -> None:
+    def test_cut_drawer_feed_hex_and_dec_become_marker_blocks(self) -> None:
         self.assertEqual(
-            _blocks("[cut:full][drawer][feed:6][hex:1D 56 00]", self.store),
+            _blocks("[cut:full][drawer][feed:6][hex:1D 56 00][dec:29 86 0]", self.store),
             [
                 {"type": "marker", "label": "cut:full"},
                 {"type": "marker", "label": "drawer"},
                 {"type": "marker", "label": "feed:6"},
                 {"type": "marker", "label": "hex"},
+                {"type": "marker", "label": "dec"},
             ],
         )
 
