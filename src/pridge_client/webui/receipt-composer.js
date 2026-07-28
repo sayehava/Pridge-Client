@@ -66,8 +66,11 @@
         return { kind: "counter", key: arg || "" };
       case "image":
         return { kind: "image", imageId: arg || "" };
-      case "cut":
-        return { kind: "cut", value: (arg || "full").trim().toLowerCase() || "full" };
+      case "cut": {
+        const parts = (arg || "").split(":");
+        const feedBefore = parts.length > 1 ? Math.max(0, parseInt(parts[1], 10) || 0) : 0;
+        return { kind: "cut", value: (parts[0] || "full").trim().toLowerCase() || "full", feedBefore };
+      }
       case "drawer":
         return { kind: "drawer" };
       case "feed":
@@ -124,7 +127,9 @@
       case "image":
         return block.imageId ? `[image:${block.imageId}]` : "";
       case "cut":
-        return `[cut:${block.value || "full"}]`;
+        return block.feedBefore > 0
+          ? `[cut:${block.value || "full"}:${block.feedBefore}]`
+          : `[cut:${block.value || "full"}]`;
       case "drawer":
         return "[drawer]";
       case "feed":
@@ -195,7 +200,7 @@
       case "image":
         return { kind: "image", imageId: "" };
       case "cut":
-        return { kind: "cut", value: "full" };
+        return { kind: "cut", value: "full", feedBefore: 4 };
       case "drawer":
         return { kind: "drawer" };
       case "feed":
@@ -486,6 +491,15 @@
             <option value="full">${S.receipt_cut_full}</option>
             <option value="partial">${S.receipt_cut_partial}</option>
           </select>
+          <input
+            type="number"
+            min="0"
+            max="255"
+            title=${S.receipt_cut_feed_before_hint}
+            value=${block.feedBefore || 0}
+            onInput=${(e) => onChange({ feedBefore: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+          />
+          <small class="hint-text">${S.receipt_cut_feed_before_label}</small>
         `;
       case "feed":
         return html`<input
@@ -547,6 +561,27 @@
     };
     const addBlock = () => {
       onChange((prev) => [...prev, { id: uid(), ...defaultBlockForKind(newKind) }]);
+    };
+    const duplicateBlock = (id) => {
+      onChange((prev) => {
+        const index = prev.findIndex((b) => b.id === id);
+        if (index === -1) return prev;
+        const copy = { ...prev[index], id: uid() };
+        const next = prev.slice();
+        next.splice(index + 1, 0, copy);
+        return next;
+      });
+    };
+    const moveBlockBy = (id, delta) => {
+      onChange((prev) => {
+        const index = prev.findIndex((b) => b.id === id);
+        const targetIndex = index + delta;
+        if (index === -1 || targetIndex < 0 || targetIndex >= prev.length) return prev;
+        const next = prev.slice();
+        const [moved] = next.splice(index, 1);
+        next.splice(targetIndex, 0, moved);
+        return next;
+      });
     };
     const clearDropTarget = () => {
       setDropTargetId(null);
@@ -620,7 +655,7 @@
               <div class="receipt-block-list" onDrop=${finishDrop}>
                 ${blocks.length === 0 ? html`<p class="hint-text">${S.receipt_no_blocks}</p>` : null}
                 ${blocks.map(
-                  (block) => html`
+                  (block, index) => html`
                     <div
                       class=${[
                         "receipt-block-row",
@@ -647,10 +682,27 @@
                           clearDropTarget();
                         }}
                       >⋮⋮</span>
+                      <div class="dnd-move-buttons">
+                        <button
+                          type="button"
+                          class="dnd-move-btn"
+                          title=${S.receipt_move_up}
+                          disabled=${index === 0}
+                          onClick=${() => moveBlockBy(block.id, -1)}
+                        >▲</button>
+                        <button
+                          type="button"
+                          class="dnd-move-btn"
+                          title=${S.receipt_move_down}
+                          disabled=${index === blocks.length - 1}
+                          onClick=${() => moveBlockBy(block.id, 1)}
+                        >▼</button>
+                      </div>
                       <span class="receipt-block-kind-label">${blockKindLabel(block.kind)}</span>
                       <div class="receipt-block-controls">
                         <${BlockControls} block=${block} images=${images} onChange=${(patch) => updateBlock(block.id, patch)} />
                       </div>
+                      <button class="btn-secondary" title=${S.receipt_duplicate_block} onClick=${() => duplicateBlock(block.id)}>${S.receipt_duplicate_block}</button>
                       <button class="btn-danger-small" onClick=${() => removeBlock(block.id)}>${S.receipt_remove_block}</button>
                     </div>
                   `
@@ -706,7 +758,7 @@
       {
         title: S.receipt_guide_category_commands,
         items: [
-          { tag: "[cut:full]  [cut:partial]", desc: S.receipt_guide_cut_desc },
+          { tag: "[cut:full]  [cut:partial]  [cut:full:6]", desc: S.receipt_guide_cut_desc },
           { tag: "[drawer]", desc: S.receipt_guide_drawer_desc },
           { tag: "[feed]  [feed:N]", desc: S.receipt_guide_feed_desc },
           { tag: "[hex:1D 56 00]", desc: S.receipt_guide_hex_desc },
