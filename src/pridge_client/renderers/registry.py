@@ -21,6 +21,7 @@ class RegistryEntry:
     is_builtin: bool = True
     load_error: str = ""
     source_path: str = ""
+    category: str = ""
 
 
 class RendererRegistry:
@@ -35,6 +36,7 @@ class RendererRegistry:
         enabled: bool = True,
         is_builtin: bool = True,
         source_path: str = "",
+        category: str = "",
     ) -> None:
         if any(e.plugin.plugin_id == plugin.plugin_id for e in self._entries):
             raise ValueError(f"Duplicate plugin ID: {plugin.plugin_id}")
@@ -49,6 +51,7 @@ class RendererRegistry:
             enabled=enabled,
             is_builtin=is_builtin,
             source_path=source_path,
+            category=category,
         ))
         logger.debug("Registered renderer plugin: %s (priority=%s)", plugin.plugin_id, priority)
 
@@ -57,6 +60,7 @@ class RendererRegistry:
         plugin_id: str,
         load_error: str,
         source_path: str = "",
+        category: str = "",
     ) -> None:
         self._entries.append(RegistryEntry(
             plugin=_ErrorPlaceholder(plugin_id),
@@ -65,6 +69,7 @@ class RendererRegistry:
             is_builtin=False,
             load_error=load_error,
             source_path=source_path,
+            category=category,
         ))
         logger.warning("Renderer plugin failed to load: %s — %s", plugin_id, load_error)
 
