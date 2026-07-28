@@ -78,11 +78,22 @@ class ManifestTests(unittest.TestCase):
             with self.assertRaises(ManifestError):
                 load_manifest(manifest_path)
 
-    def test_rejects_unsupported_category(self) -> None:
+    def test_accepts_any_non_empty_category(self) -> None:
         with TemporaryDirectory() as scratch:
             manifest_path = Path(scratch) / "manifest.json"
             manifest_path.write_text(
-                json.dumps({"id": "x", "name": "X", "entry_point": "a:B", "category": "feature"})
+                json.dumps({"id": "x", "name": "X", "entry_point": "a:B", "category": "BingiBongo"})
+            )
+
+            manifest = load_manifest(manifest_path)
+
+        self.assertEqual(manifest.category, "BingiBongo")
+
+    def test_rejects_missing_category(self) -> None:
+        with TemporaryDirectory() as scratch:
+            manifest_path = Path(scratch) / "manifest.json"
+            manifest_path.write_text(
+                json.dumps({"id": "x", "name": "X", "entry_point": "a:B"})
             )
             with self.assertRaises(ManifestError):
                 load_manifest(manifest_path)
@@ -134,6 +145,23 @@ class DiscoveryTests(unittest.TestCase):
             self.assertFalse(entry.is_builtin)
             self.assertEqual(entry.source_path, str(plugin_dir))
             self.assertEqual(entry.load_error, "")
+            self.assertEqual(entry.category, "renderer")
+
+    def test_preserves_a_plugin_s_own_freeform_category(self) -> None:
+        with TemporaryDirectory() as scratch:
+            config_dir = Path(scratch)
+            plugin_dir = renderer_plugins_dir(config_dir) / "example"
+            shutil.copytree(FIXTURE_PLUGIN_DIR, plugin_dir)
+            manifest_path = plugin_dir / "manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            manifest["category"] = "BingiBongo"
+            manifest_path.write_text(json.dumps(manifest))
+            registry = RendererRegistry()
+
+            register_third_party_renderers(registry, config_dir)
+
+            entry = registry.get_entry("org.example.pridge.renderer.example")
+            self.assertEqual(entry.category, "BingiBongo")
 
     def test_isolates_a_broken_plugin_instead_of_raising(self) -> None:
         with TemporaryDirectory() as scratch:
