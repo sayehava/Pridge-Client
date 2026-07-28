@@ -124,7 +124,16 @@
       setDropAfter(false);
     };
 
-    const renderRow = (plugin, finishDrop) => {
+    const moveBy = (groupPlugins, plugin, delta) => {
+      const index = groupPlugins.findIndex((p) => p.plugin_id === plugin.plugin_id);
+      const neighborIndex = index + delta;
+      if (index === -1 || neighborIndex < 0 || neighborIndex >= groupPlugins.length) return;
+      const neighbor = groupPlugins[neighborIndex];
+      const targetIndex = resolveDropIndex(groupPlugins, plugin.plugin_id, neighbor.plugin_id, "plugin_id", delta > 0);
+      reorderPlugin(plugin.plugin_id, plugin.category, targetIndex);
+    };
+
+    const renderRow = (plugin, index, groupPlugins, finishDrop) => {
       const thirdParty = !plugin.is_builtin && !!plugin.source_path;
       return html`
         <div
@@ -160,6 +169,22 @@
               clearDropTarget();
             }}
           >⋮⋮</span>
+          <div class="dnd-move-buttons">
+            <button
+              type="button"
+              class="dnd-move-btn"
+              title=${S.receipt_move_up}
+              disabled=${index === 0}
+              onClick=${() => moveBy(groupPlugins, plugin, -1)}
+            >▲</button>
+            <button
+              type="button"
+              class="dnd-move-btn"
+              title=${S.receipt_move_down}
+              disabled=${index === groupPlugins.length - 1}
+              onClick=${() => moveBy(groupPlugins, plugin, 1)}
+            >▼</button>
+          </div>
           <input
             class="setting-check"
             type="checkbox"
@@ -203,7 +228,7 @@
         <div key=${category || "__uncategorized__"}>
           ${showHeading ? html`<div class="plugin-category-separator"><span>${categoryLabel(category)}</span></div>` : null}
           <div>
-            ${groupPlugins.map((plugin) => renderRow(plugin, finishDrop))}
+            ${groupPlugins.map((plugin, index) => renderRow(plugin, index, groupPlugins, finishDrop))}
             ${draggingId != null && groupPlugins.some((plugin) => plugin.plugin_id === draggingId)
               ? html`
                   <div
