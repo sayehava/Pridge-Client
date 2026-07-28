@@ -84,6 +84,85 @@ def prune_old_logs(directory: Path, retention_days: int) -> None:
                 pass
 
 
+def clear_log_files() -> bool:
+    handler = _active_handler
+    if handler is None:
+        return False
+    handler.acquire()
+    try:
+        base_path = Path(handler.baseFilename)
+        if handler.stream:
+            handler.stream.close()
+            handler.stream = None
+        base_path.write_text("", encoding="utf-8")
+        for sibling in base_path.parent.glob(f"{base_path.name}.*"):
+            try:
+                sibling.unlink()
+            except OSError:
+                pass
+        handler.stream = handler._open()
+    finally:
+        handler.release()
+    return True
+
+
+def parse_log_export_date(value: str) -> date | None:
+    value = str(value or "").strip()
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _log_files_in(directory: Path) -> list[Path]:
+    if not directory.is_dir():
+        return []
+    dated = sorted(directory.glob(f"{LOG_FILE_NAME}.*"))
+    current = directory / LOG_FILE_NAME
+    return dated + ([current] if current.is_file() else [])
+
+
+def export_logs_to(
+    directory: Path,
+    destination: Path,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> bool:
+    files = _log_files_in(directory)
+    if not files:
+        return False
+
+    wrote_any = False
+    with destination.open("w", encoding="utf-8") as out:
+        for path in files:
+            try:
+                lines = path.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
+            except OSError:
+                continue
+            include = start_date is None and end_date is None
+            for line in lines:
+                match = LOG_LINE_DATE_PATTERN.match(line)
+                if match:
+                    try:
+                        line_date = date.fromisoformat(match.group(1))
+                    except ValueError:
+                        line_date = None
+                    if line_date is not None:
+                        include = (start_date is None or line_date >= start_date) and (
+                            end_date is None or line_date <= end_date
+                        )
+                if include:
+                    out.write(line)
+                    wrote_any = True
+    return wrote_any
+
+
+def has_log_files(directory: Path) -> bool:
+    return bool(_log_files_in(directory))
+
+
 def redact(value: str) -> str:
     def replace(match: re.Match[str]) -> str:
         if match.group(1):
