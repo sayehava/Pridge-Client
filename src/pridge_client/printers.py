@@ -39,6 +39,7 @@ _PAGE_SIZES_PT: dict[str, tuple[float, float]] = {
 }
 _PWG_SIZE_RE = re.compile(r"_(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)(in|mm)$", re.IGNORECASE)
 _CUSTOM_SIZE_RE = re.compile(r"^custom\.(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)", re.IGNORECASE)
+_WH_POINTS_RE = re.compile(r"^w(\d+(?:\.\d+)?)h(\d+(?:\.\d+)?)$", re.IGNORECASE)
 
 
 def _page_size_for_option(value_id: str) -> tuple[float, float] | None:
@@ -51,6 +52,10 @@ def _page_size_for_option(value_id: str) -> tuple[float, float] | None:
     key = value_id.strip().lower()
 
     match = _CUSTOM_SIZE_RE.match(key)
+    if match:
+        return float(match.group(1)), float(match.group(2))
+
+    match = _WH_POINTS_RE.match(key)
     if match:
         return float(match.group(1)), float(match.group(2))
 
@@ -177,6 +182,7 @@ class PrinterManager:
         job_name: str = "Pridge Job",
         submission_method: str | None = None,
         explicit_renderer: str | None = None,
+        fit_mode: str = "fit",
     ) -> None:
         from pridge_client.renderers.base import RenderError, RenderOptions
 
@@ -232,10 +238,13 @@ class PrinterManager:
             raise PrinterError(str(exc)) from exc
 
         method = submission_method or _default_submission_method(self.system)
+        page_size_pt = self._resolve_selected_page_size(printer_name, settings)
         logger.info(f"Submitting system-driver job to printer {printer_name} (submission_method={method})")
         t0 = time.monotonic()
         try:
-            self.backend.print_driver_pdf(printer_name, pdf_data, settings, job_name, method)
+            self.backend.print_driver_pdf(
+                printer_name, pdf_data, settings, job_name, method, fit_mode=fit_mode, target_page_size_pt=page_size_pt
+            )
         except PrinterError:
             raise
         except Exception as exc:
@@ -251,10 +260,11 @@ class PrinterManager:
         mode: str,
         driver_settings: Mapping[str, str] | None = None,
         submission_method: str | None = None,
+        fit_mode: str = "fit",
     ) -> None:
         if mode != "system_driver":
             raise PrinterError("Test printing is available only in System Driver mode.")
-        page_width_pt, page_height_pt = self._resolve_test_page_size(printer_name, driver_settings)
+        page_width_pt, page_height_pt = self._resolve_selected_page_size(printer_name, driver_settings)
         self.print_job(
             printer_name,
             create_test_page_pdf(page_width_pt, page_height_pt),
@@ -263,9 +273,10 @@ class PrinterManager:
             content_type="application/pdf",
             job_name="Pridge Test Page",
             submission_method=submission_method,
+            fit_mode=fit_mode,
         )
 
-    def _resolve_test_page_size(
+    def _resolve_selected_page_size(
         self,
         printer_name: str,
         driver_settings: Mapping[str, str] | None,
