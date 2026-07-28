@@ -137,6 +137,7 @@ class PollingWorker:
                     job_name=f"Pridge {job.job_id}",
                     submission_method=submission_method,
                     explicit_renderer=job.renderer or None,
+                    fit_mode=profile.fit_mode,
                 )
             client.report_printed(job.job_id)
             self._record_job(job.job_id, "printed", printer_name=printer_name)
