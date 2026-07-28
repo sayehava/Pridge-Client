@@ -2175,6 +2175,29 @@ button.stone-option.selected {
   color: var(--text-muted);
 }
 
+.dnd-move-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.dnd-move-btn {
+  width: 20px;
+  height: 16px;
+  padding: 0;
+  line-height: 1;
+  font-size: 9px;
+  border-radius: 4px;
+  background: var(--control-bg);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.dnd-move-btn:disabled {
+  opacity: 0.3;
+}
+
 .receipt-block-controls {
   flex: 1;
   display: flex;
