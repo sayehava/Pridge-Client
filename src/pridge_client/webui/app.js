@@ -108,10 +108,12 @@
     return Number.isNaN(date.getTime()) ? S.server_status_no_heartbeat : date.toLocaleTimeString();
   }
 
-  function hasBeenUsed(printer) {
-    return (
-      printer.test_success_count + printer.test_failed_count + printer.remote_success_count + printer.remote_failed_count
-    ) > 0;
+  function isConfiguredWithAServer(printer, servers) {
+    return (servers || []).some(
+      (server) =>
+        server.default_printer === printer.name ||
+        (server.printer_mappings || []).some((mapping) => mapping.local_printer_name === printer.name)
+    );
   }
 
   function ServerStatusWidget({ widget, servers }) {
@@ -232,7 +234,9 @@
       body = html`<${LogsPanel} logs=${logs} />`;
     } else if (widget.widget_type === "printer_stats") {
       const usedOnly = !!(widget.config && widget.config.used_only);
-      const visiblePrinters = usedOnly ? printerDetails.filter(hasBeenUsed) : printerDetails;
+      const visiblePrinters = usedOnly
+        ? printerDetails.filter((printer) => isConfiguredWithAServer(printer, servers))
+        : printerDetails;
       body = visiblePrinters.length === 0
         ? html`<div class="scroll-panel empty">${usedOnly ? S.no_used_printers : S.no_printers}</div>`
         : html`<div class="scroll-panel">
