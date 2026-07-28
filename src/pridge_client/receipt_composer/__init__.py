@@ -4,9 +4,13 @@
 
 from __future__ import annotations
 
+from pridge_client.receipt_composer.plugin import ReceiptComposerPlugin
+from pridge_client.receipt_composer.shortcodes import render_template
 from pridge_client.receipt_composer.store import ReceiptComposerStore, ReceiptImage
 
 __all__ = [
+    "ReceiptComposerPlugin",
     "ReceiptComposerStore",
     "ReceiptImage",
+    "render_template",
 ]
