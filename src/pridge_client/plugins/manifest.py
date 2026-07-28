@@ -11,12 +11,6 @@ from pathlib import Path
 
 MANIFEST_FILE_NAME = "manifest.json"
 
-# The plugin system is not tied to printing: "category" is a first-class,
-# validated field so a future plugin kind (e.g. a non-print feature plugin)
-# can be added by extending this set and adding a matching discovery path,
-# without changing the manifest format or the install/remove mechanism.
-SUPPORTED_PLUGIN_CATEGORIES = ("renderer",)
-
 
 class ManifestError(ValueError):
     pass
@@ -66,7 +60,7 @@ def load_manifest(manifest_path: Path) -> PluginManifest:
     plugin_id = str(raw.get("id", "")).strip()
     name = str(raw.get("name", "")).strip()
     entry_point = str(raw.get("entry_point", "")).strip()
-    category = str(raw.get("category", "")).strip().lower()
+    category = str(raw.get("category", "")).strip()
 
     if not plugin_id:
         raise ManifestError("The plugin manifest is missing the required field 'id'.")
@@ -76,11 +70,8 @@ def load_manifest(manifest_path: Path) -> PluginManifest:
         raise ManifestError(
             "The plugin manifest's 'entry_point' must be in the form 'module:ClassName'."
         )
-    if category not in SUPPORTED_PLUGIN_CATEGORIES:
-        raise ManifestError(
-            f"Unsupported plugin category '{category or '(none)'}'. Supported categories: "
-            + ", ".join(SUPPORTED_PLUGIN_CATEGORIES)
-        )
+    if not category:
+        raise ManifestError("The plugin manifest is missing the required field 'category'.")
     try:
         api_version = int(raw.get("api_version", 0))
     except (TypeError, ValueError) as exc:
