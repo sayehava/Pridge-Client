@@ -35,6 +35,9 @@ class PageSizeResolutionTests(unittest.TestCase):
     def test_resolves_custom_cups_page_sizes(self) -> None:
         self.assertEqual(_page_size_for_option("Custom.300x400"), (300.0, 400.0))
 
+    def test_resolves_bare_points_custom_size(self) -> None:
+        self.assertEqual(_page_size_for_option("w288h432"), (288.0, 432.0))
+
     def test_resolves_pwg_self_describing_names(self) -> None:
         width, height = _page_size_for_option("na_letter_8.5x11in")
         self.assertAlmostEqual(width, 612.0, delta=1.0)
@@ -157,6 +160,33 @@ class PrinterManagerTests(unittest.TestCase):
         self.assertTrue(call_args.args[1].startswith(b"%PDF"))
         self.assertEqual(call_args.args[2], {"Resolution": "300dpi"})
         self.assertEqual(call_args.args[3], "Driver job")
+
+    def test_print_job_passes_fit_mode_and_resolved_page_size_to_the_backend(self) -> None:
+        self.manager.backend.get_capabilities.return_value = PrinterCapabilities(
+            printer_name="Labels",
+            system_driver_available=True,
+            options=(
+                DriverOption(
+                    id="PageSize",
+                    label="Page Size",
+                    choices=(DriverChoice("A4", "A4"),),
+                    default="A4",
+                ),
+            ),
+        )
+
+        self.manager.print_job(
+            "Labels",
+            create_test_page_pdf(),
+            mode="system_driver",
+            driver_settings={"PageSize": "A4"},
+            content_type="application/pdf",
+            fit_mode="actual_size",
+        )
+
+        call_kwargs = self.manager.backend.print_driver_pdf.call_args.kwargs
+        self.assertEqual(call_kwargs["fit_mode"], "actual_size")
+        self.assertEqual(call_kwargs["target_page_size_pt"], (595.0, 842.0))
 
     def test_rejects_system_driver_mode_when_no_driver_is_available(self) -> None:
         self.manager.backend.get_capabilities.return_value = PrinterCapabilities(
@@ -337,6 +367,53 @@ class PosixPrinterBackendTests(unittest.TestCase):
         self.assertIn("CutMedia=EndOfPage", command)
         self.assertIn("document-format=application/pdf", command)
         self.assertNotIn("raw", command)
+
+    @patch("pridge_client.printer_backends.subprocess.run")
+    def test_direct_pdf_submission_requests_fit_to_page_scaling_by_default(self, run) -> None:
+        run.return_value = Mock(returncode=0)
+
+        self.backend.print_driver_pdf("Labels", b"%PDF", {}, "Driver job", "direct_pdf")
+
+        command = run.call_args.args[0]
+        self.assertIn("print-scaling=fit", command)
+
+    @patch("pridge_client.printer_backends.subprocess.run")
+    def test_direct_pdf_submission_disables_scaling_for_actual_size(self, run) -> None:
+        run.return_value = Mock(returncode=0)
+
+        self.backend.print_driver_pdf(
+            "Labels", b"%PDF", {}, "Driver job", "direct_pdf", fit_mode="actual_size"
+        )
+
+        command = run.call_args.args[0]
+        self.assertIn("print-scaling=none", command)
+
+
+class FitImageToPageTests(unittest.TestCase):
+    def test_downscales_and_centers_an_oversized_image(self) -> None:
+        from PIL import Image
+
+        from pridge_client.printer_backends import _fit_image_to_page
+
+        source = Image.new("RGB", (1200, 1200), "black")
+
+        result = _fit_image_to_page(source, dpi=300.0, target_page_size_pt=(216.0, 72.0))
+
+        self.assertEqual(result.size, (900, 300))
+        # Centered horizontally: scaled image is 300x300, target width is 900.
+        self.assertEqual(result.getpixel((100, 150)), (255, 255, 255))
+        self.assertEqual(result.getpixel((450, 150)), (0, 0, 0))
+
+    def test_is_a_no_op_when_the_image_already_matches_the_target_size(self) -> None:
+        from PIL import Image
+
+        from pridge_client.printer_backends import _fit_image_to_page
+
+        source = Image.new("RGB", (300, 300), "black")
+
+        result = _fit_image_to_page(source, dpi=300.0, target_page_size_pt=(72.0, 72.0))
+
+        self.assertIs(result, source)
 
 
 if __name__ == "__main__":
