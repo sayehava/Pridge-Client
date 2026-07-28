@@ -181,6 +181,8 @@ def _preview_block(
         return {"type": "marker", "label": f"feed:{_safe_positive_int(arg, 4)}"}
     if name == "hex":
         return {"type": "marker", "label": "hex"}
+    if name == "dec":
+        return {"type": "marker", "label": "dec"}
     return None
 
 
@@ -247,6 +249,8 @@ def _resolve_tag(
         return b"\x1b\x64" + bytes([min(max(lines, 1), 255)])
     if name == "hex":
         return _resolve_hex_tag(arg or "")
+    if name == "dec":
+        return _resolve_dec_tag(arg or "")
     return b""
 
 
@@ -278,6 +282,20 @@ def _resolve_hex_tag(raw_hex: str) -> bytes:
         return bytes.fromhex(cleaned)
     except ValueError:
         return b""
+
+
+def _resolve_dec_tag(raw_decimal: str) -> bytes:
+    tokens = re.split(r"[\s,]+", raw_decimal.strip())
+    tokens = [token for token in tokens if token]
+    if not tokens:
+        return b""
+    try:
+        values = [int(token) for token in tokens]
+    except ValueError:
+        return b""
+    if any(value < 0 or value > 255 for value in values):
+        return b""
+    return bytes(values)
 
 
 def _peek_counter(store: "ReceiptComposerStore", printer_name: str, counter_key: str) -> int:
