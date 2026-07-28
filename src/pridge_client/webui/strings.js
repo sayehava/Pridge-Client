@@ -127,7 +127,7 @@ window.PridgeStrings = Object.freeze({
   working: "Working…",
   test_print: "Test Print",
   remote_prints: "Remote",
-  test_print_driver_only: "Test Print is available in System Driver mode.",
+  test_print_driver_only: "Test Print is available in System Driver or RAW mode.",
   test_print_failed: "Could not submit the test page.",
   test_print_submitted: "Test page submitted to the printer.",
   native_driver_settings: "Installed driver preferences",
