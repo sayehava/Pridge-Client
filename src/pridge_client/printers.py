@@ -10,6 +10,7 @@ import re
 import textwrap
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Mapping
@@ -72,27 +73,14 @@ def _page_size_for_option(value_id: str) -> tuple[float, float] | None:
     return None
 
 
+# Reused by receipt_composer.shortcodes for the [cut:...]/[drawer]/[feed] tags,
+# which superseded this module's own RAW header/footer preset resolution.
 _RAW_MACRO_BYTES: dict[str, bytes] = {
     "full_cut": b"\x1d\x56\x00",
     "partial_cut": b"\x1d\x56\x01",
     "open_drawer": b"\x1b\x70\x00\x19\xfa",
     "feed": b"\x1b\x64\x04",
 }
-
-
-def _resolve_raw_macro(preset: str, custom_hex: str) -> bytes:
-    """Resolve a RAW header/footer preset (or a custom hex string) to the
-    literal bytes to prepend/append around a RAW print payload. Unknown
-    presets and malformed custom hex both resolve to empty bytes rather than
-    raising, so a bad setting never blocks an otherwise-valid print job.
-    """
-    if preset == "custom":
-        cleaned = re.sub(r"[\s:-]", "", custom_hex)
-        try:
-            return bytes.fromhex(cleaned)
-        except ValueError:
-            return b""
-    return _RAW_MACRO_BYTES.get(preset, b"")
 
 
 class PrinterError(RuntimeError):
@@ -155,6 +143,7 @@ class PrinterManager:
         from pridge_client.config import default_config_dir
         from pridge_client.plugins.discovery import register_third_party_renderers
         from pridge_client.printer_backends import create_backend
+        from pridge_client.receipt_composer import ReceiptComposerPlugin, ReceiptComposerStore
         from pridge_client.renderers import (
             AppMappingRendererPlugin,
             AppMappingStore,
@@ -170,6 +159,9 @@ class PrinterManager:
         self._app_mapping_store = AppMappingStore(self._config_dir)
         self._app_mapping_plugin = AppMappingRendererPlugin(self._app_mapping_store.load())
         self._registry.register(self._app_mapping_plugin, priority=100, is_builtin=True, category="Mapper")
+        self._receipt_composer_store = ReceiptComposerStore(self._config_dir)
+        self._receipt_composer_plugin = ReceiptComposerPlugin()
+        self._registry.register(self._receipt_composer_plugin, priority=110, is_builtin=True, category="Receipts")
         self._third_party_renderer_ids = register_third_party_renderers(self._registry, self._config_dir)
         self._validation = PDFValidationService()
         self._renderer_selector = RendererSelectionService(self._registry, self._validation)
@@ -206,11 +198,12 @@ class PrinterManager:
         submission_method: str | None = None,
         explicit_renderer: str | None = None,
         fit_mode: str = "fit",
-        raw_header_preset: str = "",
-        raw_header_custom_hex: str = "",
-        raw_footer_preset: str = "",
-        raw_footer_custom_hex: str = "",
+        raw_header_template: str = "",
+        raw_footer_template: str = "",
+        raw_paper_width_dots: int = 384,
+        raw_chars_per_line: int = 32,
     ) -> None:
+        from pridge_client.receipt_composer.shortcodes import render_template
         from pridge_client.renderers.base import RenderError, RenderOptions
 
         if not printer_name:
@@ -219,8 +212,14 @@ class PrinterManager:
             raise PrinterError("Print payload is empty.")
 
         if mode == "raw":
-            header = _resolve_raw_macro(raw_header_preset, raw_header_custom_hex)
-            footer = _resolve_raw_macro(raw_footer_preset, raw_footer_custom_hex)
+            template_kwargs = {
+                "printer_name": printer_name,
+                "store": self._receipt_composer_store,
+                "paper_width_dots": raw_paper_width_dots,
+                "chars_per_line": raw_chars_per_line,
+            }
+            header = render_template(raw_header_template, **template_kwargs)
+            footer = render_template(raw_footer_template, **template_kwargs)
             logger.info("Sending raw job to printer %s", printer_name)
             self.backend.print_raw(printer_name, header + data + footer, job_name)
             return
@@ -290,9 +289,29 @@ class PrinterManager:
         driver_settings: Mapping[str, str] | None = None,
         submission_method: str | None = None,
         fit_mode: str = "fit",
+        raw_header_template: str = "",
+        raw_footer_template: str = "",
+        raw_paper_width_dots: int = 384,
+        raw_chars_per_line: int = 32,
     ) -> None:
+        if mode == "raw":
+            # Intentionally inert: no ESC @ reset (don't touch printer state
+            # Pridge doesn't own) and no assumed cut — the header/footer
+            # template under test is what should decide that, so this test
+            # actually exercises the same real RAW path end to end.
+            self.print_job(
+                printer_name,
+                _raw_test_body(raw_chars_per_line),
+                mode="raw",
+                job_name="Pridge Test Page",
+                raw_header_template=raw_header_template,
+                raw_footer_template=raw_footer_template,
+                raw_paper_width_dots=raw_paper_width_dots,
+                raw_chars_per_line=raw_chars_per_line,
+            )
+            return
         if mode != "system_driver":
-            raise PrinterError("Test printing is available only in System Driver mode.")
+            raise PrinterError("Test printing is available only in System Driver or RAW mode.")
         page_width_pt, page_height_pt = self._resolve_selected_page_size(printer_name, driver_settings)
         self.print_job(
             printer_name,
@@ -359,6 +378,14 @@ class PrinterManager:
     def app_mapping_store(self):
         return self._app_mapping_store
 
+    @property
+    def receipt_composer_plugin(self):
+        return self._receipt_composer_plugin
+
+    @property
+    def receipt_composer_store(self):
+        return self._receipt_composer_store
+
 
 def validate_driver_settings(
     capabilities: PrinterCapabilities,
@@ -373,6 +400,19 @@ def validate_driver_settings(
         if selected:
             validated[option.id] = selected
     return validated
+
+
+def _raw_test_body(chars_per_line: int) -> bytes:
+    width = max(1, chars_per_line)
+    lines = [
+        "PRIDGE TEST PAGE",
+        "-" * width,
+        "If you can read this clearly,",
+        "RAW printing works.",
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "",
+    ]
+    return ("\n".join(lines) + "\n").encode("ascii", errors="replace")
 
 
 def create_test_page_pdf(page_width_pt: float = _PAGE_WIDTH, page_height_pt: float = _PAGE_HEIGHT) -> bytes:
