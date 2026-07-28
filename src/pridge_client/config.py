@@ -71,6 +71,7 @@ class DashboardWidget:
     widget_type: str
     page: int = 0
     position: int = 0
+    config: dict[str, Any] = field(default_factory=dict)
 
 
 def _default_dashboard_widgets() -> list[DashboardWidget]:
@@ -410,12 +411,14 @@ def _parse_dashboard_widgets(raw: Any) -> list[DashboardWidget]:
         if widget_id in seen_ids:
             widget_id = uuid.uuid4().hex
         seen_ids.add(widget_id)
+        raw_config = item.get("config", {})
         widgets.append(
             DashboardWidget(
                 id=widget_id,
                 widget_type=widget_type,
                 page=_positive_int(item.get("page", 0), 0),
                 position=_positive_int(item.get("position", 0), 0),
+                config=dict(raw_config) if isinstance(raw_config, dict) else {},
             )
         )
     return widgets
