@@ -514,8 +514,8 @@
                       type="button"
                       class="ghost"
                       onClick=${testPrinter}
-                      disabled=${profileBusy || !printerCapabilities || printerProfile.mode !== "system_driver"}
-                      title=${printerProfile.mode === "system_driver" ? S.test_print : S.test_print_driver_only}
+                      disabled=${profileBusy || !printerCapabilities || (printerProfile.mode !== "system_driver" && printerProfile.mode !== "raw")}
+                      title=${printerProfile.mode === "system_driver" || printerProfile.mode === "raw" ? S.test_print : S.test_print_driver_only}
                     >
                       ${profileBusy ? S.working : S.test_print}
                     </button>
