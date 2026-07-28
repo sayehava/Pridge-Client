@@ -207,10 +207,14 @@
     onConfigure,
     isDragging,
     dropPosition,
+    canMoveUp,
+    canMoveDown,
     onDragStart,
     onDragEnd,
     onDragOverCard,
     onDropOn,
+    onMoveUp,
+    onMoveDown,
   }) {
     const containerId = `pridge-widget-${widget.id}`;
     const scriptLoaded = useRef(false);
@@ -298,6 +302,10 @@
             }}
             onDragEnd=${onDragEnd}
           >⋮⋮</span>
+          <div class="dnd-move-buttons">
+            <button type="button" class="dnd-move-btn" title=${S.receipt_move_up} disabled=${!canMoveUp} onClick=${onMoveUp}>▲</button>
+            <button type="button" class="dnd-move-btn" title=${S.receipt_move_down} disabled=${!canMoveDown} onClick=${onMoveDown}>▼</button>
+          </div>
           <h4>${widget.title}</h4>
           ${widget.widget_type === "server_status" || widget.widget_type === "printer_stats"
             ? html`<button class="widget-config-btn" title=${S.configure_widget} onClick=${onConfigure}>⚙</button>`
@@ -455,6 +463,13 @@
       setDraggingId(null);
       clearDropTarget();
     };
+    const moveWidgetBy = (widgetId, delta) => {
+      const index = widgets.findIndex((w) => w.id === widgetId);
+      const neighborIndex = index + delta;
+      if (index === -1 || neighborIndex < 0 || neighborIndex >= widgets.length) return;
+      const targetPosition = resolveDropIndex(widgets, widgetId, widgets[neighborIndex].id, delta > 0);
+      callApi("reorder_dashboard_widget", widgetId, currentPage, targetPosition).then(applyLayout);
+    };
     const saveWidgetConfig = (id, config) =>
       callApi("update_dashboard_widget_config", id, config).then((result) => {
         applyLayout(result);
@@ -488,7 +503,7 @@
           }}
         >
           ${widgets.map(
-            (widget) => html`
+            (widget, index) => html`
               <${WidgetCard}
                 key=${widget.id}
                 widget=${widget}
@@ -500,6 +515,8 @@
                 onConfigure=${() => setConfiguringId(widget.id)}
                 isDragging=${draggingId === widget.id}
                 dropPosition=${dropTargetId === widget.id ? (dropAfter ? "after" : "before") : null}
+                canMoveUp=${index > 0}
+                canMoveDown=${index < widgets.length - 1}
                 onDragStart=${() => setDraggingId(widget.id)}
                 onDragEnd=${() => {
                   setDraggingId(null);
@@ -514,6 +531,8 @@
                   setDropAfter(event.clientY - rect.top > rect.height / 2);
                 }}
                 onDropOn=${finishDrop}
+                onMoveUp=${() => moveWidgetBy(widget.id, -1)}
+                onMoveDown=${() => moveWidgetBy(widget.id, 1)}
               />
             `
           )}
