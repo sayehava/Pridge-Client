@@ -26,6 +26,7 @@ from pridge_client.config import (
     DARKNESS_GRADES,
     FIT_MODES,
     PRINT_MODES,
+    RAW_MACROS,
     SUBMISSION_METHODS,
     ClientTokenStore,
     ConfigStore,
@@ -505,6 +506,14 @@ class ClientApi:
         fit_mode = str(fields.get("fit_mode", existing.fit_mode)).strip().lower()
         if fit_mode not in FIT_MODES:
             fit_mode = existing.fit_mode
+        raw_header_preset = str(fields.get("raw_header_preset", existing.raw_header_preset)).strip().lower()
+        if raw_header_preset not in RAW_MACROS:
+            raw_header_preset = existing.raw_header_preset
+        raw_header_custom_hex = str(fields.get("raw_header_custom_hex", existing.raw_header_custom_hex)).strip()
+        raw_footer_preset = str(fields.get("raw_footer_preset", existing.raw_footer_preset)).strip().lower()
+        if raw_footer_preset not in RAW_MACROS:
+            raw_footer_preset = existing.raw_footer_preset
+        raw_footer_custom_hex = str(fields.get("raw_footer_custom_hex", existing.raw_footer_custom_hex)).strip()
         capabilities = None
         if mode == "system_driver":
             try:
@@ -516,7 +525,14 @@ class ClientApi:
             settings = validate_driver_settings(capabilities, settings)
 
         profile = PrinterProfile(
-            mode=mode, driver_settings=settings, submission_method=submission_method, fit_mode=fit_mode
+            mode=mode,
+            driver_settings=settings,
+            submission_method=submission_method,
+            fit_mode=fit_mode,
+            raw_header_preset=raw_header_preset,
+            raw_header_custom_hex=raw_header_custom_hex,
+            raw_footer_preset=raw_footer_preset,
+            raw_footer_custom_hex=raw_footer_custom_hex,
         )
         store[name] = profile
         self.config = self._current_config()
@@ -1349,6 +1365,10 @@ class ClientApi:
             "driver_settings": dict(profile.driver_settings),
             "submission_method": profile.submission_method,
             "fit_mode": profile.fit_mode,
+            "raw_header_preset": profile.raw_header_preset,
+            "raw_header_custom_hex": profile.raw_header_custom_hex,
+            "raw_footer_preset": profile.raw_footer_preset,
+            "raw_footer_custom_hex": profile.raw_footer_custom_hex,
         }
 
     def _server_by_id(self, server_id: str) -> ServerConfig | None:
