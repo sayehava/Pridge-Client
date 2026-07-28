@@ -174,7 +174,11 @@ def _preview_block(
         image_id = (arg or "").strip()
         return {"type": "image", "image_id": image_id} if image_id else None
     if name == "cut":
-        return {"type": "marker", "label": f"cut:{(arg or '').strip().lower() or 'full'}"}
+        parts = (arg or "").split(":", 1)
+        cut_type = parts[0].strip().lower() or "full"
+        feed_lines = max(0, _safe_int(parts[1], 0)) if len(parts) > 1 else 0
+        suffix = f" +{feed_lines}feed" if feed_lines > 0 else ""
+        return {"type": "marker", "label": f"cut:{cut_type}{suffix}"}
     if name == "drawer":
         return {"type": "marker", "label": "drawer"}
     if name == "feed":
@@ -239,14 +243,11 @@ def _resolve_tag(
     if name == "image":
         return _resolve_image_tag((arg or "").strip(), store=store, paper_width_dots=paper_width_dots)
     if name == "cut":
-        return _RAW_MACRO_BYTES.get(f"{(arg or '').strip().lower()}_cut", b"")
+        return _resolve_cut_tag(arg or "")
     if name == "drawer":
         return _RAW_MACRO_BYTES.get("open_drawer", b"")
     if name == "feed":
-        lines = _safe_positive_int(arg, 4)
-        if lines == 4:
-            return _RAW_MACRO_BYTES.get("feed", b"\x1b\x64\x04")
-        return b"\x1b\x64" + bytes([min(max(lines, 1), 255)])
+        return _feed_bytes(_safe_positive_int(arg, 4))
     if name == "hex":
         return _resolve_hex_tag(arg or "")
     if name == "dec":
@@ -274,6 +275,28 @@ def _resolve_image_tag(image_id: str, *, store: "ReceiptComposerStore", paper_wi
         return image_to_escpos_raster(data, target_width_dots=paper_width_dots)
     except ValueError:
         return b""
+
+
+def _feed_bytes(lines: int) -> bytes:
+    if lines <= 0:
+        return b""
+    if lines == 4:
+        return _RAW_MACRO_BYTES.get("feed", b"\x1b\x64\x04")
+    return b"\x1b\x64" + bytes([min(max(lines, 1), 255)])
+
+
+def _resolve_cut_tag(raw_arg: str) -> bytes:
+    """`[cut:full]` / `[cut:partial]`, or `[cut:full:6]` to feed N lines
+    first — most thermal printers mount the cutter blade some distance
+    below the print head, so cutting immediately after the last line can
+    slice through content that hasn't cleared the blade yet. The feed
+    count is opt-in and defaults to 0 (identical to the pre-existing
+    two-argument form) so old templates keep behaving exactly as before.
+    """
+    parts = raw_arg.split(":", 1)
+    cut_type = parts[0].strip().lower() or "full"
+    feed_lines = max(0, _safe_int(parts[1], 0)) if len(parts) > 1 else 0
+    return _feed_bytes(feed_lines) + _RAW_MACRO_BYTES.get(f"{cut_type}_cut", b"")
 
 
 def _resolve_hex_tag(raw_hex: str) -> bytes:
