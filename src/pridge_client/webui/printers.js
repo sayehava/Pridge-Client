@@ -28,7 +28,7 @@
     const [printers, setPrinters] = useState([]);
     const [setupPrinter, setSetupPrinter] = useState("");
     const [printerCapabilities, setPrinterCapabilities] = useState(null);
-    const [printerProfile, setPrinterProfile] = useState({ mode: "system_driver", driver_settings: {} });
+    const [printerProfile, setPrinterProfile] = useState({ mode: "system_driver", driver_settings: {}, fit_mode: "fit" });
     const [platformSystem, setPlatformSystem] = useState("");
     const [profileBusy, setProfileBusy] = useState(false);
     const [profileError, setProfileError] = useState("");
@@ -51,7 +51,7 @@
     const openPrinterSetup = (printerName) => {
       setSetupPrinter(printerName);
       setPrinterCapabilities(null);
-      setPrinterProfile({ mode: "system_driver", driver_settings: {} });
+      setPrinterProfile({ mode: "system_driver", driver_settings: {}, fit_mode: "fit" });
       setProfileError("");
       setProfileMessage("");
       setProfileBusy(true);
@@ -63,7 +63,7 @@
           return;
         }
         setPrinterCapabilities(result.capabilities || null);
-        setPrinterProfile(result.profile || { mode: "system_driver", driver_settings: {} });
+        setPrinterProfile(result.profile || { mode: "system_driver", driver_settings: {}, fit_mode: "fit" });
         setPlatformSystem(result.platform_system || "");
       });
     };
@@ -110,6 +110,12 @@
 
     const setSubmissionMethod = (event) => {
       const nextProfile = { ...printerProfile, submission_method: event.target.value };
+      setPrinterProfile(nextProfile);
+      persistPrinterProfile(nextProfile);
+    };
+
+    const setFitMode = (event) => {
+      const nextProfile = { ...printerProfile, fit_mode: event.target.value };
       setPrinterProfile(nextProfile);
       persistPrinterProfile(nextProfile);
     };
@@ -232,6 +238,19 @@
                                     </div>
                                   `
                                 : null}
+
+                              <div class="field">
+                                <label class="field-label">${S.fit_mode}</label>
+                                <select
+                                  value=${printerProfile.fit_mode || "fit"}
+                                  onChange=${setFitMode}
+                                  disabled=${profileBusy}
+                                >
+                                  <option value="fit">${S.fit_mode_fit}</option>
+                                  <option value="actual_size">${S.fit_mode_actual_size}</option>
+                                </select>
+                                <small>${S.fit_mode_hint}</small>
+                              </div>
 
                               ${printerCapabilities && printerCapabilities.supports_native_dialog
                                 ? html`
