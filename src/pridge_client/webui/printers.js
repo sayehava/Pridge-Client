@@ -24,11 +24,48 @@
     if (attempts < 200) window.setTimeout(() => whenApiReady(callback, attempts + 1), 50);
   }
 
+  const DEFAULT_PRINTER_PROFILE = {
+    mode: "system_driver",
+    driver_settings: {},
+    fit_mode: "fit",
+    raw_header_preset: "",
+    raw_header_custom_hex: "",
+    raw_footer_preset: "",
+    raw_footer_custom_hex: "",
+  };
+
+  function RawMacroField({ label, preset, customHex, onPresetChange, onCustomHexChange, disabled }) {
+    return html`
+      <div class="field">
+        <label class="field-label">${label}</label>
+        <select value=${preset || ""} onChange=${onPresetChange} disabled=${disabled}>
+          <option value="">${S.raw_macro_none}</option>
+          <option value="full_cut">${S.raw_macro_full_cut}</option>
+          <option value="partial_cut">${S.raw_macro_partial_cut}</option>
+          <option value="open_drawer">${S.raw_macro_open_drawer}</option>
+          <option value="feed">${S.raw_macro_feed}</option>
+          <option value="custom">${S.raw_macro_custom}</option>
+        </select>
+        ${preset === "custom"
+          ? html`
+              <input
+                type="text"
+                placeholder=${S.raw_macro_custom_placeholder}
+                value=${customHex || ""}
+                onChange=${onCustomHexChange}
+                disabled=${disabled}
+              />
+            `
+          : null}
+      </div>
+    `;
+  }
+
   function Printers() {
     const [printers, setPrinters] = useState([]);
     const [setupPrinter, setSetupPrinter] = useState("");
     const [printerCapabilities, setPrinterCapabilities] = useState(null);
-    const [printerProfile, setPrinterProfile] = useState({ mode: "system_driver", driver_settings: {}, fit_mode: "fit" });
+    const [printerProfile, setPrinterProfile] = useState(DEFAULT_PRINTER_PROFILE);
     const [platformSystem, setPlatformSystem] = useState("");
     const [profileBusy, setProfileBusy] = useState(false);
     const [profileError, setProfileError] = useState("");
@@ -51,7 +88,7 @@
     const openPrinterSetup = (printerName) => {
       setSetupPrinter(printerName);
       setPrinterCapabilities(null);
-      setPrinterProfile({ mode: "system_driver", driver_settings: {}, fit_mode: "fit" });
+      setPrinterProfile(DEFAULT_PRINTER_PROFILE);
       setProfileError("");
       setProfileMessage("");
       setProfileBusy(true);
@@ -63,7 +100,7 @@
           return;
         }
         setPrinterCapabilities(result.capabilities || null);
-        setPrinterProfile(result.profile || { mode: "system_driver", driver_settings: {}, fit_mode: "fit" });
+        setPrinterProfile(result.profile || DEFAULT_PRINTER_PROFILE);
         setPlatformSystem(result.platform_system || "");
       });
     };
@@ -116,6 +153,12 @@
 
     const setFitMode = (event) => {
       const nextProfile = { ...printerProfile, fit_mode: event.target.value };
+      setPrinterProfile(nextProfile);
+      persistPrinterProfile(nextProfile);
+    };
+
+    const setRawField = (key, value) => {
+      const nextProfile = { ...printerProfile, [key]: value };
       setPrinterProfile(nextProfile);
       persistPrinterProfile(nextProfile);
     };
@@ -210,7 +253,25 @@
                         </div>
 
                         ${printerProfile.mode === "raw"
-                          ? html`<div class="driver-mode-note">${S.raw_mode_hint}</div>`
+                          ? html`
+                              <div class="driver-mode-note">${S.raw_mode_hint}</div>
+                              <${RawMacroField}
+                                label=${S.raw_header_label}
+                                preset=${printerProfile.raw_header_preset}
+                                customHex=${printerProfile.raw_header_custom_hex}
+                                disabled=${profileBusy}
+                                onPresetChange=${(event) => setRawField("raw_header_preset", event.target.value)}
+                                onCustomHexChange=${(event) => setRawField("raw_header_custom_hex", event.target.value)}
+                              />
+                              <${RawMacroField}
+                                label=${S.raw_footer_label}
+                                preset=${printerProfile.raw_footer_preset}
+                                customHex=${printerProfile.raw_footer_custom_hex}
+                                disabled=${profileBusy}
+                                onPresetChange=${(event) => setRawField("raw_footer_preset", event.target.value)}
+                                onCustomHexChange=${(event) => setRawField("raw_footer_custom_hex", event.target.value)}
+                              />
+                            `
                           : printerCapabilities && !printerCapabilities.system_driver_available
                           ? html`<div class="connection-result error-result">${S.system_driver_unavailable}</div>`
                           : html`
