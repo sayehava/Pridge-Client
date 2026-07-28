@@ -580,31 +580,31 @@ class ClientApiTests(unittest.TestCase):
     def test_exports_the_current_run_log_to_a_chosen_destination(self):
         log_dir = Path(self.temporary_directory.name) / "logs"
         log_dir.mkdir()
-        (log_dir / "client.log").write_text("2026-07-21 hello world\n", encoding="utf-8")
+        (log_dir / "client.log").write_text("2026-07-21 10:00:00 hello world\n", encoding="utf-8")
         destination = Path(self.temporary_directory.name) / "exported.log"
         window = Mock()
         window.create_file_dialog.return_value = (str(destination),)
         self.api._window = window
+        self.api.config.logging.directory = str(log_dir)
 
-        with patch("pridge_client.gui.default_log_dir", return_value=log_dir):
-            result = self.api.export_log()
+        result = self.api.export_log()
 
         self.assertTrue(result["ok"])
-        self.assertEqual(destination.read_text(encoding="utf-8"), "2026-07-21 hello world\n")
+        self.assertEqual(destination.read_text(encoding="utf-8"), "2026-07-21 10:00:00 hello world\n")
 
     def test_export_log_prefers_the_open_settings_window_for_the_dialog(self):
         log_dir = Path(self.temporary_directory.name) / "logs"
         log_dir.mkdir()
-        (log_dir / "client.log").write_text("data", encoding="utf-8")
+        (log_dir / "client.log").write_text("2026-07-21 10:00:00 data\n", encoding="utf-8")
         destination = Path(self.temporary_directory.name) / "exported.log"
         main_window = Mock()
         settings_window = Mock()
         settings_window.create_file_dialog.return_value = (str(destination),)
         self.api._window = main_window
         self.api._utility_windows["settings"] = settings_window
+        self.api.config.logging.directory = str(log_dir)
 
-        with patch("pridge_client.gui.default_log_dir", return_value=log_dir):
-            self.api.export_log()
+        self.api.export_log()
 
         settings_window.create_file_dialog.assert_called_once()
         main_window.create_file_dialog.assert_not_called()
@@ -613,24 +613,96 @@ class ClientApiTests(unittest.TestCase):
         log_dir = Path(self.temporary_directory.name) / "empty-logs"
         log_dir.mkdir()
         self.api._window = Mock()
+        self.api.config.logging.directory = str(log_dir)
 
-        with patch("pridge_client.gui.default_log_dir", return_value=log_dir):
-            result = self.api.export_log()
+        result = self.api.export_log()
 
         self.assertFalse(result["ok"])
 
     def test_export_log_leaves_state_unchanged_when_dialog_is_cancelled(self):
         log_dir = Path(self.temporary_directory.name) / "logs"
         log_dir.mkdir()
-        (log_dir / "client.log").write_text("data", encoding="utf-8")
+        (log_dir / "client.log").write_text("2026-07-21 10:00:00 data\n", encoding="utf-8")
+        window = Mock()
+        window.create_file_dialog.return_value = None
+        self.api._window = window
+        self.api.config.logging.directory = str(log_dir)
+
+        result = self.api.export_log()
+
+        self.assertTrue(result["ok"])
+
+    def test_export_log_filters_by_date_range(self):
+        log_dir = Path(self.temporary_directory.name) / "logs"
+        log_dir.mkdir()
+        (log_dir / "client.log.2026-07-01").write_text("2026-07-01 09:00:00 old entry\n", encoding="utf-8")
+        (log_dir / "client.log").write_text("2026-07-21 10:00:00 recent entry\n", encoding="utf-8")
+        destination = Path(self.temporary_directory.name) / "exported.log"
+        window = Mock()
+        window.create_file_dialog.return_value = (str(destination),)
+        self.api._window = window
+        self.api.config.logging.directory = str(log_dir)
+
+        result = self.api.export_log(start_date="2026-07-15", end_date="2026-07-25")
+
+        self.assertTrue(result["ok"])
+        exported = destination.read_text(encoding="utf-8")
+        self.assertNotIn("old entry", exported)
+        self.assertIn("recent entry", exported)
+
+    def test_export_log_reports_an_error_when_range_matches_nothing(self):
+        log_dir = Path(self.temporary_directory.name) / "logs"
+        log_dir.mkdir()
+        (log_dir / "client.log").write_text("2026-07-21 10:00:00 recent entry\n", encoding="utf-8")
+        destination = Path(self.temporary_directory.name) / "exported.log"
+        window = Mock()
+        window.create_file_dialog.return_value = (str(destination),)
+        self.api._window = window
+        self.api.config.logging.directory = str(log_dir)
+
+        result = self.api.export_log(start_date="2020-01-01", end_date="2020-01-02")
+
+        self.assertFalse(result["ok"])
+        self.assertFalse(destination.exists())
+
+    def test_clear_logs_reports_an_error_when_file_logging_is_disabled(self):
+        result = self.api.clear_logs()
+
+        self.assertFalse(result["ok"])
+
+    def test_choose_log_directory_returns_the_selected_path(self):
+        chosen = Path(self.temporary_directory.name) / "chosen-logs"
+        window = Mock()
+        window.create_file_dialog.return_value = (str(chosen),)
+        self.api._window = window
+
+        result = self.api.choose_log_directory()
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["directory"], str(chosen))
+
+    def test_choose_log_directory_leaves_state_unchanged_when_dialog_is_cancelled(self):
         window = Mock()
         window.create_file_dialog.return_value = None
         self.api._window = window
 
-        with patch("pridge_client.gui.default_log_dir", return_value=log_dir):
-            result = self.api.export_log()
+        result = self.api.choose_log_directory()
 
         self.assertTrue(result["ok"])
+
+    def test_update_application_settings_reconfigures_file_logging(self):
+        log_dir = Path(self.temporary_directory.name) / "chosen-logs"
+
+        result = self.api.update_application_settings(
+            {"log_file_enabled": True, "log_retention_days": 7, "log_directory": str(log_dir)}
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(self.api.config.logging.retention_days, 7)
+        self.assertEqual(self.api.config.logging.directory, str(log_dir))
+        self.assertEqual(result["state"]["logging"]["retention_days"], 7)
+        logging.getLogger("pridge.test").warning("after settings change")
+        self.assertTrue((log_dir / "client.log").is_file())
 
     @patch("pridge_client.gui.webview.create_window")
     def test_opens_plugins_window_at_fixed_size(self, create_window):
