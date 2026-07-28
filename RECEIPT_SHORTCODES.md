@@ -27,8 +27,8 @@ the name is new.
 | `[bold]...[/bold]` | Bolds the text between the two tags. |
 | `[italic]...[/italic]` | Shown in the block editor's preview only. There is no universal ESC/POS italic command, so on real hardware this prints as normal text — a documented no-op, not a bug. |
 | `[hr]` | A dashed line the width of the printer's configured Characters per Line. |
-| `[blank]` | A blank line. |
-| `[newline]` | A line break. |
+| `[blank]` | One blank line. Add this tag again for each extra line, or use `[feed:N]` below to add several at once — they produce the same result, `[feed:N]` is just more compact. |
+| `[newline]` | A line break — the same one line of blank space as `[blank]`, just a different name for the same tag. |
 
 ## Dynamic content
 
@@ -51,6 +51,7 @@ the name is new.
 | Shortcode | What it does |
 | --- | --- |
 | `[cut:full]` / `[cut:partial]` | Cuts the paper. |
+| `[cut:full:N]` / `[cut:partial:N]` | Feeds `N` lines immediately before cutting, then cuts. Most thermal printers mount the cutter blade some distance below the print head, so cutting right after the last line can slice through content that hasn't cleared the blade yet — if your receipts keep getting cut through the middle of the text, add a Cut block (or edit an existing one) and increase its "Feed lines before cutting" field until the cut lands cleanly past the content. Omitting `:N` (or setting it to 0) behaves exactly like plain `[cut:full]` — no extra feed. |
 | `[drawer]` | Opens the cash drawer, on printers wired for it. |
 | `[feed]` / `[feed:N]` | Feeds `N` blank lines, 4 by default. |
 | `[hex:1D 56 00]` | Sends raw bytes given in hexadecimal — an escape hatch for any command not covered by the shortcodes above. Spaces, colons, and dashes are all accepted as separators. Malformed hex resolves to nothing rather than raising an error. |
