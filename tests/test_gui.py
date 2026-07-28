@@ -15,6 +15,14 @@ from pridge_client.models import JobHistoryEntry
 from pridge_client.printers import DriverChoice, DriverOption, Printer, PrinterCapabilities, PrinterError
 
 
+def _restore_root_handlers(previous_handlers):
+    root = logging.getLogger()
+    for handler in root.handlers:
+        if handler not in previous_handlers:
+            handler.close()
+    root.handlers = previous_handlers
+
+
 class MemoryTokenStore:
     def __init__(self):
         self.tokens = {}
@@ -126,7 +134,7 @@ class ClientApiTests(unittest.TestCase):
         )
 
     def tearDown(self):
-        logging.getLogger().handlers = self.previous_handlers
+        _restore_root_handlers(self.previous_handlers)
         self.temporary_directory.cleanup()
 
     @patch("pridge_client.gui.PridgeClient")
@@ -1108,7 +1116,7 @@ class DashboardWidgetTests(unittest.TestCase):
         )
 
     def tearDown(self):
-        logging.getLogger().handlers = self.previous_handlers
+        _restore_root_handlers(self.previous_handlers)
         self.temporary_directory.cleanup()
 
     def test_default_layout_has_recent_jobs_and_logs_on_one_page(self):
