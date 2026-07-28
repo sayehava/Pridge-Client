@@ -273,7 +273,7 @@
                 <button class="ghost widget-picker-item" key=${item.type} onClick=${() => onPick(item.type)}>
                   ${item.title}
                   <span class=${item.source === "plugin" ? "badge" : "badge badge-active"}>
-                    ${item.source === "plugin" ? S.renderer_third_party : S.renderer_builtin}
+                    ${item.source === "plugin" ? S.renderer_third_party : S.plugin_core}
                   </span>
                 </button>
               `
