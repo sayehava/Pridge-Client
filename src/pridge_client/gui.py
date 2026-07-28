@@ -92,6 +92,7 @@ from pridge_client.strings import (
     WINDOW_EDIT_SERVER,
     WINDOW_PLUGINS,
     WINDOW_PRINTERS,
+    WINDOW_RECEIPT_COMPOSER,
     WINDOW_SERVERS,
     WINDOW_SETTINGS,
     WINDOW_TITLE,
@@ -351,9 +352,19 @@ class ClientApi:
             height=720,
         )
 
+    def open_receipt_composer_window(self) -> dict:
+        return self._open_utility_window(
+            key="receipt_composer",
+            title=WINDOW_RECEIPT_COMPOSER,
+            page="receipt-composer.html",
+            width=760,
+            height=800,
+        )
+
     def open_plugin_settings_window(self, settings_window: str) -> dict:
         openers = {
             "app_mapping": self.open_app_mapping_window,
+            "receipt_composer": self.open_receipt_composer_window,
         }
         opener = openers.get(str(settings_window))
         if opener is None:
@@ -955,6 +966,82 @@ class ClientApi:
         self.printer_manager.app_mapping_plugin.set_mappings(mappings)
         self.printer_manager.app_mapping_store.save(mappings)
         return self.get_app_mappings()
+
+    def _receipt_image_public(self, image) -> dict:
+        import base64
+
+        data = self.printer_manager.receipt_composer_store.load_image_bytes(image.id)
+        return {
+            "id": image.id,
+            "name": image.name,
+            "width": image.width,
+            "height": image.height,
+            "data_base64": base64.b64encode(data).decode("ascii") if data else "",
+        }
+
+    def get_receipt_images(self) -> dict:
+        images = self.printer_manager.receipt_composer_store.list_images()
+        return {"ok": True, "error": None, "images": [self._receipt_image_public(image) for image in images]}
+
+    def add_receipt_image(self, name: str, data_base64: str) -> dict:
+        import base64
+        import binascii
+
+        try:
+            data = base64.b64decode(str(data_base64), validate=True)
+        except (binascii.Error, ValueError):
+            return self._error("The uploaded image data is not valid Base64.")
+        if not data:
+            return self._error("The uploaded image is empty.")
+        try:
+            self.printer_manager.receipt_composer_store.add_image(str(name), data)
+        except Exception as exc:
+            logger.warning("Could not add receipt image: %s", exc)
+            return self._error("Could not read the uploaded image. Make sure it's a valid image file.")
+        return self.get_receipt_images()
+
+    def remove_receipt_image(self, image_id: str) -> dict:
+        self.printer_manager.receipt_composer_store.remove_image(str(image_id))
+        return self.get_receipt_images()
+
+    def get_receipt_counters(self, printer_name: str) -> dict:
+        counters = self.printer_manager.receipt_composer_store.get_counters(str(printer_name))
+        return {"ok": True, "error": None, "counters": counters}
+
+    def add_receipt_counter(self, printer_name: str, key: str, label: str = "") -> dict:
+        from pridge_client.receipt_composer.store import DEFAULT_COUNTER_KEY
+
+        key = str(key).strip()
+        if not key or key == DEFAULT_COUNTER_KEY:
+            return self._error("A unique counter name is required.")
+        self.printer_manager.receipt_composer_store.add_named_counter(str(printer_name), key, str(label))
+        return self.get_receipt_counters(printer_name)
+
+    def reset_receipt_counter(self, printer_name: str, key: str, value: int = 0) -> dict:
+        safe_value = self._safe_int(value, 0, minimum=0)
+        self.printer_manager.receipt_composer_store.reset(str(printer_name), str(key), safe_value)
+        return self.get_receipt_counters(printer_name)
+
+    def remove_receipt_counter(self, printer_name: str, key: str) -> dict:
+        from pridge_client.receipt_composer.store import DEFAULT_COUNTER_KEY
+
+        key = str(key)
+        if key == DEFAULT_COUNTER_KEY:
+            return self._error("The default counter cannot be removed.")
+        self.printer_manager.receipt_composer_store.remove_named_counter(str(printer_name), key)
+        return self.get_receipt_counters(printer_name)
+
+    def preview_receipt_template(self, template: str, printer_name: str = "", server_id: str = "") -> dict:
+        from pridge_client.receipt_composer import render_template_blocks
+
+        profile = self._profile_store(server_id).get(str(printer_name), PrinterProfile())
+        blocks = render_template_blocks(
+            str(template),
+            printer_name=str(printer_name),
+            store=self.printer_manager.receipt_composer_store,
+            chars_per_line=profile.raw_chars_per_line,
+        )
+        return {"ok": True, "error": None, "blocks": blocks}
 
     def reorder_renderer_plugin(self, plugin_id: str, target_index: int, category: str = "") -> dict:
         plugin_id = str(plugin_id).strip()
