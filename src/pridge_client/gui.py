@@ -26,7 +26,6 @@ from pridge_client.config import (
     DARKNESS_GRADES,
     FIT_MODES,
     PRINT_MODES,
-    RAW_MACROS,
     SUBMISSION_METHODS,
     ClientTokenStore,
     ConfigStore,
@@ -506,14 +505,15 @@ class ClientApi:
         fit_mode = str(fields.get("fit_mode", existing.fit_mode)).strip().lower()
         if fit_mode not in FIT_MODES:
             fit_mode = existing.fit_mode
-        raw_header_preset = str(fields.get("raw_header_preset", existing.raw_header_preset)).strip().lower()
-        if raw_header_preset not in RAW_MACROS:
-            raw_header_preset = existing.raw_header_preset
-        raw_header_custom_hex = str(fields.get("raw_header_custom_hex", existing.raw_header_custom_hex)).strip()
-        raw_footer_preset = str(fields.get("raw_footer_preset", existing.raw_footer_preset)).strip().lower()
-        if raw_footer_preset not in RAW_MACROS:
-            raw_footer_preset = existing.raw_footer_preset
-        raw_footer_custom_hex = str(fields.get("raw_footer_custom_hex", existing.raw_footer_custom_hex)).strip()
+        raw_header_template = str(fields.get("raw_header_template", existing.raw_header_template))
+        raw_footer_template = str(fields.get("raw_footer_template", existing.raw_footer_template))
+        raw_paper_width_dots = self._safe_int(
+            fields.get("raw_paper_width_dots", existing.raw_paper_width_dots), existing.raw_paper_width_dots, 8, 4096
+        )
+        raw_paper_width_dots = max(8, (raw_paper_width_dots // 8) * 8)
+        raw_chars_per_line = self._safe_int(
+            fields.get("raw_chars_per_line", existing.raw_chars_per_line), existing.raw_chars_per_line, 8, 128
+        )
         capabilities = None
         if mode == "system_driver":
             try:
@@ -529,10 +529,14 @@ class ClientApi:
             driver_settings=settings,
             submission_method=submission_method,
             fit_mode=fit_mode,
-            raw_header_preset=raw_header_preset,
-            raw_header_custom_hex=raw_header_custom_hex,
-            raw_footer_preset=raw_footer_preset,
-            raw_footer_custom_hex=raw_footer_custom_hex,
+            raw_header_preset=existing.raw_header_preset,
+            raw_header_custom_hex=existing.raw_header_custom_hex,
+            raw_footer_preset=existing.raw_footer_preset,
+            raw_footer_custom_hex=existing.raw_footer_custom_hex,
+            raw_header_template=raw_header_template,
+            raw_footer_template=raw_footer_template,
+            raw_paper_width_dots=raw_paper_width_dots,
+            raw_chars_per_line=raw_chars_per_line,
         )
         store[name] = profile
         self.config = self._current_config()
@@ -562,7 +566,7 @@ class ClientApi:
         if name not in {printer.name for printer in self.printers}:
             return self._error("The selected printer is no longer available.")
         profile = self._profile_store(server_id).get(name, PrinterProfile())
-        if profile.mode != "system_driver":
+        if profile.mode not in {"system_driver", "raw"}:
             return self._error(MESSAGE_TEST_PRINT_DRIVER_ONLY)
         try:
             self.printer_manager.print_test_page(
@@ -571,6 +575,10 @@ class ClientApi:
                 driver_settings=profile.driver_settings,
                 submission_method=profile.submission_method or None,
                 fit_mode=profile.fit_mode,
+                raw_header_template=profile.raw_header_template,
+                raw_footer_template=profile.raw_footer_template,
+                raw_paper_width_dots=profile.raw_paper_width_dots,
+                raw_chars_per_line=profile.raw_chars_per_line,
             )
         except PrinterError as exc:
             self._bump_printer_stat(name, origin="test", success=False)
@@ -1365,10 +1373,10 @@ class ClientApi:
             "driver_settings": dict(profile.driver_settings),
             "submission_method": profile.submission_method,
             "fit_mode": profile.fit_mode,
-            "raw_header_preset": profile.raw_header_preset,
-            "raw_header_custom_hex": profile.raw_header_custom_hex,
-            "raw_footer_preset": profile.raw_footer_preset,
-            "raw_footer_custom_hex": profile.raw_footer_custom_hex,
+            "raw_header_template": profile.raw_header_template,
+            "raw_footer_template": profile.raw_footer_template,
+            "raw_paper_width_dots": profile.raw_paper_width_dots,
+            "raw_chars_per_line": profile.raw_chars_per_line,
         }
 
     def _server_by_id(self, server_id: str) -> ServerConfig | None:
