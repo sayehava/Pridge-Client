@@ -351,6 +351,15 @@ class ClientApi:
             height=720,
         )
 
+    def open_plugin_settings_window(self, settings_window: str) -> dict:
+        openers = {
+            "app_mapping": self.open_app_mapping_window,
+        }
+        opener = openers.get(str(settings_window))
+        if opener is None:
+            return self._error("This plugin does not have a settings window.")
+        return opener()
+
     def close_utility_window(self, key: str) -> dict:
         window = self._utility_windows.pop(str(key), None)
         if window is not None:
@@ -837,7 +846,8 @@ class ClientApi:
                 "category": entry.category,
                 "load_error": entry.load_error,
                 "source_path": entry.source_path,
-                "has_settings": entry.plugin.plugin_id == self.printer_manager.app_mapping_plugin.plugin_id,
+                "settings_window": getattr(entry.plugin, "settings_window", ""),
+                "has_settings": bool(getattr(entry.plugin, "settings_window", "")),
             }
             for entry in entries_sorted
         ]
