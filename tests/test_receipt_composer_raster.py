@@ -85,6 +85,21 @@ class RasterConversionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             image_to_escpos_raster(b"not an image", target_width_dots=8)
 
+    def test_extreme_aspect_ratio_raises_instead_of_producing_a_runaway_print(self) -> None:
+        # A narrow-but-very-tall source resized up to a normal receipt width
+        # would otherwise stretch to an enormous height - this must be
+        # rejected rather than silently emitting a multi-meter-long print.
+        tall_image = _png_bytes(10, 5000)
+
+        with self.assertRaises(ValueError):
+            image_to_escpos_raster(tall_image, target_width_dots=384)
+
+    def test_a_reasonably_tall_image_is_still_accepted(self) -> None:
+        result = image_to_escpos_raster(_png_bytes(384, 1900), target_width_dots=384)
+
+        height = int.from_bytes(result[6:8], "little")
+        self.assertEqual(height, 1900)
+
 
 if __name__ == "__main__":
     unittest.main()
