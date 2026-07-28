@@ -58,6 +58,8 @@ class ServerConfig:
 class LoggingConfig:
     level: str = "INFO"
     file_enabled: bool = True
+    retention_days: int = 14
+    directory: str = ""
 
 
 @dataclass
@@ -140,6 +142,8 @@ class ConfigStore:
             logging=LoggingConfig(
                 level=str(logging_raw.get("level", "INFO")),
                 file_enabled=bool(logging_raw.get("file_enabled", True)),
+                retention_days=_positive_int(logging_raw.get("retention_days", 14), 14),
+                directory=str(logging_raw.get("directory", "")),
             ),
             appearance=AppearanceConfig(
                 darkness_grade=_appearance_grade(appearance_raw),
