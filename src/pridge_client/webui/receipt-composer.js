@@ -74,6 +74,8 @@
         return { kind: "feed", lines: arg ? parseInt(arg, 10) || 4 : 4 };
       case "hex":
         return { kind: "hex", value: arg || "" };
+      case "dec":
+        return { kind: "dec", value: arg || "" };
       default:
         return { kind: "raw", value: full };
     }
@@ -129,6 +131,8 @@
         return `[feed:${block.lines || 4}]`;
       case "hex":
         return `[hex:${block.value || ""}]`;
+      case "dec":
+        return `[dec:${block.value || ""}]`;
       case "raw":
         return block.value || "";
       default:
@@ -182,6 +186,8 @@
         return { kind: "feed", lines: 4 };
       case "hex":
         return { kind: "hex", value: "" };
+      case "dec":
+        return { kind: "dec", value: "" };
       case "text":
       default:
         return { kind: "text", value: "" };
@@ -205,6 +211,7 @@
     "drawer",
     "feed",
     "hex",
+    "dec",
   ];
 
   function blockKindLabel(kind) {
@@ -226,6 +233,7 @@
         drawer: S.receipt_block_drawer,
         feed: S.receipt_block_feed,
         hex: S.receipt_block_hex,
+        dec: S.receipt_block_dec,
         raw: S.receipt_block_raw,
       }[kind] || kind
     );
@@ -427,6 +435,13 @@
           onInput=${(e) => onChange({ value: e.target.value })}
           placeholder="1D 56 00"
         />`;
+      case "dec":
+        return html`<input
+          type="text"
+          value=${block.value}
+          onInput=${(e) => onChange({ value: e.target.value })}
+          placeholder="29 86 0"
+        />`;
       case "raw":
         return html`<input type="text" value=${block.value} disabled />`;
       default:
@@ -436,6 +451,12 @@
 
   function BlockEditor({ title, blocks, onChange, images, draggingId, setDraggingId, previewLines }) {
     const [newKind, setNewKind] = useState("text");
+    const [viewMode, setViewMode] = useState("blocks");
+    const [textDraft, setTextDraft] = useState(() => serializeBlocks(blocks));
+
+    useEffect(() => {
+      if (viewMode !== "text") setTextDraft(serializeBlocks(blocks));
+    }, [blocks, viewMode]);
 
     const updateBlock = (id, patch) => {
       onChange(blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)));
@@ -451,56 +472,89 @@
       onChange(moveItem(blocks, draggingId, targetIndex));
       setDraggingId(null);
     };
+    const updateTextDraft = (value) => {
+      setTextDraft(value);
+      onChange(parseTemplate(value).map((b) => ({ id: uid(), ...b })));
+    };
 
     return html`
       <div class="receipt-editor-block">
-        <h3>${title}</h3>
-        <div
-          class="receipt-block-list"
-          onDragOver=${(event) => event.preventDefault()}
-          onDrop=${(event) => {
-            event.preventDefault();
-            dropAt(Math.max(0, blocks.length - 1));
-          }}
-        >
-          ${blocks.length === 0 ? html`<p class="hint-text">${S.receipt_no_blocks}</p>` : null}
-          ${blocks.map(
-            (block, index) => html`
+        <div class="receipt-editor-heading-row">
+          <h3>${title}</h3>
+          <div class="receipt-view-toggle">
+            <button
+              type="button"
+              class=${viewMode === "blocks" ? "active" : ""}
+              onClick=${() => setViewMode("blocks")}
+            >
+              ${S.receipt_view_blocks}
+            </button>
+            <button
+              type="button"
+              class=${viewMode === "text" ? "active" : ""}
+              onClick=${() => setViewMode("text")}
+            >
+              ${S.receipt_view_text}
+            </button>
+          </div>
+        </div>
+        ${viewMode === "text"
+          ? html`
+              <textarea
+                class="receipt-text-editor"
+                value=${textDraft}
+                onInput=${(e) => updateTextDraft(e.target.value)}
+              ></textarea>
+              <p class="field-hint">${S.receipt_text_edit_hint}</p>
+            `
+          : html`
               <div
-                class=${"receipt-block-row" + (draggingId === block.id ? " receipt-block-row-dragging" : "")}
-                key=${block.id}
+                class="receipt-block-list"
                 onDragOver=${(event) => event.preventDefault()}
                 onDrop=${(event) => {
                   event.preventDefault();
-                  event.stopPropagation();
-                  dropAt(index);
+                  dropAt(Math.max(0, blocks.length - 1));
                 }}
               >
-                <span
-                  class="widget-drag-handle"
-                  draggable="true"
-                  title=${S.drag_to_reorder}
-                  onDragStart=${(event) => {
-                    event.dataTransfer.effectAllowed = "move";
-                    setDraggingId(block.id);
-                  }}
-                  onDragEnd=${() => setDraggingId(null)}
-                >⋮⋮</span>
-                <span class="receipt-block-kind-label">${blockKindLabel(block.kind)}</span>
-                <div class="receipt-block-controls">
-                  <${BlockControls} block=${block} images=${images} onChange=${(patch) => updateBlock(block.id, patch)} />
-                </div>
-                <button class="btn-danger-small" onClick=${() => removeBlock(block.id)}>${S.receipt_remove_block}</button>
+                ${blocks.length === 0 ? html`<p class="hint-text">${S.receipt_no_blocks}</p>` : null}
+                ${blocks.map(
+                  (block, index) => html`
+                    <div
+                      class=${"receipt-block-row" + (draggingId === block.id ? " receipt-block-row-dragging" : "")}
+                      key=${block.id}
+                      onDragOver=${(event) => event.preventDefault()}
+                      onDrop=${(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        dropAt(index);
+                      }}
+                    >
+                      <span
+                        class="widget-drag-handle"
+                        draggable="true"
+                        title=${S.drag_to_reorder}
+                        onDragStart=${(event) => {
+                          event.dataTransfer.effectAllowed = "move";
+                          setDraggingId(block.id);
+                        }}
+                        onDragEnd=${() => setDraggingId(null)}
+                      >⋮⋮</span>
+                      <span class="receipt-block-kind-label">${blockKindLabel(block.kind)}</span>
+                      <div class="receipt-block-controls">
+                        <${BlockControls} block=${block} images=${images} onChange=${(patch) => updateBlock(block.id, patch)} />
+                      </div>
+                      <button class="btn-danger-small" onClick=${() => removeBlock(block.id)}>${S.receipt_remove_block}</button>
+                    </div>
+                  `
+                )}
               </div>
-            `
-          )}
-        </div>
-        <div class="receipt-add-block-row">
-          <select value=${newKind} onChange=${(e) => setNewKind(e.target.value)}>
-            ${ADD_BLOCK_KINDS.map((kind) => html`<option value=${kind}>${blockKindLabel(kind)}</option>`)}
-          </select>
-          <button class="btn-secondary" onClick=${addBlock}>${S.receipt_add_block}</button>
-        </div>
+              <div class="receipt-add-block-row">
+                <select value=${newKind} onChange=${(e) => setNewKind(e.target.value)}>
+                  ${ADD_BLOCK_KINDS.map((kind) => html`<option value=${kind}>${blockKindLabel(kind)}</option>`)}
+                </select>
+                <button class="btn-secondary" onClick=${addBlock}>${S.receipt_add_block}</button>
+              </div>
+            `}
         <h3>${S.receipt_preview}</h3>
         <div class="receipt-preview-panel">
           <${PreviewLines} lines=${previewLines} images=${images} />
@@ -724,6 +778,7 @@
                   </div>
 
                   <${BlockEditor}
+                    key=${selectedPrinter + "-header"}
                     title=${S.receipt_header}
                     blocks=${headerBlocks}
                     onChange=${setHeaderBlocks}
@@ -733,6 +788,7 @@
                     previewLines=${headerPreview}
                   />
                   <${BlockEditor}
+                    key=${selectedPrinter + "-footer"}
                     title=${S.receipt_footer}
                     blocks=${footerBlocks}
                     onChange=${setFooterBlocks}
