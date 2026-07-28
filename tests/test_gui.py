@@ -794,6 +794,24 @@ class ClientApiTests(unittest.TestCase):
         ordered = [p["plugin_id"] for p in sorted(result["plugins"], key=lambda p: p["priority"])]
         self.assertEqual(ordered, ["builtin.three", "builtin.one", "builtin.two"])
 
+    def test_reorder_renderer_plugin_is_scoped_to_its_category(self):
+        manager = FakePluginPrinterManager()
+        manager.renderer_registry.register(
+            FakeRendererPlugin("r1"), priority=20, is_builtin=True, category="Renderer"
+        )
+        manager.renderer_registry.register(
+            FakeRendererPlugin("m1"), priority=25, is_builtin=True, category="Mapper"
+        )
+        manager.renderer_registry.register(
+            FakeRendererPlugin("r2"), priority=30, is_builtin=True, category="Renderer"
+        )
+        self.api.printer_manager = manager
+
+        result = self.api.reorder_renderer_plugin("r2", 0, category="Renderer")
+
+        ordered = [p["plugin_id"] for p in sorted(result["plugins"], key=lambda p: p["priority"])]
+        self.assertEqual(ordered, ["builtin.one", "r2", "m1", "r1"])
+
     def test_reorder_renderer_plugin_with_an_unknown_id_is_a_no_op(self):
         manager = FakePluginPrinterManager()
         self.api.printer_manager = manager
