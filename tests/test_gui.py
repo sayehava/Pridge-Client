@@ -189,7 +189,12 @@ class ClientApiTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(
             result["profile"],
-            {"mode": "system_driver", "driver_settings": {"PageSize": "A4"}, "submission_method": ""},
+            {
+                "mode": "system_driver",
+                "driver_settings": {"PageSize": "A4"},
+                "submission_method": "",
+                "fit_mode": "fit",
+            },
         )
         self.assertEqual(self.api.config_store.load().printer_profiles["Office Driver"].mode, "system_driver")
 
@@ -305,6 +310,7 @@ class ClientApiTests(unittest.TestCase):
             mode="system_driver",
             driver_settings={},
             submission_method=None,
+            fit_mode="fit",
         )
 
     def test_successful_test_print_increments_the_printer_test_success_count(self):
