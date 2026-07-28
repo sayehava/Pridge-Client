@@ -77,6 +77,90 @@
     `;
   }
 
+  const SERVER_STATUS_ROTATE_MS = 6000;
+
+  function trackedServers(widget, servers) {
+    const ids = Array.isArray(widget.config && widget.config.server_ids) ? widget.config.server_ids : [];
+    return ids.map((id) => servers.find((server) => server.id === id)).filter(Boolean);
+  }
+
+  function isServerErrored(server) {
+    return !!server && typeof server.status === "string" && server.status.indexOf("Retrying after error") === 0;
+  }
+
+  function formatHeartbeat(iso) {
+    if (!iso) return S.server_status_no_heartbeat;
+    const date = new Date(iso);
+    return Number.isNaN(date.getTime()) ? S.server_status_no_heartbeat : date.toLocaleTimeString();
+  }
+
+  function ServerStatusWidget({ widget, servers }) {
+    const tracked = trackedServers(widget, servers);
+    const [pageIndex, setPageIndex] = useState(0);
+    const alertedServerId = useRef(null);
+    const currentPage = tracked.length > 0 ? Math.min(pageIndex, tracked.length - 1) : 0;
+    const current = tracked[currentPage] || null;
+
+    useEffect(() => {
+      if (tracked.length === 0) return;
+      const erroredIndex = tracked.findIndex(isServerErrored);
+      if (erroredIndex === -1) {
+        alertedServerId.current = null;
+        return;
+      }
+      if (alertedServerId.current !== tracked[erroredIndex].id) {
+        alertedServerId.current = tracked[erroredIndex].id;
+        setPageIndex(erroredIndex);
+      }
+    }, [tracked]);
+
+    useEffect(() => {
+      if (!widget.config || !widget.config.auto_rotate || tracked.length < 2) return undefined;
+      const id = window.setInterval(() => {
+        setPageIndex((current) => (current + 1) % tracked.length);
+      }, SERVER_STATUS_ROTATE_MS);
+      return () => window.clearInterval(id);
+    }, [widget.config && widget.config.auto_rotate, tracked.length]);
+
+    if (tracked.length === 0) {
+      return html`
+        <div class="widget-server-status-empty">
+          <strong>${S.server_status_none_selected}</strong>
+          <span>${S.server_status_none_selected_hint}</span>
+        </div>
+      `;
+    }
+
+    return html`
+      <div class="widget-server-status">
+        <div class="widget-server-status-item">
+          <div class="widget-server-status-heading">
+            <span class="server-name">${current.name}</span>
+            <${Badge} text=${current.status} active=${current.running} />
+          </div>
+          <div class="widget-server-status-meta">
+            <span>${S.server_status_heartbeat}: ${formatHeartbeat(current.last_heartbeat_at)}</span>
+            <span>${S.server_status_polling_every.replace("{seconds}", current.polling_interval_seconds)}</span>
+          </div>
+        </div>
+        ${tracked.length > 1
+          ? html`<div class="widget-server-status-dots">
+              ${tracked.map(
+                (server, index) => html`
+                  <button
+                    class=${"widget-server-status-dot" + (index === currentPage ? " active" : "") + (isServerErrored(server) ? " alert" : "")}
+                    key=${server.id}
+                    aria-label=${server.name}
+                    onClick=${() => setPageIndex(index)}
+                  />
+                `
+              )}
+            </div>`
+          : null}
+      </div>
+    `;
+  }
+
   function LogsPanel({ logs }) {
     const panelRef = useRef(null);
     useEffect(() => {
@@ -91,9 +175,10 @@
         </div>`;
   }
 
-  function WidgetCard({ widget, recentJobs, logs, printerDetails, onRemove, isDragging, onDragStart, onDragEnd, onDropOn }) {
+  function WidgetCard({ widget, recentJobs, logs, printerDetails, servers, onRemove, isDragging, onDragStart, onDragEnd, onDropOn }) {
     const containerId = `pridge-widget-${widget.id}`;
     const scriptLoaded = useRef(false);
+    const hasAlert = widget.widget_type === "server_status" && trackedServers(widget, servers).some(isServerErrored);
 
     useEffect(() => {
       if (widget.source !== "plugin" || !widget.script_source || scriptLoaded.current) return;
@@ -137,13 +222,15 @@
               `
             )}
           </div>`;
+    } else if (widget.widget_type === "server_status") {
+      body = html`<${ServerStatusWidget} widget=${widget} servers=${servers} />`;
     } else {
       body = html`<div id=${containerId} class="widget-plugin-mount"></div>`;
     }
 
     return html`
       <div
-        class=${"card widget-card" + (isDragging ? " widget-card-dragging" : "")}
+        class=${"card widget-card" + (isDragging ? " widget-card-dragging" : "") + (hasAlert ? " widget-server-alert" : "")}
         onDragOver=${(event) => event.preventDefault()}
         onDrop=${(event) => {
           event.preventDefault();
@@ -197,7 +284,7 @@
     `;
   }
 
-  function WidgetArea({ recentJobs, logs, printerDetails }) {
+  function WidgetArea({ recentJobs, logs, printerDetails, servers }) {
     const [layout, setLayout] = useState(null);
     const [pageIndex, setPageIndex] = useState(0);
     const [showPicker, setShowPicker] = useState(false);
@@ -264,6 +351,7 @@
                 recentJobs=${recentJobs}
                 logs=${logs}
                 printerDetails=${printerDetails}
+                servers=${servers}
                 onRemove=${() => removeWidget(widget.id)}
                 isDragging=${draggingId === widget.id}
                 onDragStart=${() => setDraggingId(widget.id)}
@@ -343,7 +431,12 @@
             onStart=${() => callApi("start_workers").then(applyResult)}
             onStop=${() => callApi("stop_workers").then(applyResult)}
           />
-          <${WidgetArea} recentJobs=${state.recent_jobs} logs=${state.logs} printerDetails=${state.printer_details} />
+          <${WidgetArea}
+            recentJobs=${state.recent_jobs}
+            logs=${state.logs}
+            printerDetails=${state.printer_details}
+            servers=${state.servers}
+          />
         </div>
         ${error ? html`<div class="toast">${error}</div>` : null}
       </div>
