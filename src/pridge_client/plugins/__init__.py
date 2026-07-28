@@ -7,7 +7,6 @@ from __future__ import annotations
 from pridge_client.plugins.installer import PluginInstallError, install_renderer_plugin, remove_renderer_plugin
 from pridge_client.plugins.manifest import (
     MANIFEST_FILE_NAME,
-    SUPPORTED_PLUGIN_CATEGORIES,
     ManifestError,
     PluginManifest,
     load_manifest,
@@ -15,7 +14,6 @@ from pridge_client.plugins.manifest import (
 
 __all__ = [
     "MANIFEST_FILE_NAME",
-    "SUPPORTED_PLUGIN_CATEGORIES",
     "ManifestError",
     "PluginInstallError",
     "PluginManifest",
