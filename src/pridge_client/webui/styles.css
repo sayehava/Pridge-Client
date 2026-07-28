@@ -2117,6 +2117,30 @@ button.stone-option.selected {
   opacity: 0.45;
 }
 
+.receipt-block-drop-before {
+  box-shadow: 0 -3px 0 0 var(--accent-bright);
+}
+
+.receipt-block-drop-after {
+  box-shadow: 0 3px 0 0 var(--accent-bright);
+}
+
+.receipt-block-drop-end {
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px dashed var(--border-bright);
+  border-radius: var(--radius-control);
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.receipt-block-drop-end-active {
+  border-color: var(--accent-bright);
+  color: var(--accent-bright);
+  background: var(--card-highlight);
+}
+
 .receipt-block-kind-label {
   flex: 0 0 auto;
   min-width: 78px;
