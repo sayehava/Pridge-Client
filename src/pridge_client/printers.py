@@ -72,6 +72,29 @@ def _page_size_for_option(value_id: str) -> tuple[float, float] | None:
     return None
 
 
+_RAW_MACRO_BYTES: dict[str, bytes] = {
+    "full_cut": b"\x1d\x56\x00",
+    "partial_cut": b"\x1d\x56\x01",
+    "open_drawer": b"\x1b\x70\x00\x19\xfa",
+    "feed": b"\x1b\x64\x04",
+}
+
+
+def _resolve_raw_macro(preset: str, custom_hex: str) -> bytes:
+    """Resolve a RAW header/footer preset (or a custom hex string) to the
+    literal bytes to prepend/append around a RAW print payload. Unknown
+    presets and malformed custom hex both resolve to empty bytes rather than
+    raising, so a bad setting never blocks an otherwise-valid print job.
+    """
+    if preset == "custom":
+        cleaned = re.sub(r"[\s:-]", "", custom_hex)
+        try:
+            return bytes.fromhex(cleaned)
+        except ValueError:
+            return b""
+    return _RAW_MACRO_BYTES.get(preset, b"")
+
+
 class PrinterError(RuntimeError):
     pass
 
@@ -183,6 +206,10 @@ class PrinterManager:
         submission_method: str | None = None,
         explicit_renderer: str | None = None,
         fit_mode: str = "fit",
+        raw_header_preset: str = "",
+        raw_header_custom_hex: str = "",
+        raw_footer_preset: str = "",
+        raw_footer_custom_hex: str = "",
     ) -> None:
         from pridge_client.renderers.base import RenderError, RenderOptions
 
@@ -192,8 +219,10 @@ class PrinterManager:
             raise PrinterError("Print payload is empty.")
 
         if mode == "raw":
+            header = _resolve_raw_macro(raw_header_preset, raw_header_custom_hex)
+            footer = _resolve_raw_macro(raw_footer_preset, raw_footer_custom_hex)
             logger.info("Sending raw job to printer %s", printer_name)
-            self.backend.print_raw(printer_name, data, job_name)
+            self.backend.print_raw(printer_name, header + data + footer, job_name)
             return
         if mode != "system_driver":
             raise PrinterError("The configured printing mode is not supported.")
