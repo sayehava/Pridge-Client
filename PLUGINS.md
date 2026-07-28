@@ -1,10 +1,14 @@
 # Writing a Pridge Client Plugin
 
 Pridge Client's plugin system is not limited to printing: the manifest format
-and install mechanism are generic, and "renderer" (a plugin that converts a
-document into PDF for System Driver printing) is the first supported plugin
-category. This document covers renderer plugins, the only category shipped
-today.
+and install mechanism are generic. Every plugin installed today still uses
+the renderer contract described below (it converts a document into PDF for
+System Driver printing), but `category` is a free-form label you choose
+yourself, purely for how the Plugins window groups and displays plugins — it
+is not a fixed enum. Pridge Client's own built-in plugins use `"Renderer"`
+(the PDF/Image/Text/SVG plugins) and `"Mapper"` (the External Application
+Mapper), but a third-party plugin can declare any category name, e.g.
+`"BingiBongo"`, and it will get its own tab in the Plugins window.
 
 ## How discovery works
 
@@ -57,7 +61,7 @@ my-plugin/
 | `name` | yes | Display name shown in the Plugins window. |
 | `version` | no | Your plugin's own version string. Defaults to `0.0.0`. |
 | `api_version` | yes | Must equal the renderer API version Pridge Client supports (currently `1`). A mismatch is rejected with a clear error, not a crash. |
-| `category` | yes | Only `"renderer"` is supported today. |
+| `category` | yes | Any non-empty label you choose. Controls which tab your plugin appears under in the Plugins window; it does not affect how the plugin is loaded or used. |
 | `entry_point` | yes | `module:ClassName`, where `module.py` sits next to `manifest.json`. |
 | `supported_mime_types` | no | Used during renderer selection. |
 | `supported_extensions` | no | Used during renderer selection. |
