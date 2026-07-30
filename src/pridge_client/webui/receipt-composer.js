@@ -830,22 +830,12 @@
       });
     };
 
-    useEffect(() => {
-      whenApiReady(() => {
-        callApi("get_state").then((result) => {
-          if (!result) return;
-          if (result.state.appearance) {
-            document.documentElement.dataset.darkness = (result.state.appearance.darkness_grade || "Onyx").toLowerCase();
-          }
-          setMappings(flattenMappings(result.state.servers));
-        });
-        refreshImages();
-      });
-    }, []);
-
-    const selectMapping = (event) => {
-      const value = event.target.value;
-      if (value === "") {
+    // Selecting by index (not by the mapping object itself) so this can be
+    // driven either by the <select>'s onChange (index as a string) or by the
+    // pending-selection deep link below (index resolved by matching ids).
+    const selectMappingAt = (index) => {
+      const mapping = mappings[index];
+      if (!mapping) {
         setSelectedIndex("");
         setDesign(null);
         setPrinterMode("");
@@ -854,9 +844,7 @@
         setCounters({});
         return;
       }
-      setSelectedIndex(value);
-      const mapping = mappings[parseInt(value, 10)];
-      if (!mapping) return;
+      setSelectedIndex(String(index));
       callApi("get_mapping_receipt_design", mapping.serverId, mapping.remotePrinterId).then((result) => {
         if (!result || !result.ok) return;
         skipNextSave.current = true;
@@ -867,6 +855,59 @@
         refreshCounters(mapping);
       });
     };
+
+    const selectMapping = (event) => {
+      const value = event.target.value;
+      if (value === "") {
+        selectMappingAt(-1);
+        return;
+      }
+      selectMappingAt(parseInt(value, 10));
+    };
+
+    // Opening the Composer window scoped to one specific mapping (the
+    // dashboard widget's edit-pencil button) works by having gui.py stash a
+    // (server_id, remote_printer_id) pair that this checks for once on
+    // mount. `mappingList` is passed explicitly rather than read off the
+    // `mappings` state variable, since right after get_state resolves at
+    // mount time that state hasn't committed yet.
+    const applyPendingSelection = (mappingList) => {
+      callApi("get_pending_receipt_selection").then((result) => {
+        if (!result || !result.ok || !result.server_id || !result.remote_printer_id) return;
+        const index = mappingList.findIndex(
+          (mapping) => mapping.serverId === result.server_id && mapping.remotePrinterId === result.remote_printer_id
+        );
+        if (index !== -1) selectMappingAt(index);
+      });
+    };
+
+    useEffect(() => {
+      whenApiReady(() => {
+        callApi("get_state").then((result) => {
+          if (!result) return;
+          if (result.state.appearance) {
+            document.documentElement.dataset.darkness = (result.state.appearance.darkness_grade || "Onyx").toLowerCase();
+          }
+          const mappingList = flattenMappings(result.state.servers);
+          setMappings(mappingList);
+          applyPendingSelection(mappingList);
+        });
+        refreshImages();
+      });
+    }, []);
+
+    // Re-checks the pending selection when the Composer window was already
+    // open (open_receipt_composer_window's evaluate_js nudge calls this) -
+    // the mount-time effect above only ever runs once per window lifetime,
+    // so a second "Edit" click while the window is still open needs this
+    // separate hook back in.
+    useEffect(() => {
+      window.__pridgeApplyPendingReceiptSelection = () => applyPendingSelection(mappings);
+      return () => {
+        delete window.__pridgeApplyPendingReceiptSelection;
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mappings]);
 
     const testMapping = () => {
       if (!selectedMapping) return;
