@@ -284,6 +284,37 @@ class WorkerReceiptMappingScopeTests(unittest.TestCase):
         self.assertEqual(kwargs["raw_template"], "")
         self.assertEqual(kwargs["receipt_scope_key"], "")
 
+    def test_disabled_composer_sends_a_blank_template_even_though_a_design_is_saved(self) -> None:
+        server = ServerConfig(
+            id="office",
+            printer_mappings=[
+                PrinterMapping(
+                    remote_printer_id="kitchen-1",
+                    local_printer_name="Kitchen Printer",
+                    raw_template="[bold]Kitchen[/bold][body][cut:full]",
+                    composer_enabled=False,
+                )
+            ],
+        )
+        config = ClientConfig(server_url="https://example.test", servers=[server])
+        printer_manager = Mock()
+        client = Mock()
+        worker = PollingWorker(config, "token", printer_manager=printer_manager)
+        job = ReservedJob(
+            job_id="42",
+            payload_base64="JVBERg==",
+            content_type="application/pdf",
+            remote_printer_id="kitchen-1",
+        )
+
+        worker._process_job(client, job)
+
+        _args, kwargs = printer_manager.print_job.call_args
+        self.assertEqual(kwargs["raw_template"], "")
+        # Scope key is still set (counters/preview scoping is unrelated to
+        # whether the design is currently applied to real jobs).
+        self.assertEqual(kwargs["receipt_scope_key"], "office::kitchen-1")
+
 
 class WorkerStatusRecoveryTests(unittest.TestCase):
     @patch("pridge_client.worker.PridgeClient")
