@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 from pridge_client.api import RemotePrinter
 from pridge_client.config import ConfigStore
 from pridge_client.gui import APP_ICON_PATH, ClientApi, _shutdown_smoke_test, _webview_start_icon, _window_effects
+from pridge_client.logging_setup import ERROR_LOGGER_NAME
 from pridge_client.models import JobHistoryEntry
 from pridge_client.printers import DriverChoice, DriverOption, Printer, PrinterCapabilities, PrinterError
 
@@ -21,6 +22,14 @@ def _restore_root_handlers(previous_handlers):
         if handler not in previous_handlers:
             handler.close()
     root.handlers = previous_handlers
+
+
+def _restore_error_handlers(previous_handlers):
+    error_logger = logging.getLogger(ERROR_LOGGER_NAME)
+    for handler in error_logger.handlers:
+        if handler not in previous_handlers:
+            handler.close()
+    error_logger.handlers = previous_handlers
 
 
 class MemoryTokenStore:
@@ -132,17 +141,37 @@ class FakeWindow:
 class ClientApiTests(unittest.TestCase):
     def setUp(self):
         self.previous_handlers = list(logging.getLogger().handlers)
+        self.previous_error_handlers = list(logging.getLogger(ERROR_LOGGER_NAME).handlers)
         self.temporary_directory = tempfile.TemporaryDirectory()
-        config_path = Path(self.temporary_directory.name) / "config.json"
+        self.config_path = Path(self.temporary_directory.name) / "config.json"
         self.api = ClientApi(
-            config_store=ConfigStore(config_path),
+            config_store=ConfigStore(self.config_path),
             token_store=MemoryTokenStore(),
             printer_manager=NoPrinters(),
         )
 
     def tearDown(self):
         _restore_root_handlers(self.previous_handlers)
+        _restore_error_handlers(self.previous_error_handlers)
         self.temporary_directory.cleanup()
+
+    def test_printer_stats_survive_a_restart_but_session_counts_reset(self):
+        self.api._bump_printer_stat("Receipt Printer", origin="test", success=True)
+        self.api._bump_printer_stat("Receipt Printer", origin="test", success=False)
+        self.api._bump_printer_stat("Receipt Printer", origin="remote", success=True)
+
+        self.assertEqual(self.api.printer_stats["Receipt Printer"]["test"], {"success": 1, "failed": 1})
+        self.assertEqual(self.api.printer_stats_session["Receipt Printer"]["test"], {"success": 1, "failed": 1})
+
+        restarted = ClientApi(
+            config_store=ConfigStore(self.config_path),
+            token_store=MemoryTokenStore(),
+            printer_manager=NoPrinters(),
+        )
+
+        self.assertEqual(restarted.printer_stats["Receipt Printer"]["test"], {"success": 1, "failed": 1})
+        self.assertEqual(restarted.printer_stats["Receipt Printer"]["remote"], {"success": 1, "failed": 0})
+        self.assertEqual(restarted.printer_stats_session, {})
 
     @patch("pridge_client.gui.PridgeClient")
     def test_adds_multiple_server_profiles(self, _client_class):
@@ -744,6 +773,50 @@ class ClientApiTests(unittest.TestCase):
 
         self.assertFalse(result["ok"])
 
+    def test_export_error_log_reports_an_error_when_no_error_log_file_exists_yet(self):
+        log_dir = Path(self.temporary_directory.name) / "empty-error-logs"
+        log_dir.mkdir()
+        self.api._window = Mock()
+        self.api.config.logging.directory = str(log_dir)
+
+        result = self.api.export_error_log()
+
+        self.assertFalse(result["ok"])
+
+    def test_export_error_log_writes_the_error_log_file(self):
+        log_dir = Path(self.temporary_directory.name) / "error-logs"
+        log_dir.mkdir()
+        (log_dir / "errors.log").write_text("2026-07-21 10:00:00 ERROR x: boom\n", encoding="utf-8")
+        destination = Path(self.temporary_directory.name) / "exported-errors.log"
+        window = Mock()
+        window.create_file_dialog.return_value = (str(destination),)
+        self.api._window = window
+        self.api.config.logging.directory = str(log_dir)
+
+        result = self.api.export_error_log()
+
+        self.assertTrue(result["ok"])
+        self.assertIn("boom", destination.read_text(encoding="utf-8"))
+
+    def test_clear_error_log_reports_an_error_when_file_logging_is_disabled(self):
+        result = self.api.clear_error_log()
+
+        self.assertFalse(result["ok"])
+
+    def test_log_detailed_error_populates_error_details_but_not_the_main_logs(self):
+        from pridge_client.logging_setup import log_detailed_error
+
+        before_logs = list(self.api.logs)
+        try:
+            raise ValueError("driver rejected the job")
+        except ValueError as exc:
+            log_detailed_error("Job 1 failed", exc)
+        self.api._drain_events()
+
+        self.assertEqual(self.api.logs, before_logs)
+        self.assertTrue(any("Job 1 failed" in entry for entry in self.api.error_details))
+        self.assertTrue(any("Traceback" in entry for entry in self.api.error_details))
+
     def test_choose_log_directory_returns_the_selected_path(self):
         chosen = Path(self.temporary_directory.name) / "chosen-logs"
         window = Mock()
@@ -1330,7 +1403,7 @@ class DashboardWidgetTests(unittest.TestCase):
         self.assertEqual([w["widget_type"] for w in result["pages"][0]], ["recent_jobs", "logs"])
         self.assertEqual(
             {item["type"] for item in result["catalog"]},
-            {"recent_jobs", "logs", "printer_stats", "server_status", "receipt_composer_items"},
+            {"recent_jobs", "logs", "error_log", "printer_stats", "server_status", "receipt_composer_items"},
         )
 
     def test_add_widget_rejects_an_unknown_type(self):
@@ -1437,7 +1510,7 @@ class DashboardWidgetTests(unittest.TestCase):
 
         self.assertEqual(
             [item["source"] for item in result["catalog"]],
-            ["builtin", "builtin", "builtin", "builtin", "builtin"],
+            ["builtin", "builtin", "builtin", "builtin", "builtin", "builtin"],
         )
 
     def test_catalog_includes_receipt_composer_widget_with_a_category(self):
