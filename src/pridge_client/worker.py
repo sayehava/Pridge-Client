@@ -131,7 +131,10 @@ class PollingWorker:
             # whichever local printer that mapping happens to target today -
             # a job with no matching mapping (default_printer/legacy fallback)
             # simply gets no template, since there's no mapping for it to have
-            # a Composer entry in the first place.
+            # a Composer entry in the first place. A mapping can also have its
+            # design explicitly turned off (composer_enabled=False) to print
+            # the server's original data unmodified without losing the design.
+            composer_active = bool(mapping and mapping.composer_enabled)
             receipt_scope_key = mapping_scope_key(server.id, mapping.remote_printer_id) if server and mapping else ""
             for copy_number in range(job.copies):
                 logger.info("Printing job %s copy %s of %s", job.job_id, copy_number + 1, job.copies)
@@ -146,7 +149,7 @@ class PollingWorker:
                     submission_method=submission_method,
                     explicit_renderer=job.renderer or None,
                     fit_mode=profile.fit_mode,
-                    raw_template=mapping.raw_template if mapping else "",
+                    raw_template=mapping.raw_template if composer_active else "",
                     raw_paper_width_dots=mapping.raw_paper_width_dots if mapping else 384,
                     raw_chars_per_line=mapping.raw_chars_per_line if mapping else 32,
                     receipt_scope_key=receipt_scope_key,
