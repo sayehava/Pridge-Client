@@ -48,6 +48,26 @@
     `;
   }
 
+  function ClearErrorLogConfirm({ onCancel, onConfirm }) {
+    return html`
+      <div class="modal-backdrop" role="presentation" onMouseDown=${(event) => {
+        if (event.target === event.currentTarget) onCancel();
+      }}>
+        <div class="confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="clear-error-log-title" aria-describedby="clear-error-log-message">
+          <img class="confirm-app-icon" src="assets/Icon.png" alt="" />
+          <div class="confirm-copy">
+            <h2 id="clear-error-log-title">${S.clear_error_log_confirm_title}</h2>
+            <p id="clear-error-log-message">${S.clear_error_log_confirm_message}</p>
+          </div>
+          <div class="confirm-actions">
+            <button autoFocus=${true} onClick=${onCancel}>${S.cancel}</button>
+            <button class="danger" onClick=${onConfirm}>${S.clear}</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function Settings() {
     const [form, setForm] = useState(null);
     const [message, setMessage] = useState("");
@@ -57,6 +77,9 @@
     const [choosingFolder, setChoosingFolder] = useState(false);
     const [clearing, setClearing] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
+    const [exportingErrors, setExportingErrors] = useState(false);
+    const [clearingErrors, setClearingErrors] = useState(false);
+    const [showClearErrorConfirm, setShowClearErrorConfirm] = useState(false);
     const saveSequence = useRef(0);
 
     useEffect(() => {
@@ -122,6 +145,27 @@
         setExporting(false);
         if (!result) return;
         setMessage(result.ok ? S.log_exported : (result.error || S.log_export_failed));
+      });
+    };
+
+    const clearErrorLog = () => {
+      setShowClearErrorConfirm(false);
+      setClearingErrors(true);
+      setMessage(S.clearing_error_log);
+      callApi("clear_error_log").then((result) => {
+        setClearingErrors(false);
+        if (!result) return;
+        setMessage(result.ok ? S.error_log_cleared : (result.error || S.no_error_log_to_clear));
+      });
+    };
+
+    const exportErrorLog = () => {
+      setExportingErrors(true);
+      setMessage(S.exporting_error_log);
+      callApi("export_error_log", exportFrom, exportTo).then((result) => {
+        setExportingErrors(false);
+        if (!result) return;
+        setMessage(result.ok ? S.error_log_exported : (result.error || S.error_log_export_failed));
       });
     };
 
@@ -218,10 +262,25 @@
                 <input id="export-log-to" type="date" value=${exportTo} onChange=${(event) => setExportTo(event.target.value)} />
               </div>
             </div>
+            <div class="setting-row">
+              <div class="setting-copy"><strong>${S.clear_error_log}</strong><small>${S.clear_error_log_hint}</small></div>
+              <button class="danger" onClick=${() => setShowClearErrorConfirm(true)} disabled=${clearingErrors}>
+                ${clearingErrors ? S.clearing_error_log : S.clear_error_log}
+              </button>
+            </div>
+            <div class="setting-row">
+              <div class="setting-copy"><strong>${S.export_error_log}</strong><small>${S.export_error_log_hint}</small></div>
+              <button onClick=${exportErrorLog} disabled=${exportingErrors}>
+                ${exportingErrors ? S.exporting_error_log : S.export_error_log}
+              </button>
+            </div>
           </section>
           ${message ? html`<div class="settings-message">${message}</div>` : null}
           ${showClearConfirm
             ? html`<${ClearLogsConfirm} onCancel=${() => setShowClearConfirm(false)} onConfirm=${clearLogs} />`
+            : null}
+          ${showClearErrorConfirm
+            ? html`<${ClearErrorLogConfirm} onCancel=${() => setShowClearErrorConfirm(false)} onConfirm=${clearErrorLog} />`
             : null}
         </div>
         <div class="utility-actions">
