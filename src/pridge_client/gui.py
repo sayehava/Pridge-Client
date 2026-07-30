@@ -11,6 +11,7 @@ import platform
 import queue
 import sys
 import uuid
+from collections.abc import Sequence
 from datetime import datetime
 from logging import Handler, LogRecord
 from pathlib import Path
@@ -34,6 +35,7 @@ from pridge_client.config import (
     PrinterMapping,
     PrinterProfile,
     ServerConfig,
+    mapping_scope_key,
 )
 from pridge_client.logging_setup import (
     clear_log_files,
@@ -69,6 +71,7 @@ from pridge_client.strings import (
     MESSAGE_PLUGIN_INSTALL_FAILED,
     MESSAGE_PLUGIN_REMOVED,
     MESSAGE_PLUGIN_REMOVE_FAILED,
+    MESSAGE_MAPPING_NOT_FOUND,
     MESSAGE_SERVER_NOT_FOUND,
     MESSAGE_SERVER_REQUIRED,
     MESSAGE_SETTINGS_SAVED,
@@ -229,7 +232,7 @@ class ClientApi:
         server_url = str(fields.get("server_url", "")).strip()
         if not name or not server_url:
             return self._error(MESSAGE_SERVER_REQUIRED)
-        mappings = self._printer_mappings(fields.get("printer_mappings", []))
+        mappings = self._printer_mappings(fields.get("printer_mappings", []), existing=server.printer_mappings)
         replacement_token = str(fields.get("token", "")).strip()
         token = replacement_token or self.token_store.get(server.id)
         if token:
@@ -525,15 +528,6 @@ class ClientApi:
         fit_mode = str(fields.get("fit_mode", existing.fit_mode)).strip().lower()
         if fit_mode not in FIT_MODES:
             fit_mode = existing.fit_mode
-        raw_header_template = str(fields.get("raw_header_template", existing.raw_header_template))
-        raw_footer_template = str(fields.get("raw_footer_template", existing.raw_footer_template))
-        raw_paper_width_dots = self._safe_int(
-            fields.get("raw_paper_width_dots", existing.raw_paper_width_dots), existing.raw_paper_width_dots, 8, 4096
-        )
-        raw_paper_width_dots = max(8, (raw_paper_width_dots // 8) * 8)
-        raw_chars_per_line = self._safe_int(
-            fields.get("raw_chars_per_line", existing.raw_chars_per_line), existing.raw_chars_per_line, 8, 128
-        )
         capabilities = None
         if mode == "system_driver":
             try:
@@ -553,10 +547,6 @@ class ClientApi:
             raw_header_custom_hex=existing.raw_header_custom_hex,
             raw_footer_preset=existing.raw_footer_preset,
             raw_footer_custom_hex=existing.raw_footer_custom_hex,
-            raw_header_template=raw_header_template,
-            raw_footer_template=raw_footer_template,
-            raw_paper_width_dots=raw_paper_width_dots,
-            raw_chars_per_line=raw_chars_per_line,
         )
         store[name] = profile
         self.config = self._current_config()
@@ -589,16 +579,18 @@ class ClientApi:
         if profile.mode not in {"system_driver", "raw"}:
             return self._error(MESSAGE_TEST_PRINT_DRIVER_ONLY)
         try:
+            # No specific mapping context here (this is the generic Printers
+            # window, not the mapping-scoped Receipt Composer) - RAW mode test
+            # prints from here exercise bare connectivity only, with no
+            # header/footer template, same as a real job with no matching
+            # mapping. See test_mapping_receipt_design for the composed-template
+            # test print.
             self.printer_manager.print_test_page(
                 name,
                 mode=profile.mode,
                 driver_settings=profile.driver_settings,
                 submission_method=profile.submission_method or None,
                 fit_mode=profile.fit_mode,
-                raw_header_template=profile.raw_header_template,
-                raw_footer_template=profile.raw_footer_template,
-                raw_paper_width_dots=profile.raw_paper_width_dots,
-                raw_chars_per_line=profile.raw_chars_per_line,
             )
         except PrinterError as exc:
             self._bump_printer_stat(name, origin="test", success=False)
@@ -1004,42 +996,145 @@ class ClientApi:
         self.printer_manager.receipt_composer_store.remove_image(str(image_id))
         return self.get_receipt_images()
 
-    def get_receipt_counters(self, printer_name: str) -> dict:
-        counters = self.printer_manager.receipt_composer_store.get_counters(str(printer_name))
+    def _find_mapping(self, server_id: str, remote_printer_id: str) -> tuple[ServerConfig | None, PrinterMapping | None]:
+        server = self._server_by_id(str(server_id or "").strip())
+        if server is None:
+            return None, None
+        remote_printer_id = str(remote_printer_id or "").strip()
+        mapping = next((m for m in server.printer_mappings if m.remote_printer_id == remote_printer_id), None)
+        return (server, mapping) if mapping is not None else (server, None)
+
+    def get_mapping_receipt_design(self, server_id: str, remote_printer_id: str) -> dict:
+        server, mapping = self._find_mapping(server_id, remote_printer_id)
+        if server is None or mapping is None:
+            return self._error(MESSAGE_MAPPING_NOT_FOUND)
+        profile = server.printer_profiles.get(
+            mapping.local_printer_name, self.config.printer_profiles.get(mapping.local_printer_name, PrinterProfile())
+        )
+        return {
+            "ok": True,
+            "error": None,
+            "design": self._mapping_receipt_design_public(mapping),
+            "local_printer_name": mapping.local_printer_name,
+            "printer_mode": profile.mode,
+            "state": self._build_state(),
+        }
+
+    def update_mapping_receipt_design(self, server_id: str, remote_printer_id: str, fields: dict) -> dict:
+        server, mapping = self._find_mapping(server_id, remote_printer_id)
+        if server is None or mapping is None:
+            return self._error(MESSAGE_MAPPING_NOT_FOUND)
+        mapping.raw_header_template = str(fields.get("raw_header_template", mapping.raw_header_template))
+        mapping.raw_footer_template = str(fields.get("raw_footer_template", mapping.raw_footer_template))
+        raw_paper_width_dots = self._safe_int(
+            fields.get("raw_paper_width_dots", mapping.raw_paper_width_dots), mapping.raw_paper_width_dots, 8, 4096
+        )
+        mapping.raw_paper_width_dots = max(8, (raw_paper_width_dots // 8) * 8)
+        mapping.raw_chars_per_line = self._safe_int(
+            fields.get("raw_chars_per_line", mapping.raw_chars_per_line), mapping.raw_chars_per_line, 8, 128
+        )
+        mapping.receipt_design_migrated = True
+        self.config_store.save(self._current_config())
+        return {
+            "ok": True,
+            "error": None,
+            "message": MESSAGE_SETTINGS_SAVED,
+            "design": self._mapping_receipt_design_public(mapping),
+        }
+
+    def test_mapping_receipt_design(self, server_id: str, remote_printer_id: str) -> dict:
+        server, mapping = self._find_mapping(server_id, remote_printer_id)
+        if server is None or mapping is None:
+            return self._error(MESSAGE_MAPPING_NOT_FOUND)
+        name = mapping.local_printer_name
+        if name not in {printer.name for printer in self.printers}:
+            return self._error("The selected printer is no longer available.")
+        profile = server.printer_profiles.get(name, self.config.printer_profiles.get(name, PrinterProfile()))
+        if profile.mode != "raw":
+            return self._error(MESSAGE_TEST_PRINT_DRIVER_ONLY)
+        try:
+            self.printer_manager.print_test_page(
+                name,
+                mode="raw",
+                driver_settings=profile.driver_settings,
+                raw_header_template=mapping.raw_header_template,
+                raw_footer_template=mapping.raw_footer_template,
+                raw_paper_width_dots=mapping.raw_paper_width_dots,
+                raw_chars_per_line=mapping.raw_chars_per_line,
+                receipt_scope_key=mapping_scope_key(server.id, mapping.remote_printer_id),
+            )
+        except PrinterError as exc:
+            self._bump_printer_stat(name, origin="test", success=False)
+            return self._error(str(exc))
+        logger.info("Submitted test page for mapping %s on server %s", remote_printer_id, server.id)
+        self._bump_printer_stat(name, origin="test", success=True)
+        return {"ok": True, "error": None, "message": MESSAGE_TEST_PRINT_SUBMITTED, "state": self._build_state()}
+
+    def _mapping_receipt_design_public(self, mapping: PrinterMapping) -> dict[str, object]:
+        return {
+            "raw_header_template": mapping.raw_header_template,
+            "raw_footer_template": mapping.raw_footer_template,
+            "raw_paper_width_dots": mapping.raw_paper_width_dots,
+            "raw_chars_per_line": mapping.raw_chars_per_line,
+        }
+
+    def get_receipt_counters(self, server_id: str, remote_printer_id: str) -> dict:
+        _server, mapping = self._find_mapping(server_id, remote_printer_id)
+        if mapping is None:
+            return self._error(MESSAGE_MAPPING_NOT_FOUND)
+        counters = self.printer_manager.receipt_composer_store.get_counters(
+            mapping_scope_key(server_id, remote_printer_id)
+        )
         return {"ok": True, "error": None, "counters": counters}
 
-    def add_receipt_counter(self, printer_name: str, key: str, label: str = "") -> dict:
+    def add_receipt_counter(self, server_id: str, remote_printer_id: str, key: str, label: str = "") -> dict:
         from pridge_client.receipt_composer.store import DEFAULT_COUNTER_KEY
 
+        _server, mapping = self._find_mapping(server_id, remote_printer_id)
+        if mapping is None:
+            return self._error(MESSAGE_MAPPING_NOT_FOUND)
         key = str(key).strip()
         if not key or key == DEFAULT_COUNTER_KEY:
             return self._error("A unique counter name is required.")
-        self.printer_manager.receipt_composer_store.add_named_counter(str(printer_name), key, str(label))
-        return self.get_receipt_counters(printer_name)
+        self.printer_manager.receipt_composer_store.add_named_counter(
+            mapping_scope_key(server_id, remote_printer_id), key, str(label)
+        )
+        return self.get_receipt_counters(server_id, remote_printer_id)
 
-    def reset_receipt_counter(self, printer_name: str, key: str, value: int = 0) -> dict:
+    def reset_receipt_counter(self, server_id: str, remote_printer_id: str, key: str, value: int = 0) -> dict:
+        _server, mapping = self._find_mapping(server_id, remote_printer_id)
+        if mapping is None:
+            return self._error(MESSAGE_MAPPING_NOT_FOUND)
         safe_value = self._safe_int(value, 0, minimum=0)
-        self.printer_manager.receipt_composer_store.reset(str(printer_name), str(key), safe_value)
-        return self.get_receipt_counters(printer_name)
+        self.printer_manager.receipt_composer_store.reset(
+            mapping_scope_key(server_id, remote_printer_id), str(key), safe_value
+        )
+        return self.get_receipt_counters(server_id, remote_printer_id)
 
-    def remove_receipt_counter(self, printer_name: str, key: str) -> dict:
+    def remove_receipt_counter(self, server_id: str, remote_printer_id: str, key: str) -> dict:
         from pridge_client.receipt_composer.store import DEFAULT_COUNTER_KEY
 
+        _server, mapping = self._find_mapping(server_id, remote_printer_id)
+        if mapping is None:
+            return self._error(MESSAGE_MAPPING_NOT_FOUND)
         key = str(key)
         if key == DEFAULT_COUNTER_KEY:
             return self._error("The default counter cannot be removed.")
-        self.printer_manager.receipt_composer_store.remove_named_counter(str(printer_name), key)
-        return self.get_receipt_counters(printer_name)
+        self.printer_manager.receipt_composer_store.remove_named_counter(
+            mapping_scope_key(server_id, remote_printer_id), key
+        )
+        return self.get_receipt_counters(server_id, remote_printer_id)
 
-    def preview_receipt_template(self, template: str, printer_name: str = "", server_id: str = "") -> dict:
+    def preview_receipt_template(self, template: str, server_id: str = "", remote_printer_id: str = "") -> dict:
         from pridge_client.receipt_composer import render_template_blocks
 
-        profile = self._profile_store(server_id).get(str(printer_name), PrinterProfile())
+        _server, mapping = self._find_mapping(server_id, remote_printer_id)
+        chars_per_line = mapping.raw_chars_per_line if mapping else 32
         blocks = render_template_blocks(
             str(template),
-            printer_name=str(printer_name),
+            printer_name=mapping_scope_key(server_id, remote_printer_id),
             store=self.printer_manager.receipt_composer_store,
-            chars_per_line=profile.raw_chars_per_line,
+            chars_per_line=chars_per_line,
             custom_resolvers=self.printer_manager.receipt_shortcode_resolvers(),
         )
         return {"ok": True, "error": None, "blocks": blocks}
@@ -1405,9 +1500,18 @@ class ClientApi:
             except Exception as exc:
                 logger.debug("Could not apply appearance to an open window: %s", exc)
 
-    def _printer_mappings(self, value: object) -> list[PrinterMapping]:
+    def _printer_mappings(self, value: object, existing: Sequence[PrinterMapping] = ()) -> list[PrinterMapping]:
+        """Rebuild a server's printer_mappings from the Servers window's edit
+        payload, which only ever carries remote_printer_id/local_printer_name/
+        remote_printer_name - never Receipt Composer content. Composer fields
+        for any mapping that already existed (matched by remote_printer_id)
+        are carried over from `existing` so saving unrelated server settings
+        (or reassigning a different local printer) never silently wipes a
+        mapping's saved header/footer/counters-relevant fields.
+        """
         if not isinstance(value, list):
             return []
+        existing_by_id = {mapping.remote_printer_id: mapping for mapping in existing}
         mappings: list[PrinterMapping] = []
         seen: set[str] = set()
         for item in value:
@@ -1417,11 +1521,17 @@ class ClientApi:
             local_printer_name = str(item.get("local_printer_name", "")).strip()
             if not remote_printer_id or not local_printer_name or remote_printer_id in seen:
                 continue
+            previous = existing_by_id.get(remote_printer_id)
             mappings.append(
                 PrinterMapping(
                     remote_printer_id=remote_printer_id,
                     remote_printer_name=str(item.get("remote_printer_name", "")).strip(),
                     local_printer_name=local_printer_name,
+                    raw_header_template=previous.raw_header_template if previous else "",
+                    raw_footer_template=previous.raw_footer_template if previous else "",
+                    raw_paper_width_dots=previous.raw_paper_width_dots if previous else 384,
+                    raw_chars_per_line=previous.raw_chars_per_line if previous else 32,
+                    receipt_design_migrated=previous.receipt_design_migrated if previous else False,
                 )
             )
             seen.add(remote_printer_id)
@@ -1471,10 +1581,6 @@ class ClientApi:
             "driver_settings": dict(profile.driver_settings),
             "submission_method": profile.submission_method,
             "fit_mode": profile.fit_mode,
-            "raw_header_template": profile.raw_header_template,
-            "raw_footer_template": profile.raw_footer_template,
-            "raw_paper_width_dots": profile.raw_paper_width_dots,
-            "raw_chars_per_line": profile.raw_chars_per_line,
         }
 
     def _server_by_id(self, server_id: str) -> ServerConfig | None:
