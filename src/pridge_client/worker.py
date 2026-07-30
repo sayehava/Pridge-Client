@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 from pridge_client.api import ApiError, PridgeClient, ReservedJob
 from pridge_client.config import ClientConfig, PrinterMapping, PrinterProfile, ServerConfig, mapping_scope_key
+from pridge_client.logging_setup import log_detailed_error
 from pridge_client.models import JobHistoryEntry
 from pridge_client.printers import PrinterError, PrinterManager
 
@@ -107,6 +108,7 @@ class PollingWorker:
                 safe_message = _safe_error_message(exc)
                 self.state.last_error = safe_message
                 logger.warning("Polling worker error: %s", safe_message)
+                log_detailed_error("Polling worker error", exc)
                 self._set_status(f"Retrying after error: {safe_message}")
                 self._stop_event.wait(backoff_seconds)
                 backoff_seconds = min(backoff_seconds * 2, MAX_BACKOFF_SECONDS)
@@ -159,6 +161,7 @@ class PollingWorker:
         except (ApiError, PrinterError, ValueError) as exc:
             message = _safe_error_message(exc)
             logger.warning("Job %s failed: %s", job.job_id, message)
+            log_detailed_error(f"Job {job.job_id} failed on printer {printer_name}", exc)
             try:
                 client.report_failed(job.job_id, message)
             except ApiError as report_exc:
