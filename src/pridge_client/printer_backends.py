@@ -419,6 +419,45 @@ def _windows_duplex_option(win32print, win32con, printer_name: str, port_name: s
     return DriverOption(id="Duplex", label="Duplex", choices=choices, default=default_id)
 
 
+def _windows_job_devmode(win32print, win32con, handle, printer_name: str, settings: Mapping[str, str]):
+    """Build a DEVMODE for one print job only. DocumentProperties with
+    DM_IN_BUFFER|DM_OUT_BUFFER merges our requested fields into the driver's
+    current default DEVMODE and normalizes any dependent fields (e.g. paper
+    dimensions implied by a paper id); it never writes back to the printer's
+    stored default, so other applications and other Pridge Client jobs that
+    don't specify a setting are unaffected.
+    """
+    devmode = win32print.GetPrinter(handle, 2).get("pDevMode")
+    if devmode is None:
+        return None
+
+    fields = 0
+    page_size = settings.get("PageSize")
+    if page_size:
+        try:
+            devmode.PaperSize = int(page_size)
+            fields |= win32con.DM_PAPERSIZE
+        except (TypeError, ValueError):
+            pass
+
+    duplex = settings.get("Duplex")
+    if duplex:
+        try:
+            devmode.Duplex = int(duplex)
+            fields |= win32con.DM_DUPLEX
+        except (TypeError, ValueError):
+            pass
+
+    if not fields:
+        return devmode
+
+    devmode.Fields = fields
+    win32print.DocumentProperties(
+        0, handle, printer_name, devmode, devmode, win32con.DM_IN_BUFFER | win32con.DM_OUT_BUFFER
+    )
+    return devmode
+
+
 def _fit_image_to_page(img, dpi: float, target_page_size_pt: tuple[float, float]):
     from PIL import Image
 
@@ -447,6 +486,8 @@ def _windows_gdi_print_pdf(
     try:
         import win32ui
         import win32con
+        import win32gui
+        import win32print
     except ImportError as exc:
         raise PrinterError("Windows system-driver printing requires pywin32.") from exc
 
@@ -464,9 +505,23 @@ def _windows_gdi_print_pdf(
             " It must be included in the Pridge Client installation."
         )
 
-    dc = win32ui.CreateDC()
+    # A job-scoped DEVMODE is only built when the profile actually carries
+    # PageSize/Duplex settings - this keeps the common case (no settings saved
+    # yet) on the plain CreatePrinterDC path, unchanged from before.
+    job_devmode = None
+    if settings:
+        handle = win32print.OpenPrinter(printer_name)
+        try:
+            job_devmode = _windows_job_devmode(win32print, win32con, handle, printer_name, settings)
+        finally:
+            win32print.ClosePrinter(handle)
+
     try:
-        dc.CreatePrinterDC(printer_name)
+        if job_devmode is not None:
+            dc = win32ui.CreateDCFromHandle(win32gui.CreateDC("WINSPOOL", printer_name, None, job_devmode))
+        else:
+            dc = win32ui.CreateDC()
+            dc.CreatePrinterDC(printer_name)
     except Exception as exc:
         raise PrinterError("Could not create a printer device context.") from exc
 
