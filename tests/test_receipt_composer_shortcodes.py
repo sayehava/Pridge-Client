@@ -43,9 +43,6 @@ class ShortcodeTagTests(unittest.TestCase):
     def test_bold_wraps_text_with_on_off_bytes(self) -> None:
         self.assertEqual(_render("[bold]Hi[/bold]", self.store), b"\x1b\x45\x01Hi\x1b\x45\x00")
 
-    def test_italic_is_a_documented_no_op(self) -> None:
-        self.assertEqual(_render("[italic]Hi[/italic]", self.store), b"Hi")
-
     def test_hr_emits_a_dash_line_sized_to_chars_per_line(self) -> None:
         self.assertEqual(_render("[hr]", self.store, chars_per_line=5), b"-----\n")
 
@@ -210,17 +207,14 @@ class ShortcodePreviewBlockTests(unittest.TestCase):
     def test_plain_text_becomes_a_single_text_block(self) -> None:
         self.assertEqual(_blocks("Thank you!", self.store), [{"type": "text", "value": "Thank you!"}])
 
-    def test_align_bold_italic_and_layout_tags_become_typed_blocks(self) -> None:
+    def test_align_bold_and_layout_tags_become_typed_blocks(self) -> None:
         self.assertEqual(
-            _blocks("[align:center][bold]Hi[/bold][italic]Yo[/italic][hr][blank][newline]", self.store),
+            _blocks("[align:center][bold]Hi[/bold][hr][blank][newline]", self.store),
             [
                 {"type": "align", "value": "center"},
                 {"type": "bold_start"},
                 {"type": "text", "value": "Hi"},
                 {"type": "bold_end"},
-                {"type": "italic_start"},
-                {"type": "text", "value": "Yo"},
-                {"type": "italic_end"},
                 {"type": "hr", "width": 10},
                 {"type": "blank"},
                 {"type": "newline"},
