@@ -45,6 +45,10 @@ class PrinterMapping:
     raw_template: str = ""
     raw_paper_width_dots: int = 384
     raw_chars_per_line: int = 32
+    # Lets a saved design be bypassed for real jobs without deleting it -
+    # sometimes the original, unmodified data from the server is what's
+    # wanted. Defaults True so existing designs keep applying unchanged.
+    composer_enabled: bool = True
     # Set once by _migrate_mapping_receipt_designs on first load after this
     # field existed, so a mapping deliberately left blank is never mistaken
     # for one that hasn't been migrated yet and overwritten on a later load.
@@ -423,6 +427,7 @@ def _parse_printer_mappings(raw: Any) -> list[PrinterMapping]:
                 raw_template=raw_template,
                 raw_paper_width_dots=raw_paper_width_dots,
                 raw_chars_per_line=_bounded_int(item.get("raw_chars_per_line", 32), 32, 8, 128),
+                composer_enabled=bool(item.get("composer_enabled", True)),
                 receipt_design_migrated=bool(item.get("receipt_design_migrated", False)),
             )
         )
