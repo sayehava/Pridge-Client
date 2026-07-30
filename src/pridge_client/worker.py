@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from pridge_client.api import ApiError, PridgeClient, ReservedJob
-from pridge_client.config import ClientConfig, PrinterProfile, ServerConfig
+from pridge_client.config import ClientConfig, PrinterMapping, PrinterProfile, ServerConfig, mapping_scope_key
 from pridge_client.models import JobHistoryEntry
 from pridge_client.printers import PrinterError, PrinterManager
 
@@ -116,6 +116,7 @@ class PollingWorker:
 
     def _process_job(self, client: PridgeClient, job: ReservedJob) -> None:
         server = self.config.servers[0] if self.config.servers else None
+        mapping = _find_printer_mapping(server, job)
         printer_name = resolve_printer_name(server, job, self.config.selected_printer)
         override = server.printer_profiles.get(printer_name) if server else None
         profile = override or self.config.printer_profiles.get(printer_name, PrinterProfile())
@@ -125,6 +126,13 @@ class PollingWorker:
             client.report_printing(job.job_id)
             self._record_job(job.job_id, "printing", printer_name=printer_name)
             submission_method = profile.submission_method or None
+            # Receipt Composer content (header/footer template, paper width,
+            # counters) is scoped to the specific mapping a job arrived through,
+            # not to whichever local printer that mapping happens to target
+            # today - a job with no matching mapping (default_printer/legacy
+            # fallback) simply gets no header/footer, since there's no mapping
+            # for it to have a Composer entry in the first place.
+            receipt_scope_key = mapping_scope_key(server.id, mapping.remote_printer_id) if server and mapping else ""
             for copy_number in range(job.copies):
                 logger.info("Printing job %s copy %s of %s", job.job_id, copy_number + 1, job.copies)
                 self.printer_manager.print_job(
@@ -138,10 +146,11 @@ class PollingWorker:
                     submission_method=submission_method,
                     explicit_renderer=job.renderer or None,
                     fit_mode=profile.fit_mode,
-                    raw_header_template=profile.raw_header_template,
-                    raw_footer_template=profile.raw_footer_template,
-                    raw_paper_width_dots=profile.raw_paper_width_dots,
-                    raw_chars_per_line=profile.raw_chars_per_line,
+                    raw_header_template=mapping.raw_header_template if mapping else "",
+                    raw_footer_template=mapping.raw_footer_template if mapping else "",
+                    raw_paper_width_dots=mapping.raw_paper_width_dots if mapping else 384,
+                    raw_chars_per_line=mapping.raw_chars_per_line if mapping else 32,
+                    receipt_scope_key=receipt_scope_key,
                 )
             client.report_printed(job.job_id)
             self._record_job(job.job_id, "printed", printer_name=printer_name)
@@ -195,18 +204,27 @@ def decode_payload(payload_base64: str) -> bytes:
     return payload
 
 
-def resolve_printer_name(server: ServerConfig | None, job: ReservedJob, legacy_printer: str = "") -> str:
-    if server is not None:
+def _find_printer_mapping(server: ServerConfig | None, job: ReservedJob) -> PrinterMapping | None:
+    if server is None:
+        return None
+    if job.remote_printer_id:
         for mapping in server.printer_mappings:
-            if job.remote_printer_id and mapping.remote_printer_id == job.remote_printer_id:
-                return mapping.local_printer_name
-        if job.remote_printer_name:
-            remote_name = job.remote_printer_name.casefold()
-            for mapping in server.printer_mappings:
-                if mapping.remote_printer_name and mapping.remote_printer_name.casefold() == remote_name:
-                    return mapping.local_printer_name
-        if server.default_printer:
-            return server.default_printer
+            if mapping.remote_printer_id == job.remote_printer_id:
+                return mapping
+    if job.remote_printer_name:
+        remote_name = job.remote_printer_name.casefold()
+        for mapping in server.printer_mappings:
+            if mapping.remote_printer_name and mapping.remote_printer_name.casefold() == remote_name:
+                return mapping
+    return None
+
+
+def resolve_printer_name(server: ServerConfig | None, job: ReservedJob, legacy_printer: str = "") -> str:
+    mapping = _find_printer_mapping(server, job)
+    if mapping is not None:
+        return mapping.local_printer_name
+    if server is not None and server.default_printer:
+        return server.default_printer
     if legacy_printer:
         return legacy_printer
 
