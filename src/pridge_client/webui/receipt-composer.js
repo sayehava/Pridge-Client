@@ -76,6 +76,8 @@
         return { kind: "hex", value: arg || "" };
       case "dec":
         return { kind: "dec", value: arg || "" };
+      case "body":
+        return { kind: "body" };
       default:
         return { kind: "raw", value: full };
     }
@@ -133,6 +135,8 @@
         return `[hex:${block.value || ""}]`;
       case "dec":
         return `[dec:${block.value || ""}]`;
+      case "body":
+        return "[body]";
       case "raw":
         return block.value || "";
       default:
@@ -202,6 +206,8 @@
         return { kind: "hex", value: "" };
       case "dec":
         return { kind: "dec", value: "" };
+      case "body":
+        return { kind: "body" };
       case "text":
       default:
         return { kind: "text", value: "" };
@@ -237,6 +243,7 @@
 
   const ADD_BLOCK_KINDS = [
     "text",
+    "body",
     "image",
     "align",
     "bold_toggle",
@@ -258,6 +265,7 @@
     return (
       {
         text: S.receipt_block_text,
+        body: S.receipt_block_body,
         image: S.receipt_block_image,
         align: S.receipt_block_align,
         bold_toggle: S.receipt_block_bold,
@@ -335,6 +343,9 @@
         case "marker":
           current.content.push({ type: "marker", label: block.label });
           break;
+        case "body_placeholder":
+          current.content.push({ type: "body_placeholder", implicit: !!block.implicit });
+          break;
         default:
           break;
       }
@@ -384,6 +395,9 @@
                 if (item.type === "marker") {
                   return html`<span class="receipt-preview-marker" key=${j}>${item.label}</span>`;
                 }
+                if (item.type === "body_placeholder") {
+                  return html`<span class="receipt-preview-body" key=${j}>${S.receipt_block_body}</span>`;
+                }
                 const style = { fontWeight: item.bold ? 700 : 400 };
                 return html`<span key=${j} style=${style}>${item.value}</span>`;
               })}
@@ -396,6 +410,8 @@
 
   function BlockControls({ block, images, onChange }) {
     switch (block.kind) {
+      case "body":
+        return html`<small class="hint-text">${S.receipt_block_body_hint}</small>`;
       case "text":
         return html`<input
           type="text"
@@ -709,6 +725,7 @@
       {
         title: S.receipt_guide_category_text,
         items: [
+          { tag: "[body]", desc: S.receipt_guide_body_desc },
           { tag: "[align:left]  [align:center]  [align:right]", desc: S.receipt_guide_align_desc },
           { tag: "[bold]...[/bold]", desc: S.receipt_guide_bold_desc },
           { tag: "[hr]", desc: S.receipt_guide_hr_desc },
@@ -799,15 +816,13 @@
     const [selectedIndex, setSelectedIndex] = useState("");
     const [design, setDesign] = useState(null);
     const [printerMode, setPrinterMode] = useState("");
-    const [headerBlocks, setHeaderBlocks] = useState([]);
-    const [footerBlocks, setFooterBlocks] = useState([]);
+    const [templateBlocks, setTemplateBlocks] = useState([]);
     const [images, setImages] = useState([]);
     const [counters, setCounters] = useState({});
     const [draggingId, setDraggingId] = useState(null);
     const [uploadingImage, setUploadingImage] = useState(false);
     const [message, setMessage] = useState("");
-    const [headerPreview, setHeaderPreview] = useState([]);
-    const [footerPreview, setFooterPreview] = useState([]);
+    const [templatePreview, setTemplatePreview] = useState([]);
     const [newCounterKey, setNewCounterKey] = useState("");
     const [newCounterLabel, setNewCounterLabel] = useState("");
     const [testBusy, setTestBusy] = useState(false);
@@ -839,8 +854,7 @@
         setSelectedIndex("");
         setDesign(null);
         setPrinterMode("");
-        setHeaderBlocks([]);
-        setFooterBlocks([]);
+        setTemplateBlocks([]);
         setCounters({});
         return;
       }
@@ -850,8 +864,11 @@
         skipNextSave.current = true;
         setDesign(result.design);
         setPrinterMode(result.printer_mode);
-        setHeaderBlocks(parseTemplate(result.design.raw_header_template).map((b) => ({ id: uid(), ...b })));
-        setFooterBlocks(parseTemplate(result.design.raw_footer_template).map((b) => ({ id: uid(), ...b })));
+        // A brand-new mapping with no saved design starts from a single Body
+        // block rather than a blank list, so it's immediately obvious where
+        // the incoming print content goes before any decoration is added.
+        const parsed = parseTemplate(result.design.raw_template);
+        setTemplateBlocks((parsed.length ? parsed : [{ kind: "body" }]).map((b) => ({ id: uid(), ...b })));
         refreshCounters(mapping);
       });
     };
@@ -930,8 +947,7 @@
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = window.setTimeout(() => {
         callApi("update_mapping_receipt_design", selectedMapping.serverId, selectedMapping.remotePrinterId, {
-          raw_header_template: serializeBlocks(headerBlocks),
-          raw_footer_template: serializeBlocks(footerBlocks),
+          raw_template: serializeBlocks(templateBlocks),
           raw_paper_width_dots: design.raw_paper_width_dots,
           raw_chars_per_line: design.raw_chars_per_line,
         }).then((result) => {
@@ -940,36 +956,27 @@
       }, 500);
       return () => window.clearTimeout(saveTimer.current);
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [headerBlocks, footerBlocks, design]);
+    }, [templateBlocks, design]);
 
     useEffect(() => {
       if (!selectedMapping) {
-        setHeaderPreview([]);
-        setFooterPreview([]);
+        setTemplatePreview([]);
         return undefined;
       }
       if (previewTimer.current) clearTimeout(previewTimer.current);
       previewTimer.current = window.setTimeout(() => {
         callApi(
           "preview_receipt_template",
-          serializeBlocks(headerBlocks),
+          serializeBlocks(templateBlocks),
           selectedMapping.serverId,
           selectedMapping.remotePrinterId
         ).then((result) => {
-          if (result && result.ok) setHeaderPreview(buildPreviewLines(result.blocks));
-        });
-        callApi(
-          "preview_receipt_template",
-          serializeBlocks(footerBlocks),
-          selectedMapping.serverId,
-          selectedMapping.remotePrinterId
-        ).then((result) => {
-          if (result && result.ok) setFooterPreview(buildPreviewLines(result.blocks));
+          if (result && result.ok) setTemplatePreview(buildPreviewLines(result.blocks));
         });
       }, 250);
       return () => window.clearTimeout(previewTimer.current);
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [headerBlocks, footerBlocks, selectedIndex]);
+    }, [templateBlocks, selectedIndex]);
 
     const uploadImage = (event) => {
       const file = event.target.files && event.target.files[0];
@@ -1122,24 +1129,14 @@
                   </div>
 
                   <${BlockEditor}
-                    key=${selectedIndex + "-header"}
-                    title=${S.receipt_header}
-                    blocks=${headerBlocks}
-                    onChange=${setHeaderBlocks}
+                    key=${selectedIndex + "-template"}
+                    title=${S.receipt_design}
+                    blocks=${templateBlocks}
+                    onChange=${setTemplateBlocks}
                     images=${images}
                     draggingId=${draggingId}
                     setDraggingId=${setDraggingId}
-                    previewLines=${headerPreview}
-                  />
-                  <${BlockEditor}
-                    key=${selectedIndex + "-footer"}
-                    title=${S.receipt_footer}
-                    blocks=${footerBlocks}
-                    onChange=${setFooterBlocks}
-                    images=${images}
-                    draggingId=${draggingId}
-                    setDraggingId=${setDraggingId}
-                    previewLines=${footerPreview}
+                    previewLines=${templatePreview}
                   />
                 `}
           </section>
