@@ -28,20 +28,7 @@
     mode: "system_driver",
     driver_settings: {},
     fit_mode: "fit",
-    raw_header_template: "",
-    raw_footer_template: "",
-    raw_paper_width_dots: 384,
-    raw_chars_per_line: 32,
   };
-
-  function RawTemplateSummary({ label, template }) {
-    return html`
-      <div class="field">
-        <label class="field-label">${label}</label>
-        <div class="driver-mode-note">${template ? template : S.receipt_template_not_set}</div>
-      </div>
-    `;
-  }
 
   function Printers() {
     const [printers, setPrinters] = useState([]);
@@ -235,8 +222,6 @@
                         ${printerProfile.mode === "raw"
                           ? html`
                               <div class="driver-mode-note">${S.raw_mode_hint}</div>
-                              <${RawTemplateSummary} label=${S.raw_header_label} template=${printerProfile.raw_header_template} />
-                              <${RawTemplateSummary} label=${S.raw_footer_label} template=${printerProfile.raw_footer_template} />
                               <button type="button" class="btn-secondary" onClick=${openReceiptComposer}>
                                 ${S.open_receipt_composer}
                               </button>
