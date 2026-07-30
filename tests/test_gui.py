@@ -212,10 +212,6 @@ class ClientApiTests(unittest.TestCase):
                 "driver_settings": {"PageSize": "A4"},
                 "submission_method": "",
                 "fit_mode": "fit",
-                "raw_header_template": "",
-                "raw_footer_template": "",
-                "raw_paper_width_dots": 384,
-                "raw_chars_per_line": 32,
             },
         )
         self.assertEqual(self.api.config_store.load().printer_profiles["Office Driver"].mode, "system_driver")
@@ -238,45 +234,6 @@ class ClientApiTests(unittest.TestCase):
         self.assertEqual(
             self.api.config_store.load().printer_profiles["Office Driver"].submission_method, "direct_pdf"
         )
-
-    def test_saves_raw_header_and_footer_templates(self):
-        manager = Mock()
-        manager.renderer_registry.all_entries.return_value = []
-        manager.list_printers.return_value = [Printer("Receipt", system_driver_available=True)]
-        self.api.printer_manager = manager
-        self.api.refresh_printers()
-
-        result = self.api.update_printer_profile(
-            "Receipt",
-            {
-                "mode": "raw",
-                "raw_header_template": "[feed:4]",
-                "raw_footer_template": "[hex:1D 56 00]",
-                "raw_paper_width_dots": 576,
-                "raw_chars_per_line": 48,
-            },
-        )
-
-        self.assertTrue(result["ok"])
-        self.assertEqual(result["profile"]["raw_header_template"], "[feed:4]")
-        self.assertEqual(result["profile"]["raw_footer_template"], "[hex:1D 56 00]")
-        self.assertEqual(result["profile"]["raw_paper_width_dots"], 576)
-        self.assertEqual(result["profile"]["raw_chars_per_line"], 48)
-        saved = self.api.config_store.load().printer_profiles["Receipt"]
-        self.assertEqual(saved.raw_header_template, "[feed:4]")
-        self.assertEqual(saved.raw_footer_template, "[hex:1D 56 00]")
-
-    def test_falls_back_to_the_existing_raw_paper_width_when_invalid(self):
-        manager = Mock()
-        manager.renderer_registry.all_entries.return_value = []
-        manager.list_printers.return_value = [Printer("Receipt", system_driver_available=True)]
-        self.api.printer_manager = manager
-        self.api.refresh_printers()
-        self.api.update_printer_profile("Receipt", {"mode": "raw", "raw_paper_width_dots": 576})
-
-        result = self.api.update_printer_profile("Receipt", {"mode": "raw", "raw_paper_width_dots": "not-a-number"})
-
-        self.assertEqual(result["profile"]["raw_paper_width_dots"], 576)
 
     def test_falls_back_to_the_existing_submission_method_when_invalid(self):
         manager = Mock()
@@ -372,10 +329,6 @@ class ClientApiTests(unittest.TestCase):
             driver_settings={},
             submission_method=None,
             fit_mode="fit",
-            raw_header_template="",
-            raw_footer_template="",
-            raw_paper_width_dots=384,
-            raw_chars_per_line=32,
         )
 
     def test_successful_test_print_increments_the_printer_test_success_count(self):
@@ -1042,69 +995,231 @@ class ReceiptComposerApiTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["images"], [])
 
-    def test_get_receipt_counters_starts_empty_for_an_unused_printer(self):
-        result = self.api.get_receipt_counters("Kitchen Printer")
+    def _add_server_with_mapping(self, remote_printer_id="kitchen-1", local_printer_name="Kitchen Printer"):
+        result = self.api.add_server(
+            {
+                "name": "Office",
+                "server_url": "https://office.example.test",
+                "printer_mappings": [
+                    {"remote_printer_id": remote_printer_id, "local_printer_name": local_printer_name}
+                ],
+            }
+        )
+        server_id = result["state"]["servers"][0]["id"]
+        return server_id, remote_printer_id
+
+    def test_get_receipt_counters_starts_empty_for_a_new_mapping(self):
+        server_id, remote_id = self._add_server_with_mapping()
+
+        result = self.api.get_receipt_counters(server_id, remote_id)
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["counters"], {})
 
+    def test_get_receipt_counters_errors_for_an_unknown_mapping(self):
+        result = self.api.get_receipt_counters("no-such-server", "no-such-mapping")
+
+        self.assertFalse(result["ok"])
+
     def test_add_receipt_counter_creates_a_named_counter_at_zero(self):
-        result = self.api.add_receipt_counter("Kitchen Printer", "vip", "VIP receipts")
+        server_id, remote_id = self._add_server_with_mapping()
+
+        result = self.api.add_receipt_counter(server_id, remote_id, "vip", "VIP receipts")
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["counters"]["vip"], {"value": 0, "label": "VIP receipts"})
 
     def test_add_receipt_counter_rejects_the_reserved_default_key(self):
-        result = self.api.add_receipt_counter("Kitchen Printer", "__default__", "")
+        server_id, remote_id = self._add_server_with_mapping()
+
+        result = self.api.add_receipt_counter(server_id, remote_id, "__default__", "")
 
         self.assertFalse(result["ok"])
 
     def test_reset_receipt_counter_sets_a_new_value(self):
-        self.api.add_receipt_counter("Kitchen Printer", "vip", "VIP")
+        server_id, remote_id = self._add_server_with_mapping()
+        self.api.add_receipt_counter(server_id, remote_id, "vip", "VIP")
 
-        result = self.api.reset_receipt_counter("Kitchen Printer", "vip", 42)
+        result = self.api.reset_receipt_counter(server_id, remote_id, "vip", 42)
 
         self.assertEqual(result["counters"]["vip"]["value"], 42)
 
     def test_reset_receipt_counter_clamps_negative_values_to_zero(self):
-        self.api.add_receipt_counter("Kitchen Printer", "vip", "VIP")
+        server_id, remote_id = self._add_server_with_mapping()
+        self.api.add_receipt_counter(server_id, remote_id, "vip", "VIP")
 
-        result = self.api.reset_receipt_counter("Kitchen Printer", "vip", -5)
+        result = self.api.reset_receipt_counter(server_id, remote_id, "vip", -5)
 
         self.assertEqual(result["counters"]["vip"]["value"], 0)
 
     def test_remove_receipt_counter_drops_a_named_counter(self):
-        self.api.add_receipt_counter("Kitchen Printer", "vip", "VIP")
+        server_id, remote_id = self._add_server_with_mapping()
+        self.api.add_receipt_counter(server_id, remote_id, "vip", "VIP")
 
-        result = self.api.remove_receipt_counter("Kitchen Printer", "vip")
+        result = self.api.remove_receipt_counter(server_id, remote_id, "vip")
 
         self.assertTrue(result["ok"])
         self.assertNotIn("vip", result["counters"])
 
     def test_remove_receipt_counter_rejects_the_default_counter(self):
-        result = self.api.remove_receipt_counter("Kitchen Printer", "__default__")
+        server_id, remote_id = self._add_server_with_mapping()
+
+        result = self.api.remove_receipt_counter(server_id, remote_id, "__default__")
 
         self.assertFalse(result["ok"])
 
+    def test_counters_are_independent_between_two_mappings_on_the_same_printer(self):
+        result = self.api.add_server(
+            {
+                "name": "Office",
+                "server_url": "https://office.example.test",
+                "printer_mappings": [
+                    {"remote_printer_id": "kitchen", "local_printer_name": "Shared Printer"},
+                    {"remote_printer_id": "register", "local_printer_name": "Shared Printer"},
+                ],
+            }
+        )
+        server_id = result["state"]["servers"][0]["id"]
+        self.api.add_receipt_counter(server_id, "kitchen", "vip", "VIP")
+        self.api.reset_receipt_counter(server_id, "kitchen", "vip", 5)
+
+        kitchen_counters = self.api.get_receipt_counters(server_id, "kitchen")["counters"]
+        register_counters = self.api.get_receipt_counters(server_id, "register")["counters"]
+
+        self.assertEqual(kitchen_counters["vip"]["value"], 5)
+        self.assertEqual(register_counters, {})
+
     def test_preview_receipt_template_does_not_increment_counters(self):
-        result = self.api.preview_receipt_template("[print_number]", printer_name="Kitchen Printer")
+        server_id, remote_id = self._add_server_with_mapping()
+
+        result = self.api.preview_receipt_template("[print_number]", server_id, remote_id)
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["blocks"], [{"type": "text", "value": "1"}])
-        self.assertEqual(self.api.get_receipt_counters("Kitchen Printer")["counters"], {})
+        self.assertEqual(self.api.get_receipt_counters(server_id, remote_id)["counters"], {})
 
-    def test_preview_receipt_template_uses_the_printer_s_saved_chars_per_line(self):
-        manager = Mock()
-        manager.renderer_registry.all_entries.return_value = []
-        manager.list_printers.return_value = [Printer("Kitchen Printer", system_driver_available=True)]
-        manager.receipt_composer_store = self.api.printer_manager.receipt_composer_store
-        self.api.printer_manager = manager
-        self.api.refresh_printers()
-        self.api.update_printer_profile("Kitchen Printer", {"mode": "raw", "raw_chars_per_line": 12})
+    def test_preview_receipt_template_uses_the_mapping_s_saved_chars_per_line(self):
+        server_id, remote_id = self._add_server_with_mapping()
+        self.api.update_mapping_receipt_design(server_id, remote_id, {"raw_chars_per_line": 12})
 
-        result = self.api.preview_receipt_template("[hr]", printer_name="Kitchen Printer")
+        result = self.api.preview_receipt_template("[hr]", server_id, remote_id)
 
         self.assertEqual(result["blocks"], [{"type": "hr", "width": 12}])
+
+
+class MappingReceiptDesignApiTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        config_path = Path(self.temporary_directory.name) / "config.json"
+        self.api = ClientApi(
+            config_store=ConfigStore(config_path),
+            token_store=MemoryTokenStore(),
+            printer_manager=NoPrinters(),
+        )
+        add_result = self.api.add_server(
+            {
+                "name": "Office",
+                "server_url": "https://office.example.test",
+                "printer_mappings": [
+                    {"remote_printer_id": "kitchen-1", "local_printer_name": "Kitchen Printer"}
+                ],
+            }
+        )
+        self.server_id = add_result["state"]["servers"][0]["id"]
+
+    def tearDown(self):
+        self.temporary_directory.cleanup()
+
+    def test_get_mapping_receipt_design_starts_blank(self):
+        result = self.api.get_mapping_receipt_design(self.server_id, "kitchen-1")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["local_printer_name"], "Kitchen Printer")
+        self.assertEqual(result["design"]["raw_header_template"], "")
+        self.assertEqual(result["design"]["raw_paper_width_dots"], 384)
+        self.assertEqual(result["design"]["raw_chars_per_line"], 32)
+
+    def test_get_mapping_receipt_design_errors_for_an_unknown_mapping(self):
+        result = self.api.get_mapping_receipt_design(self.server_id, "no-such-mapping")
+
+        self.assertFalse(result["ok"])
+
+    def test_get_mapping_receipt_design_errors_for_an_unknown_server(self):
+        result = self.api.get_mapping_receipt_design("no-such-server", "kitchen-1")
+
+        self.assertFalse(result["ok"])
+
+    def test_update_mapping_receipt_design_saves_and_round_trips(self):
+        result = self.api.update_mapping_receipt_design(
+            self.server_id,
+            "kitchen-1",
+            {
+                "raw_header_template": "[bold]Hi[/bold]",
+                "raw_footer_template": "[cut:full]",
+                "raw_paper_width_dots": 576,
+                "raw_chars_per_line": 48,
+            },
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["design"]["raw_header_template"], "[bold]Hi[/bold]")
+
+        reloaded = self.api.config_store.load()
+        mapping = reloaded.servers[0].printer_mappings[0]
+        self.assertEqual(mapping.raw_header_template, "[bold]Hi[/bold]")
+        self.assertEqual(mapping.raw_footer_template, "[cut:full]")
+        self.assertEqual(mapping.raw_paper_width_dots, 576)
+        self.assertEqual(mapping.raw_chars_per_line, 48)
+        self.assertTrue(mapping.receipt_design_migrated)
+
+    def test_update_mapping_receipt_design_paper_width_is_rounded_and_clamped(self):
+        result = self.api.update_mapping_receipt_design(self.server_id, "kitchen-1", {"raw_paper_width_dots": 401})
+
+        self.assertEqual(result["design"]["raw_paper_width_dots"], 400)
+
+    def test_update_mapping_receipt_design_errors_for_an_unknown_mapping(self):
+        result = self.api.update_mapping_receipt_design(self.server_id, "no-such-mapping", {})
+
+        self.assertFalse(result["ok"])
+
+    def test_two_mappings_on_the_same_local_printer_have_independent_designs(self):
+        self.api.update_server(
+            self.server_id,
+            {
+                "name": "Office",
+                "server_url": "https://office.example.test",
+                "printer_mappings": [
+                    {"remote_printer_id": "kitchen-1", "local_printer_name": "Shared Printer"},
+                    {"remote_printer_id": "register-1", "local_printer_name": "Shared Printer"},
+                ],
+            },
+        )
+
+        self.api.update_mapping_receipt_design(self.server_id, "kitchen-1", {"raw_header_template": "[bold]K[/bold]"})
+        self.api.update_mapping_receipt_design(self.server_id, "register-1", {"raw_header_template": "[bold]R[/bold]"})
+
+        kitchen = self.api.get_mapping_receipt_design(self.server_id, "kitchen-1")
+        register = self.api.get_mapping_receipt_design(self.server_id, "register-1")
+        self.assertEqual(kitchen["design"]["raw_header_template"], "[bold]K[/bold]")
+        self.assertEqual(register["design"]["raw_header_template"], "[bold]R[/bold]")
+
+    def test_editing_unrelated_server_fields_does_not_wipe_a_mapping_s_saved_design(self):
+        self.api.update_mapping_receipt_design(self.server_id, "kitchen-1", {"raw_header_template": "[bold]Hi[/bold]"})
+
+        result = self.api.update_server(
+            self.server_id,
+            {
+                "name": "Office Renamed",
+                "server_url": "https://office.example.test",
+                "printer_mappings": [
+                    {"remote_printer_id": "kitchen-1", "local_printer_name": "Kitchen Printer"}
+                ],
+            },
+        )
+
+        self.assertTrue(result["ok"])
+        design = self.api.get_mapping_receipt_design(self.server_id, "kitchen-1")
+        self.assertEqual(design["design"]["raw_header_template"], "[bold]Hi[/bold]")
 
 
 class DashboardWidgetTests(unittest.TestCase):
