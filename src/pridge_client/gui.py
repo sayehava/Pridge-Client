@@ -163,6 +163,7 @@ class ClientApi:
         self.printers: list[Printer] = []
         self.gui_smoke_test = gui_smoke_test
         self.gui_ready = Event()
+        self._pending_receipt_selection: tuple[str, str] | None = None
 
         self.selected_server_id = self.config.servers[0].id if self.config.servers else ""
         self.selected_printer = self.config.selected_printer
@@ -355,14 +356,37 @@ class ClientApi:
             height=720,
         )
 
-    def open_receipt_composer_window(self) -> dict:
-        return self._open_utility_window(
+    def open_receipt_composer_window(self, server_id: str = "", remote_printer_id: str = "") -> dict:
+        server_id = str(server_id or "").strip()
+        remote_printer_id = str(remote_printer_id or "").strip()
+        if server_id and remote_printer_id:
+            self._pending_receipt_selection = (server_id, remote_printer_id)
+        already_open = self._utility_windows.get("receipt_composer")
+        result = self._open_utility_window(
             key="receipt_composer",
             title=WINDOW_RECEIPT_COMPOSER,
             page="receipt-composer.html",
             width=760,
             height=800,
         )
+        if already_open is not None and self._pending_receipt_selection:
+            # The window was already open, so receipt-composer.js's mount-time
+            # check already ran and won't automatically notice the newly set
+            # pending selection - nudge it to re-check right now instead of
+            # only applying on the next fresh page load.
+            try:
+                already_open.evaluate_js(
+                    "window.__pridgeApplyPendingReceiptSelection && window.__pridgeApplyPendingReceiptSelection()"
+                )
+            except Exception:
+                pass
+        return result
+
+    def get_pending_receipt_selection(self) -> dict:
+        pending = self._pending_receipt_selection
+        self._pending_receipt_selection = None
+        server_id, remote_printer_id = pending or ("", "")
+        return {"ok": True, "error": None, "server_id": server_id, "remote_printer_id": remote_printer_id}
 
     def open_plugin_settings_window(self, settings_window: str) -> dict:
         openers = {
@@ -712,11 +736,32 @@ class ClientApi:
 
     def _dashboard_catalog(self) -> list[dict]:
         catalog = [
-            {"type": "recent_jobs", "title": "Recent Jobs", "source": "builtin"},
-            {"type": "logs", "title": "Logs / Status", "source": "builtin"},
-            {"type": "printer_stats", "title": "Printer Activity", "source": "builtin", "configurable": True},
-            {"type": "server_status", "title": "Server Status", "source": "builtin", "configurable": True},
+            {"type": "recent_jobs", "title": "Recent Jobs", "source": "builtin", "category": "Core"},
+            {"type": "logs", "title": "Logs / Status", "source": "builtin", "category": "Core"},
+            {
+                "type": "printer_stats",
+                "title": "Printer Activity",
+                "source": "builtin",
+                "configurable": True,
+                "category": "Core",
+            },
+            {
+                "type": "server_status",
+                "title": "Server Status",
+                "source": "builtin",
+                "configurable": True,
+                "category": "Core",
+            },
         ]
+
+        composer_entry = self.printer_manager.renderer_registry.get_entry(
+            self.printer_manager.receipt_composer_plugin.plugin_id
+        )
+        if composer_entry is not None and composer_entry.enabled:
+            catalog.append(
+                {"type": "receipt_composer_items", "title": "Receipt Composer", "source": "builtin", "category": "Core"}
+            )
+
         from pridge_client.plugins.manifest import MANIFEST_FILE_NAME, load_manifest
 
         for entry in self.printer_manager.renderer_registry.all_entries():
@@ -740,6 +785,7 @@ class ClientApi:
                     "type": entry.plugin.plugin_id,
                     "title": manifest.widget_title,
                     "source": "plugin",
+                    "category": entry.category or "Plugins",
                     "script_source": script_source,
                 }
             )
@@ -1041,6 +1087,20 @@ class ClientApi:
             "message": MESSAGE_SETTINGS_SAVED,
             "design": self._mapping_receipt_design_public(mapping),
         }
+
+    def clear_mapping_receipt_design(self, server_id: str, remote_printer_id: str) -> dict:
+        _server, mapping = self._find_mapping(server_id, remote_printer_id)
+        if mapping is None:
+            return self._error(MESSAGE_MAPPING_NOT_FOUND)
+        # Clears the design only - saved counters are print history, not
+        # design state, and are left alone rather than deleted alongside it.
+        mapping.raw_header_template = ""
+        mapping.raw_footer_template = ""
+        mapping.raw_paper_width_dots = 384
+        mapping.raw_chars_per_line = 32
+        mapping.receipt_design_migrated = True
+        self.config_store.save(self._current_config())
+        return {"ok": True, "error": None, "state": self._build_state()}
 
     def test_mapping_receipt_design(self, server_id: str, remote_printer_id: str) -> dict:
         server, mapping = self._find_mapping(server_id, remote_printer_id)
@@ -1399,6 +1459,7 @@ class ClientApi:
                     "remote_printer_id": mapping.remote_printer_id,
                     "remote_printer_name": mapping.remote_printer_name,
                     "local_printer_name": mapping.local_printer_name,
+                    "has_receipt_design": bool(mapping.raw_header_template or mapping.raw_footer_template),
                 }
                 for mapping in server.printer_mappings
             ],
