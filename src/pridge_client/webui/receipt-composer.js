@@ -950,6 +950,7 @@
           raw_template: serializeBlocks(templateBlocks),
           raw_paper_width_dots: design.raw_paper_width_dots,
           raw_chars_per_line: design.raw_chars_per_line,
+          composer_enabled: design.composer_enabled,
         }).then((result) => {
           if (result && result.ok) setMessage(S.settings_saved_automatically);
         });
@@ -1090,6 +1091,16 @@
             ${!selectedMapping || !design
               ? html`<p class="hint-text">${S.receipt_select_mapping_first}</p>`
               : html`
+                  <label class="checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked=${design.composer_enabled}
+                      onChange=${(e) => setDesign({ ...design, composer_enabled: e.target.checked })}
+                    />
+                    <span>${S.receipt_composer_enabled_label}</span>
+                  </label>
+                  <small class="field-hint">${S.receipt_composer_enabled_hint}</small>
+
                   <div class="receipt-numeric-fields">
                     <div class="field">
                       <label class="field-label">${S.receipt_paper_width}</label>
