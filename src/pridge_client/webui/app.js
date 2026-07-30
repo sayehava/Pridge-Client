@@ -11,6 +11,7 @@
   const html = htm.bind(React.createElement);
   const S = window.PridgeStrings;
   const POLL_MS = 2000;
+  const WIDGET_ALL_TAB = "__all__";
 
   function callApi(name, ...args) {
     if (!window.pywebview || !window.pywebview.api || !window.pywebview.api[name]) {
@@ -183,6 +184,72 @@
     `;
   }
 
+  // Mirrors receipt-composer.js's own mapping flattening/labeling so the
+  // dashboard widget and the Composer window agree on what a "mapping" is
+  // and how it's displayed, without importing across the two page bundles.
+  function flattenReceiptItems(servers) {
+    const flattened = [];
+    (servers || []).forEach((server) => {
+      (server.printer_mappings || []).forEach((mapping) => {
+        flattened.push({
+          serverId: server.id,
+          serverName: server.name,
+          remotePrinterId: mapping.remote_printer_id,
+          remotePrinterName: mapping.remote_printer_name,
+          localPrinterName: mapping.local_printer_name,
+          hasDesign: !!mapping.has_receipt_design,
+        });
+      });
+    });
+    return flattened;
+  }
+
+  function receiptItemLabel(item) {
+    const remoteLabel = item.remotePrinterName || item.remotePrinterId;
+    return `${item.serverName} — ${remoteLabel} → ${item.localPrinterName}`;
+  }
+
+  function ReceiptComposerWidget({ servers }) {
+    // Removing an item updates the saved config immediately, but this
+    // widget's own view of `servers` only catches up on the dashboard's
+    // next ~2s poll tick, same as every other widget here (e.g. Server
+    // Status) that reads live data out of the polled `servers` prop rather
+    // than keeping its own copy.
+    const items = flattenReceiptItems(servers).filter((item) => item.hasDesign);
+
+    const openComposer = (item) => {
+      if (item) callApi("open_receipt_composer_window", item.serverId, item.remotePrinterId);
+      else callApi("open_receipt_composer_window");
+    };
+
+    const removeItem = (item) => {
+      if (!window.confirm(S.receipt_widget_remove_confirm.replace("{name}", receiptItemLabel(item)))) return;
+      callApi("clear_mapping_receipt_design", item.serverId, item.remotePrinterId);
+    };
+
+    return html`
+      <div class="widget-receipt-composer">
+        <div class="widget-receipt-composer-header">
+          <span>${S.receipt_widget_items_label}</span>
+          <button class="widget-receipt-add-btn" title=${S.receipt_widget_add} onClick=${() => openComposer(null)}>+</button>
+        </div>
+        ${items.length === 0
+          ? html`<div class="scroll-panel empty">${S.receipt_widget_empty}</div>`
+          : html`<div class="scroll-panel">
+              ${items.map(
+                (item) => html`
+                  <div class="widget-receipt-item" key=${item.serverId + "::" + item.remotePrinterId}>
+                    <span class="widget-receipt-item-label" title=${receiptItemLabel(item)}>${receiptItemLabel(item)}</span>
+                    <button class="widget-receipt-edit-btn" title=${S.edit} onClick=${() => openComposer(item)}>✎</button>
+                    <button class="widget-receipt-remove-btn" title=${S.remove} onClick=${() => removeItem(item)}>×</button>
+                  </div>
+                `
+              )}
+            </div>`}
+      </div>
+    `;
+  }
+
   function LogsPanel({ logs }) {
     const panelRef = useRef(null);
     useEffect(() => {
@@ -268,6 +335,8 @@
           </div>`;
     } else if (widget.widget_type === "server_status") {
       body = html`<${ServerStatusWidget} widget=${widget} servers=${servers} />`;
+    } else if (widget.widget_type === "receipt_composer_items") {
+      body = html`<${ReceiptComposerWidget} servers=${servers} />`;
     } else {
       body = html`<div id=${containerId} class="widget-plugin-mount"></div>`;
     }
@@ -318,23 +387,76 @@
   }
 
   function WidgetPicker({ catalog, onPick, onClose }) {
+    const [activeTab, setActiveTab] = useState(WIDGET_ALL_TAB);
+    const [search, setSearch] = useState("");
+
+    const categoryLabel = (category) => category || S.plugin_category_unknown;
+    const categories = Array.from(new Set(catalog.map((item) => item.category))).sort((a, b) =>
+      categoryLabel(a).localeCompare(categoryLabel(b))
+    );
+    const countFor = (category) => catalog.filter((item) => item.category === category).length;
+
+    const matchesSearch = (item) => {
+      const query = search.trim().toLowerCase();
+      return !query || item.title.toLowerCase().includes(query);
+    };
+
+    const groupsToRender = activeTab === WIDGET_ALL_TAB ? categories : [activeTab];
+    const visibleItems = groupsToRender
+      .flatMap((category) => catalog.filter((item) => item.category === category))
+      .filter(matchesSearch);
+
     return html`
       <div class="modal-backdrop" role="presentation" onMouseDown=${(event) => {
         if (event.target === event.currentTarget) onClose();
       }}>
-        <div class="widget-picker" role="dialog" aria-modal="true" aria-label=${S.add_widget}>
+        <div class="widget-picker widget-picker-wide" role="dialog" aria-modal="true" aria-label=${S.add_widget}>
           <h3>${S.add_widget}</h3>
-          <div class="widget-picker-list">
-            ${catalog.map(
-              (item) => html`
-                <button class="ghost widget-picker-item" key=${item.type} onClick=${() => onPick(item.type)}>
-                  ${item.title}
-                  <span class=${item.source === "plugin" ? "badge" : "badge badge-active"}>
-                    ${item.source === "plugin" ? S.renderer_third_party : S.plugin_core}
-                  </span>
-                </button>
-              `
-            )}
+          <div class="category-layout">
+            <nav class="category-tabs">
+              <button
+                class=${activeTab === WIDGET_ALL_TAB ? "category-tab active" : "category-tab"}
+                onClick=${() => setActiveTab(WIDGET_ALL_TAB)}
+              >
+                <span>${S.widgets_all_tab}</span>
+                <span class="category-tab-count">${catalog.length}</span>
+              </button>
+              ${categories.map(
+                (category) => html`
+                  <button
+                    class=${activeTab === category ? "category-tab active" : "category-tab"}
+                    onClick=${() => setActiveTab(category)}
+                    key=${category || "__uncategorized__"}
+                  >
+                    <span>${categoryLabel(category)}</span>
+                    <span class="category-tab-count">${countFor(category)}</span>
+                  </button>
+                `
+              )}
+            </nav>
+            <div class="category-content">
+              <input
+                type="text"
+                class="category-search"
+                placeholder=${S.widget_picker_search_placeholder}
+                value=${search}
+                onInput=${(event) => setSearch(event.target.value)}
+              />
+              <div class="widget-picker-list">
+                ${visibleItems.length === 0
+                  ? html`<p class="hint-text">${S.no_widgets_match_filter}</p>`
+                  : visibleItems.map(
+                      (item) => html`
+                        <button class="ghost widget-picker-item" key=${item.type} onClick=${() => onPick(item.type)}>
+                          ${item.title}
+                          <span class=${item.source === "plugin" ? "badge" : "badge badge-active"}>
+                            ${item.source === "plugin" ? S.renderer_third_party : S.plugin_core}
+                          </span>
+                        </button>
+                      `
+                    )}
+              </div>
+            </div>
           </div>
           <div class="utility-actions">
             <button onClick=${onClose}>${S.close}</button>
