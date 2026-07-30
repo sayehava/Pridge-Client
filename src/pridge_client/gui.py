@@ -54,7 +54,13 @@ from pridge_client.platform_window import (
     ensure_webview2_runtime,
     preferred_webview_gui,
 )
-from pridge_client.printers import Printer, PrinterError, PrinterManager, validate_driver_settings
+from pridge_client.printers import (
+    Printer,
+    PrinterCapabilities,
+    PrinterError,
+    PrinterManager,
+    validate_driver_settings,
+)
 from pridge_client.strings import (
     APP_NAME,
     MESSAGE_READY,
@@ -511,14 +517,19 @@ class ClientApi:
 
     def get_printer_capabilities(self, printer_name: str, server_id: str = "") -> dict:
         name = str(printer_name).strip()
-        if name not in {printer.name for printer in self.printers}:
-            return self._error("The selected printer is no longer available.")
+        if not name:
+            return self._error("No printer is selected.")
         store = self._profile_store(server_id)
         profile = store.get(name, PrinterProfile())
         try:
             capabilities = self.printer_manager.get_capabilities(name)
-        except PrinterError as exc:
-            return self._error(str(exc))
+        except PrinterError:
+            # Not currently detected by the OS (asleep, offline, or this call
+            # is coming from a machine other than wherever the printer is
+            # actually reachable from) - keep the profile (mode, RAW/Composer
+            # settings) editable regardless; only live driver capabilities are
+            # unavailable until the printer is detected again.
+            capabilities = PrinterCapabilities(printer_name=name, system_driver_available=False)
 
         validated = validate_driver_settings(capabilities, profile.driver_settings)
         if capabilities.system_driver_available and validated != profile.driver_settings:
@@ -536,8 +547,8 @@ class ClientApi:
 
     def update_printer_profile(self, printer_name: str, fields: dict, server_id: str = "") -> dict:
         name = str(printer_name).strip()
-        if name not in {printer.name for printer in self.printers}:
-            return self._error("The selected printer is no longer available.")
+        if not name:
+            return self._error("No printer is selected.")
         mode = str(fields.get("mode", "system_driver")).strip().lower()
         if mode not in PRINT_MODES:
             return self._error("The selected printing mode is not supported.")
@@ -554,6 +565,11 @@ class ClientApi:
             fit_mode = existing.fit_mode
         capabilities = None
         if mode == "system_driver":
+            # Only System Driver mode actually needs live driver capabilities
+            # (to validate driver_settings against real options) - RAW mode
+            # needs none of this, so it must never be blocked by the printer
+            # being temporarily undetected (asleep, offline, or configured
+            # from a different machine than the one that'll print to it).
             try:
                 capabilities = self.printer_manager.get_capabilities(name)
             except PrinterError as exc:
@@ -1070,8 +1086,7 @@ class ClientApi:
         server, mapping = self._find_mapping(server_id, remote_printer_id)
         if server is None or mapping is None:
             return self._error(MESSAGE_MAPPING_NOT_FOUND)
-        mapping.raw_header_template = str(fields.get("raw_header_template", mapping.raw_header_template))
-        mapping.raw_footer_template = str(fields.get("raw_footer_template", mapping.raw_footer_template))
+        mapping.raw_template = str(fields.get("raw_template", mapping.raw_template))
         raw_paper_width_dots = self._safe_int(
             fields.get("raw_paper_width_dots", mapping.raw_paper_width_dots), mapping.raw_paper_width_dots, 8, 4096
         )
@@ -1094,8 +1109,7 @@ class ClientApi:
             return self._error(MESSAGE_MAPPING_NOT_FOUND)
         # Clears the design only - saved counters are print history, not
         # design state, and are left alone rather than deleted alongside it.
-        mapping.raw_header_template = ""
-        mapping.raw_footer_template = ""
+        mapping.raw_template = ""
         mapping.raw_paper_width_dots = 384
         mapping.raw_chars_per_line = 32
         mapping.receipt_design_migrated = True
@@ -1117,8 +1131,7 @@ class ClientApi:
                 name,
                 mode="raw",
                 driver_settings=profile.driver_settings,
-                raw_header_template=mapping.raw_header_template,
-                raw_footer_template=mapping.raw_footer_template,
+                raw_template=mapping.raw_template,
                 raw_paper_width_dots=mapping.raw_paper_width_dots,
                 raw_chars_per_line=mapping.raw_chars_per_line,
                 receipt_scope_key=mapping_scope_key(server.id, mapping.remote_printer_id),
@@ -1132,8 +1145,7 @@ class ClientApi:
 
     def _mapping_receipt_design_public(self, mapping: PrinterMapping) -> dict[str, object]:
         return {
-            "raw_header_template": mapping.raw_header_template,
-            "raw_footer_template": mapping.raw_footer_template,
+            "raw_template": mapping.raw_template,
             "raw_paper_width_dots": mapping.raw_paper_width_dots,
             "raw_chars_per_line": mapping.raw_chars_per_line,
         }
@@ -1459,7 +1471,7 @@ class ClientApi:
                     "remote_printer_id": mapping.remote_printer_id,
                     "remote_printer_name": mapping.remote_printer_name,
                     "local_printer_name": mapping.local_printer_name,
-                    "has_receipt_design": bool(mapping.raw_header_template or mapping.raw_footer_template),
+                    "has_receipt_design": bool(mapping.raw_template),
                 }
                 for mapping in server.printer_mappings
             ],
@@ -1588,8 +1600,7 @@ class ClientApi:
                     remote_printer_id=remote_printer_id,
                     remote_printer_name=str(item.get("remote_printer_name", "")).strip(),
                     local_printer_name=local_printer_name,
-                    raw_header_template=previous.raw_header_template if previous else "",
-                    raw_footer_template=previous.raw_footer_template if previous else "",
+                    raw_template=previous.raw_template if previous else "",
                     raw_paper_width_dots=previous.raw_paper_width_dots if previous else 384,
                     raw_chars_per_line=previous.raw_chars_per_line if previous else 32,
                     receipt_design_migrated=previous.receipt_design_migrated if previous else False,
