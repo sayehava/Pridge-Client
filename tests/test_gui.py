@@ -51,6 +51,9 @@ class NoPrinters:
     def list_printers(self):
         return []
 
+    def receipt_shortcode_resolvers(self):
+        return {}
+
 
 class FakeRendererPlugin:
     def __init__(self, plugin_id, settings_window=""):
