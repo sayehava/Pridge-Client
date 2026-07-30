@@ -38,8 +38,11 @@ class PrinterMapping:
     # one remote endpoint), not to the local printer it happens to target today
     # - the same physical printer can be mapped from several endpoints (kitchen
     # ticket, register receipt, delivery slip) that each need their own design.
-    raw_header_template: str = ""
-    raw_footer_template: str = ""
+    # One unified template rather than a separate header/footer: the incoming
+    # print job's own content is spliced in wherever a `[body]` shortcode
+    # appears (or appended at the end if the template never uses one, so a
+    # blank/decoration-only template can never silently swallow real content).
+    raw_template: str = ""
     raw_paper_width_dots: int = 384
     raw_chars_per_line: int = 32
     # Set once by _migrate_mapping_receipt_designs on first load after this
@@ -403,13 +406,21 @@ def _parse_printer_mappings(raw: Any) -> list[PrinterMapping]:
             continue
         raw_paper_width_dots = _bounded_int(item.get("raw_paper_width_dots", 384), 384, 8, 4096)
         raw_paper_width_dots = max(8, (raw_paper_width_dots // 8) * 8)
+        raw_template = str(item.get("raw_template", "")).strip()
+        if not raw_template:
+            # Brief intermediate format (separate header/footer per mapping,
+            # before the unified [body]-shortcode template) - combine them
+            # the same way they were always concatenated around the real job.
+            legacy_header = str(item.get("raw_header_template", "")).strip()
+            legacy_footer = str(item.get("raw_footer_template", "")).strip()
+            if legacy_header or legacy_footer:
+                raw_template = f"{legacy_header}[body]{legacy_footer}"
         mappings.append(
             PrinterMapping(
                 remote_printer_id=remote_printer_id,
                 remote_printer_name=str(item.get("remote_printer_name", "")).strip(),
                 local_printer_name=local_printer_name,
-                raw_header_template=str(item.get("raw_header_template", "")).strip(),
-                raw_footer_template=str(item.get("raw_footer_template", "")).strip(),
+                raw_template=raw_template,
                 raw_paper_width_dots=raw_paper_width_dots,
                 raw_chars_per_line=_bounded_int(item.get("raw_chars_per_line", 32), 32, 8, 128),
                 receipt_design_migrated=bool(item.get("receipt_design_migrated", False)),
@@ -444,8 +455,7 @@ def _migrate_mapping_receipt_designs(
         )
         if design is not None:
             header, footer, paper_width_dots, chars_per_line = design
-            mapping.raw_header_template = header
-            mapping.raw_footer_template = footer
+            mapping.raw_template = f"{header}[body]{footer}" if (header or footer) else ""
             mapping.raw_paper_width_dots = paper_width_dots
             mapping.raw_chars_per_line = chars_per_line
         mapping.receipt_design_migrated = True
