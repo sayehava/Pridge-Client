@@ -137,7 +137,7 @@ class PrinterManagerTests(unittest.TestCase):
         self.manager.backend.print_raw.assert_called_once_with("Labels", payload, "Raw job")
         self.manager.backend.get_capabilities.assert_not_called()
 
-    def test_raw_mode_wraps_payload_with_header_and_footer_templates(self) -> None:
+    def test_raw_mode_wraps_payload_with_a_unified_template(self) -> None:
         payload = b"HELLO\n"
 
         self.manager.print_job(
@@ -145,8 +145,7 @@ class PrinterManagerTests(unittest.TestCase):
             payload,
             mode="raw",
             job_name="Raw job",
-            raw_header_template="[feed:4]",
-            raw_footer_template="[cut:full]",
+            raw_template="[feed:4][body][cut:full]",
         )
 
         self.manager.backend.print_raw.assert_called_once_with(
@@ -160,11 +159,25 @@ class PrinterManagerTests(unittest.TestCase):
             "Labels",
             payload,
             mode="raw",
-            raw_footer_template="[hex:1D 56 01]",
+            raw_template="[body][hex:1D 56 01]",
         )
 
         self.manager.backend.print_raw.assert_called_once_with(
             "Labels", payload + b"\x1d\x56\x01", "Pridge Job"
+        )
+
+    def test_raw_mode_with_no_body_tag_appends_the_payload_at_the_end(self) -> None:
+        payload = b"HELLO\n"
+
+        self.manager.print_job(
+            "Labels",
+            payload,
+            mode="raw",
+            raw_template="[hex:1D 56 01]",
+        )
+
+        self.manager.backend.print_raw.assert_called_once_with(
+            "Labels", b"\x1d\x56\x01" + payload, "Pridge Job"
         )
 
     def test_raw_mode_resolves_an_image_shortcode_and_increments_print_number(self) -> None:
@@ -182,7 +195,7 @@ class PrinterManagerTests(unittest.TestCase):
             "Labels",
             b"HELLO\n",
             mode="raw",
-            raw_header_template=f"[image:{image.id}][print_number]",
+            raw_template=f"[image:{image.id}][print_number][body]",
         )
 
         sent = self.manager.backend.print_raw.call_args.args[1]
@@ -328,8 +341,7 @@ class PrinterManagerTests(unittest.TestCase):
         self.manager.print_test_page(
             "Labels",
             "raw",
-            raw_header_template="[feed:4]",
-            raw_footer_template="[cut:full]",
+            raw_template="[feed:4][body][cut:full]",
         )
 
         sent = self.manager.backend.print_raw.call_args.args[1]
