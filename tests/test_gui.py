@@ -41,10 +41,14 @@ class NoPrinters:
     def __init__(self):
         from tempfile import TemporaryDirectory
 
-        from pridge_client.receipt_composer import ReceiptComposerStore
+        from pridge_client.receipt_composer import ReceiptComposerPlugin, ReceiptComposerStore
         from pridge_client.renderers.registry import RendererRegistry
 
         self.renderer_registry = RendererRegistry()
+        self.receipt_composer_plugin = ReceiptComposerPlugin()
+        self.renderer_registry.register(
+            self.receipt_composer_plugin, priority=110, is_builtin=True, category="Receipts"
+        )
         self._receipt_composer_scratch = TemporaryDirectory()
         self.receipt_composer_store = ReceiptComposerStore(Path(self._receipt_composer_scratch.name))
 
@@ -1245,7 +1249,7 @@ class DashboardWidgetTests(unittest.TestCase):
         self.assertEqual([w["widget_type"] for w in result["pages"][0]], ["recent_jobs", "logs"])
         self.assertEqual(
             {item["type"] for item in result["catalog"]},
-            {"recent_jobs", "logs", "printer_stats", "server_status"},
+            {"recent_jobs", "logs", "printer_stats", "server_status", "receipt_composer_items"},
         )
 
     def test_add_widget_rejects_an_unknown_type(self):
@@ -1351,8 +1355,114 @@ class DashboardWidgetTests(unittest.TestCase):
         result = self.api.get_dashboard_layout()
 
         self.assertEqual(
-            [item["source"] for item in result["catalog"]], ["builtin", "builtin", "builtin", "builtin"]
+            [item["source"] for item in result["catalog"]],
+            ["builtin", "builtin", "builtin", "builtin", "builtin"],
         )
+
+    def test_catalog_includes_receipt_composer_widget_with_a_category(self):
+        result = self.api.get_dashboard_layout()
+
+        entry = next(item for item in result["catalog"] if item["type"] == "receipt_composer_items")
+        self.assertEqual(entry["category"], "Core")
+
+    def test_catalog_omits_receipt_composer_widget_when_the_plugin_is_disabled(self):
+        self.api.set_renderer_plugin_enabled(self.api.printer_manager.receipt_composer_plugin.plugin_id, False)
+
+        result = self.api.get_dashboard_layout()
+
+        self.assertNotIn("receipt_composer_items", {item["type"] for item in result["catalog"]})
+
+    def test_every_catalog_entry_has_a_category(self):
+        result = self.api.get_dashboard_layout()
+
+        self.assertTrue(all(item.get("category") for item in result["catalog"]))
+
+
+class ReceiptComposerWidgetSupportTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        config_path = Path(self.temporary_directory.name) / "config.json"
+        self.api = ClientApi(
+            config_store=ConfigStore(config_path),
+            token_store=MemoryTokenStore(),
+            printer_manager=NoPrinters(),
+        )
+        add_result = self.api.add_server(
+            {
+                "name": "Office",
+                "server_url": "https://office.example.test",
+                "printer_mappings": [
+                    {"remote_printer_id": "kitchen-1", "local_printer_name": "Kitchen Printer"}
+                ],
+            }
+        )
+        self.server_id = add_result["state"]["servers"][0]["id"]
+
+    def tearDown(self):
+        self.temporary_directory.cleanup()
+
+    def test_has_receipt_design_is_false_until_a_design_is_saved(self):
+        state = self.api._build_state()
+        mapping = state["servers"][0]["printer_mappings"][0]
+
+        self.assertFalse(mapping["has_receipt_design"])
+
+    def test_has_receipt_design_becomes_true_after_saving_a_template(self):
+        self.api.update_mapping_receipt_design(self.server_id, "kitchen-1", {"raw_header_template": "[bold]Hi[/bold]"})
+
+        state = self.api._build_state()
+        mapping = state["servers"][0]["printer_mappings"][0]
+        self.assertTrue(mapping["has_receipt_design"])
+
+    def test_open_receipt_composer_window_sets_a_pending_selection(self):
+        with patch("pridge_client.gui.webview.create_window"):
+            self.api.open_receipt_composer_window(self.server_id, "kitchen-1")
+
+        result = self.api.get_pending_receipt_selection()
+
+        self.assertEqual(result["server_id"], self.server_id)
+        self.assertEqual(result["remote_printer_id"], "kitchen-1")
+
+    def test_pending_selection_is_consumed_after_one_read(self):
+        with patch("pridge_client.gui.webview.create_window"):
+            self.api.open_receipt_composer_window(self.server_id, "kitchen-1")
+
+        self.api.get_pending_receipt_selection()
+        second_read = self.api.get_pending_receipt_selection()
+
+        self.assertEqual(second_read["server_id"], "")
+        self.assertEqual(second_read["remote_printer_id"], "")
+
+    def test_open_receipt_composer_window_without_args_leaves_no_pending_selection(self):
+        with patch("pridge_client.gui.webview.create_window"):
+            self.api.open_receipt_composer_window()
+
+        result = self.api.get_pending_receipt_selection()
+
+        self.assertEqual(result["server_id"], "")
+
+    def test_clear_mapping_receipt_design_resets_the_template_but_keeps_counters(self):
+        self.api.update_mapping_receipt_design(
+            self.server_id,
+            "kitchen-1",
+            {"raw_header_template": "[bold]Hi[/bold]", "raw_paper_width_dots": 576},
+        )
+        self.api.add_receipt_counter(self.server_id, "kitchen-1", "vip", "VIP")
+        self.api.reset_receipt_counter(self.server_id, "kitchen-1", "vip", 7)
+
+        result = self.api.clear_mapping_receipt_design(self.server_id, "kitchen-1")
+
+        self.assertTrue(result["ok"])
+        reloaded_mapping = self.api.config_store.load().servers[0].printer_mappings[0]
+        self.assertEqual(reloaded_mapping.raw_header_template, "")
+        self.assertEqual(reloaded_mapping.raw_paper_width_dots, 384)
+        counters = self.api.get_receipt_counters(self.server_id, "kitchen-1")["counters"]
+        self.assertEqual(counters["vip"]["value"], 7)
+
+    def test_clear_mapping_receipt_design_errors_for_an_unknown_mapping(self):
+        result = self.api.clear_mapping_receipt_design(self.server_id, "no-such-mapping")
+
+        self.assertFalse(result["ok"])
 
 
 if __name__ == "__main__":
