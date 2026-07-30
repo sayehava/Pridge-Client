@@ -138,6 +138,54 @@ than caching it, since the next widget added overwrites it for its own
 script. A complete example lives at
 [`tests/fixtures/example_widget_plugin/`](tests/fixtures/example_widget_plugin/).
 
+## Receipt Composer shortcodes (optional, any plugin)
+
+Any renderer plugin — built-in or third-party — can contribute its own
+`[tag]` shortcodes to Receipt Composer's RAW header/footer templates. This is
+a plain Python attribute on the plugin object (not a manifest field), read
+generically via `getattr` so a plugin never has to declare it:
+
+```python
+class MyPlugin:
+    ...
+    def __init__(self):
+        self.receipt_shortcodes = {
+            "weather": self._resolve_weather,
+        }
+
+    def _resolve_weather(self, arg):
+        # arg is the tag's raw argument as a string, or None if the tag had
+        # no `:argument` (e.g. "[weather]" vs "[weather:sunny]").
+        return f"Weather: {arg or 'unknown'}".encode("ascii")
+```
+
+`receipt_shortcodes` is a `dict[str, Callable[[str | None], bytes]]`: each key
+is the tag name (matched case-insensitively, e.g. `"weather"` handles both
+`[weather]` and `[WEATHER:sunny]`), and each value is a function taking the
+tag's argument and returning the literal bytes to splice into the printed
+output. Your resolver is only ever consulted after every built-in tag name
+(`align`, `bold`, `hr`, `blank`, `newline`, `date`, `random`, `print_number`,
+`counter`, `image`, `cut`, `drawer`, `feed`, `hex`, `dec`) has been ruled
+out — a plugin can never shadow or override the built-in vocabulary, and an
+attempt to do so is ignored with a logged warning. If two enabled plugins
+register the same custom name, the one with higher priority (lower priority
+number, same ordering as the Plugins window's drag-to-reorder) wins; the
+other is ignored with a logged warning — reorder plugin priority to change
+which one applies.
+
+Your resolver must never raise: if it does, or returns anything other than
+`bytes`/`bytearray`, the tag resolves to nothing (same "never print garbage
+on an unattended receipt" rule the built-in tags follow) rather than
+crashing the print job or the settings-window preview. In the live block
+editor preview, a custom tag always renders as an opaque marker showing its
+tag name — Pridge Client has no way to know whether your resolver's output is
+printable text or a raw ESC/POS sequence, so it doesn't attempt to decode it.
+
+Scope note: only simple, self-closing tags (`[name]` / `[name:arg]`) can be
+contributed this way. Paired open/close tags like `[bold]...[/bold]` are not
+currently an extension point — closing tags are matched only against the
+small built-in set (`bold`) and are not routed to `receipt_shortcodes` at all.
+
 ## Settings window (core plugins only)
 
 A plugin object can carry an optional `settings_window: str` attribute (a
