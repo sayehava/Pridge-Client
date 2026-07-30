@@ -256,6 +256,52 @@ class ClientApiTests(unittest.TestCase):
 
         self.assertEqual(result["profile"]["submission_method"], "pdfium")
 
+    def test_raw_mode_can_be_saved_for_a_printer_the_os_does_not_currently_detect(self):
+        # Real bug: a thermal receipt printer that's asleep/offline/networked
+        # (undetected by list_printers() right now) could never be switched to
+        # RAW mode, permanently stranding it on the system_driver default and
+        # silently disabling Receipt Composer for it. RAW needs zero live
+        # driver data, so this must succeed regardless of detection.
+        manager = Mock()
+        manager.renderer_registry.all_entries.return_value = []
+        manager.list_printers.return_value = []
+        self.api.printer_manager = manager
+        self.api.refresh_printers()
+
+        result = self.api.update_printer_profile("EPSON_TM_T20IV_Receipt", {"mode": "raw"})
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(
+            self.api.config_store.load().printer_profiles["EPSON_TM_T20IV_Receipt"].mode, "raw"
+        )
+
+    def test_system_driver_mode_still_requires_a_detected_printer(self):
+        manager = Mock()
+        manager.renderer_registry.all_entries.return_value = []
+        manager.list_printers.return_value = []
+        manager.get_capabilities.side_effect = PrinterError("The selected printer is no longer available.")
+        self.api.printer_manager = manager
+        self.api.refresh_printers()
+
+        result = self.api.update_printer_profile("Ghost Printer", {"mode": "system_driver"})
+
+        self.assertFalse(result["ok"])
+
+    def test_get_printer_capabilities_returns_the_saved_profile_for_an_undetected_printer(self):
+        manager = Mock()
+        manager.renderer_registry.all_entries.return_value = []
+        manager.list_printers.return_value = []
+        manager.get_capabilities.side_effect = PrinterError("The selected printer is no longer available.")
+        self.api.printer_manager = manager
+        self.api.refresh_printers()
+        self.api.update_printer_profile("EPSON_TM_T20IV_Receipt", {"mode": "raw"})
+
+        result = self.api.get_printer_capabilities("EPSON_TM_T20IV_Receipt")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["profile"]["mode"], "raw")
+        self.assertFalse(result["capabilities"]["system_driver_available"])
+
     @patch("pridge_client.gui.PridgeClient")
     def test_server_id_targets_that_servers_own_profile_override(self, _client_class):
         manager = Mock()
@@ -1099,7 +1145,9 @@ class ReceiptComposerApiTests(unittest.TestCase):
         result = self.api.preview_receipt_template("[print_number]", server_id, remote_id)
 
         self.assertTrue(result["ok"])
-        self.assertEqual(result["blocks"], [{"type": "text", "value": "1"}])
+        self.assertEqual(
+            result["blocks"], [{"type": "text", "value": "1"}, {"type": "body_placeholder", "implicit": True}]
+        )
         self.assertEqual(self.api.get_receipt_counters(server_id, remote_id)["counters"], {})
 
     def test_preview_receipt_template_uses_the_mapping_s_saved_chars_per_line(self):
@@ -1108,7 +1156,9 @@ class ReceiptComposerApiTests(unittest.TestCase):
 
         result = self.api.preview_receipt_template("[hr]", server_id, remote_id)
 
-        self.assertEqual(result["blocks"], [{"type": "hr", "width": 12}])
+        self.assertEqual(
+            result["blocks"], [{"type": "hr", "width": 12}, {"type": "body_placeholder", "implicit": True}]
+        )
 
 
 class MappingReceiptDesignApiTests(unittest.TestCase):
@@ -1139,7 +1189,7 @@ class MappingReceiptDesignApiTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["local_printer_name"], "Kitchen Printer")
-        self.assertEqual(result["design"]["raw_header_template"], "")
+        self.assertEqual(result["design"]["raw_template"], "")
         self.assertEqual(result["design"]["raw_paper_width_dots"], 384)
         self.assertEqual(result["design"]["raw_chars_per_line"], 32)
 
@@ -1158,20 +1208,18 @@ class MappingReceiptDesignApiTests(unittest.TestCase):
             self.server_id,
             "kitchen-1",
             {
-                "raw_header_template": "[bold]Hi[/bold]",
-                "raw_footer_template": "[cut:full]",
+                "raw_template": "[bold]Hi[/bold][body][cut:full]",
                 "raw_paper_width_dots": 576,
                 "raw_chars_per_line": 48,
             },
         )
 
         self.assertTrue(result["ok"])
-        self.assertEqual(result["design"]["raw_header_template"], "[bold]Hi[/bold]")
+        self.assertEqual(result["design"]["raw_template"], "[bold]Hi[/bold][body][cut:full]")
 
         reloaded = self.api.config_store.load()
         mapping = reloaded.servers[0].printer_mappings[0]
-        self.assertEqual(mapping.raw_header_template, "[bold]Hi[/bold]")
-        self.assertEqual(mapping.raw_footer_template, "[cut:full]")
+        self.assertEqual(mapping.raw_template, "[bold]Hi[/bold][body][cut:full]")
         self.assertEqual(mapping.raw_paper_width_dots, 576)
         self.assertEqual(mapping.raw_chars_per_line, 48)
         self.assertTrue(mapping.receipt_design_migrated)
@@ -1199,16 +1247,16 @@ class MappingReceiptDesignApiTests(unittest.TestCase):
             },
         )
 
-        self.api.update_mapping_receipt_design(self.server_id, "kitchen-1", {"raw_header_template": "[bold]K[/bold]"})
-        self.api.update_mapping_receipt_design(self.server_id, "register-1", {"raw_header_template": "[bold]R[/bold]"})
+        self.api.update_mapping_receipt_design(self.server_id, "kitchen-1", {"raw_template": "[bold]K[/bold]"})
+        self.api.update_mapping_receipt_design(self.server_id, "register-1", {"raw_template": "[bold]R[/bold]"})
 
         kitchen = self.api.get_mapping_receipt_design(self.server_id, "kitchen-1")
         register = self.api.get_mapping_receipt_design(self.server_id, "register-1")
-        self.assertEqual(kitchen["design"]["raw_header_template"], "[bold]K[/bold]")
-        self.assertEqual(register["design"]["raw_header_template"], "[bold]R[/bold]")
+        self.assertEqual(kitchen["design"]["raw_template"], "[bold]K[/bold]")
+        self.assertEqual(register["design"]["raw_template"], "[bold]R[/bold]")
 
     def test_editing_unrelated_server_fields_does_not_wipe_a_mapping_s_saved_design(self):
-        self.api.update_mapping_receipt_design(self.server_id, "kitchen-1", {"raw_header_template": "[bold]Hi[/bold]"})
+        self.api.update_mapping_receipt_design(self.server_id, "kitchen-1", {"raw_template": "[bold]Hi[/bold]"})
 
         result = self.api.update_server(
             self.server_id,
@@ -1223,7 +1271,7 @@ class MappingReceiptDesignApiTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         design = self.api.get_mapping_receipt_design(self.server_id, "kitchen-1")
-        self.assertEqual(design["design"]["raw_header_template"], "[bold]Hi[/bold]")
+        self.assertEqual(design["design"]["raw_template"], "[bold]Hi[/bold]")
 
 
 class DashboardWidgetTests(unittest.TestCase):
@@ -1408,7 +1456,7 @@ class ReceiptComposerWidgetSupportTests(unittest.TestCase):
         self.assertFalse(mapping["has_receipt_design"])
 
     def test_has_receipt_design_becomes_true_after_saving_a_template(self):
-        self.api.update_mapping_receipt_design(self.server_id, "kitchen-1", {"raw_header_template": "[bold]Hi[/bold]"})
+        self.api.update_mapping_receipt_design(self.server_id, "kitchen-1", {"raw_template": "[bold]Hi[/bold]"})
 
         state = self.api._build_state()
         mapping = state["servers"][0]["printer_mappings"][0]
@@ -1445,7 +1493,7 @@ class ReceiptComposerWidgetSupportTests(unittest.TestCase):
         self.api.update_mapping_receipt_design(
             self.server_id,
             "kitchen-1",
-            {"raw_header_template": "[bold]Hi[/bold]", "raw_paper_width_dots": 576},
+            {"raw_template": "[bold]Hi[/bold]", "raw_paper_width_dots": 576},
         )
         self.api.add_receipt_counter(self.server_id, "kitchen-1", "vip", "VIP")
         self.api.reset_receipt_counter(self.server_id, "kitchen-1", "vip", 7)
@@ -1454,7 +1502,7 @@ class ReceiptComposerWidgetSupportTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         reloaded_mapping = self.api.config_store.load().servers[0].printer_mappings[0]
-        self.assertEqual(reloaded_mapping.raw_header_template, "")
+        self.assertEqual(reloaded_mapping.raw_template, "")
         self.assertEqual(reloaded_mapping.raw_paper_width_dots, 384)
         counters = self.api.get_receipt_counters(self.server_id, "kitchen-1")["counters"]
         self.assertEqual(counters["vip"]["value"], 7)
