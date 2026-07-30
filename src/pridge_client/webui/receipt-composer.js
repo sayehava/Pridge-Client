@@ -769,10 +769,36 @@
     `;
   }
 
+  // Flattens every server's printer_mappings (already in get_state) into one
+  // list. Composer content is scoped per mapping now, not per printer - a
+  // printer with no mappings has no entry here at all, and a printer mapped
+  // from 3 endpoints shows up 3 times, once per mapping.
+  function flattenMappings(servers) {
+    const flattened = [];
+    (servers || []).forEach((server) => {
+      (server.printer_mappings || []).forEach((mapping) => {
+        flattened.push({
+          serverId: server.id,
+          serverName: server.name,
+          remotePrinterId: mapping.remote_printer_id,
+          remotePrinterName: mapping.remote_printer_name,
+          localPrinterName: mapping.local_printer_name,
+        });
+      });
+    });
+    return flattened;
+  }
+
+  function mappingLabel(mapping) {
+    const remoteLabel = mapping.remotePrinterName || mapping.remotePrinterId;
+    return `${mapping.serverName} — ${remoteLabel} → ${mapping.localPrinterName}`;
+  }
+
   function ReceiptComposer() {
-    const [printers, setPrinters] = useState([]);
-    const [selectedPrinter, setSelectedPrinter] = useState("");
-    const [profile, setProfile] = useState(null);
+    const [mappings, setMappings] = useState([]);
+    const [selectedIndex, setSelectedIndex] = useState("");
+    const [design, setDesign] = useState(null);
+    const [printerMode, setPrinterMode] = useState("");
     const [headerBlocks, setHeaderBlocks] = useState([]);
     const [footerBlocks, setFooterBlocks] = useState([]);
     const [images, setImages] = useState([]);
@@ -789,14 +815,17 @@
     const previewTimer = useRef(null);
     const skipNextSave = useRef(false);
 
+    const selectedMapping = selectedIndex === "" ? null : mappings[parseInt(selectedIndex, 10)];
+
     const refreshImages = () => {
       callApi("get_receipt_images").then((result) => {
         if (result && result.ok) setImages(result.images);
       });
     };
 
-    const refreshCounters = (printerName) => {
-      callApi("get_receipt_counters", printerName).then((result) => {
+    const refreshCounters = (mapping) => {
+      if (!mapping) return;
+      callApi("get_receipt_counters", mapping.serverId, mapping.remotePrinterId).then((result) => {
         if (result && result.ok) setCounters(result.counters);
       });
     };
@@ -808,84 +837,98 @@
           if (result.state.appearance) {
             document.documentElement.dataset.darkness = (result.state.appearance.darkness_grade || "Onyx").toLowerCase();
           }
-          setPrinters((result.state.printer_details || []).map((p) => p.name));
+          setMappings(flattenMappings(result.state.servers));
         });
         refreshImages();
       });
     }, []);
 
-    const selectPrinter = (event) => {
-      const name = event.target.value;
-      if (!name) {
-        setSelectedPrinter("");
-        setProfile(null);
+    const selectMapping = (event) => {
+      const value = event.target.value;
+      if (value === "") {
+        setSelectedIndex("");
+        setDesign(null);
+        setPrinterMode("");
         setHeaderBlocks([]);
         setFooterBlocks([]);
         setCounters({});
         return;
       }
-      setSelectedPrinter(name);
-      callApi("get_printer_capabilities", name).then((result) => {
+      setSelectedIndex(value);
+      const mapping = mappings[parseInt(value, 10)];
+      if (!mapping) return;
+      callApi("get_mapping_receipt_design", mapping.serverId, mapping.remotePrinterId).then((result) => {
         if (!result || !result.ok) return;
         skipNextSave.current = true;
-        setProfile(result.profile);
-        setHeaderBlocks(parseTemplate(result.profile.raw_header_template).map((b) => ({ id: uid(), ...b })));
-        setFooterBlocks(parseTemplate(result.profile.raw_footer_template).map((b) => ({ id: uid(), ...b })));
-        refreshCounters(name);
+        setDesign(result.design);
+        setPrinterMode(result.printer_mode);
+        setHeaderBlocks(parseTemplate(result.design.raw_header_template).map((b) => ({ id: uid(), ...b })));
+        setFooterBlocks(parseTemplate(result.design.raw_footer_template).map((b) => ({ id: uid(), ...b })));
+        refreshCounters(mapping);
       });
     };
 
-    const testPrinter = () => {
-      if (!selectedPrinter) return;
+    const testMapping = () => {
+      if (!selectedMapping) return;
       setTestBusy(true);
       setMessage("");
-      callApi("test_printer", selectedPrinter).then((result) => {
+      callApi("test_mapping_receipt_design", selectedMapping.serverId, selectedMapping.remotePrinterId).then((result) => {
         setTestBusy(false);
         if (!result) return;
         setMessage(result.ok ? result.message || S.test_print_submitted : result.error || S.test_print_failed);
-        if (result.ok) refreshCounters(selectedPrinter);
+        if (result.ok) refreshCounters(selectedMapping);
       });
     };
 
     useEffect(() => {
-      if (!selectedPrinter || !profile) return undefined;
+      if (!selectedMapping || !design) return undefined;
       if (skipNextSave.current) {
         skipNextSave.current = false;
         return undefined;
       }
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = window.setTimeout(() => {
-        callApi("update_printer_profile", selectedPrinter, {
-          mode: profile.mode,
+        callApi("update_mapping_receipt_design", selectedMapping.serverId, selectedMapping.remotePrinterId, {
           raw_header_template: serializeBlocks(headerBlocks),
           raw_footer_template: serializeBlocks(footerBlocks),
-          raw_paper_width_dots: profile.raw_paper_width_dots,
-          raw_chars_per_line: profile.raw_chars_per_line,
+          raw_paper_width_dots: design.raw_paper_width_dots,
+          raw_chars_per_line: design.raw_chars_per_line,
         }).then((result) => {
           if (result && result.ok) setMessage(S.settings_saved_automatically);
         });
       }, 500);
       return () => window.clearTimeout(saveTimer.current);
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [headerBlocks, footerBlocks, profile]);
+    }, [headerBlocks, footerBlocks, design]);
 
     useEffect(() => {
-      if (!selectedPrinter) {
+      if (!selectedMapping) {
         setHeaderPreview([]);
         setFooterPreview([]);
         return undefined;
       }
       if (previewTimer.current) clearTimeout(previewTimer.current);
       previewTimer.current = window.setTimeout(() => {
-        callApi("preview_receipt_template", serializeBlocks(headerBlocks), selectedPrinter).then((result) => {
+        callApi(
+          "preview_receipt_template",
+          serializeBlocks(headerBlocks),
+          selectedMapping.serverId,
+          selectedMapping.remotePrinterId
+        ).then((result) => {
           if (result && result.ok) setHeaderPreview(buildPreviewLines(result.blocks));
         });
-        callApi("preview_receipt_template", serializeBlocks(footerBlocks), selectedPrinter).then((result) => {
+        callApi(
+          "preview_receipt_template",
+          serializeBlocks(footerBlocks),
+          selectedMapping.serverId,
+          selectedMapping.remotePrinterId
+        ).then((result) => {
           if (result && result.ok) setFooterPreview(buildPreviewLines(result.blocks));
         });
       }, 250);
       return () => window.clearTimeout(previewTimer.current);
-    }, [headerBlocks, footerBlocks, selectedPrinter]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [headerBlocks, footerBlocks, selectedIndex]);
 
     const uploadImage = (event) => {
       const file = event.target.files && event.target.files[0];
@@ -917,30 +960,40 @@
 
     const addCounter = () => {
       const key = newCounterKey.trim();
-      if (!key || !selectedPrinter) return;
-      callApi("add_receipt_counter", selectedPrinter, key, newCounterLabel.trim()).then((result) => {
-        if (result && result.ok) {
-          setCounters(result.counters);
-          setNewCounterKey("");
-          setNewCounterLabel("");
-        } else {
-          setMessage((result && result.error) || S.receipt_counter_add_failed);
+      if (!key || !selectedMapping) return;
+      callApi("add_receipt_counter", selectedMapping.serverId, selectedMapping.remotePrinterId, key, newCounterLabel.trim()).then(
+        (result) => {
+          if (result && result.ok) {
+            setCounters(result.counters);
+            setNewCounterKey("");
+            setNewCounterLabel("");
+          } else {
+            setMessage((result && result.error) || S.receipt_counter_add_failed);
+          }
         }
-      });
+      );
     };
 
     const resetCounter = (key, label) => {
+      if (!selectedMapping) return;
       const input = window.prompt(S.receipt_reset_counter_prompt.replace("{name}", label || key), "0");
       if (input === null) return;
       const value = parseInt(input, 10);
-      callApi("reset_receipt_counter", selectedPrinter, key, Number.isFinite(value) ? value : 0).then((result) => {
+      callApi(
+        "reset_receipt_counter",
+        selectedMapping.serverId,
+        selectedMapping.remotePrinterId,
+        key,
+        Number.isFinite(value) ? value : 0
+      ).then((result) => {
         if (result && result.ok) setCounters(result.counters);
       });
     };
 
     const removeCounter = (key, label) => {
+      if (!selectedMapping) return;
       if (!window.confirm(S.receipt_remove_counter_confirm.replace("{name}", label || key))) return;
-      callApi("remove_receipt_counter", selectedPrinter, key).then((result) => {
+      callApi("remove_receipt_counter", selectedMapping.serverId, selectedMapping.remotePrinterId, key).then((result) => {
         if (result && result.ok) setCounters(result.counters);
       });
     };
@@ -963,40 +1016,42 @@
           <${ShortcodeGuide} />
           <section class="settings-section">
             <div class="field">
-              <label class="field-label">${S.receipt_composer_select_printer}</label>
+              <label class="field-label">${S.receipt_composer_select_mapping}</label>
               <div class="field-row">
-                <select value=${selectedPrinter} onChange=${selectPrinter}>
+                <select value=${selectedIndex} onChange=${selectMapping}>
                   <option value="">—</option>
-                  ${printers.map((name) => html`<option value=${name} key=${name}>${name}</option>`)}
+                  ${mappings.map(
+                    (mapping, index) => html`<option value=${index} key=${index}>${mappingLabel(mapping)}</option>`
+                  )}
                 </select>
                 <button
                   type="button"
                   class="btn-secondary"
-                  onClick=${testPrinter}
-                  disabled=${!selectedPrinter || !profile || profile.mode !== "raw" || testBusy}
+                  onClick=${testMapping}
+                  disabled=${!selectedMapping || !design || printerMode !== "raw" || testBusy}
                 >
                   ${testBusy ? S.working : S.receipt_test_print}
                 </button>
               </div>
-              ${selectedPrinter && profile && profile.mode !== "raw"
+              ${selectedMapping && design && printerMode !== "raw"
                 ? html`<small class="field-hint">${S.receipt_test_print_raw_only}</small>`
                 : null}
             </div>
-            ${printers.length === 0 ? html`<p class="hint-text">${S.receipt_composer_no_printers}</p>` : null}
+            ${mappings.length === 0 ? html`<p class="hint-text">${S.receipt_composer_no_mappings}</p>` : null}
 
-            ${!selectedPrinter || !profile
-              ? html`<p class="hint-text">${S.receipt_select_printer_first}</p>`
+            ${!selectedMapping || !design
+              ? html`<p class="hint-text">${S.receipt_select_mapping_first}</p>`
               : html`
                   <div class="receipt-numeric-fields">
                     <div class="field">
                       <label class="field-label">${S.receipt_paper_width}</label>
                       <select
-                        value=${PAPER_WIDTH_PRESETS.some((preset) => preset.value === profile.raw_paper_width_dots)
-                          ? profile.raw_paper_width_dots
+                        value=${PAPER_WIDTH_PRESETS.some((preset) => preset.value === design.raw_paper_width_dots)
+                          ? design.raw_paper_width_dots
                           : "__custom__"}
                         onChange=${(e) => {
                           if (e.target.value === "__custom__") return;
-                          setProfile({ ...profile, raw_paper_width_dots: parseInt(e.target.value, 10) });
+                          setDesign({ ...design, raw_paper_width_dots: parseInt(e.target.value, 10) });
                         }}
                       >
                         ${PAPER_WIDTH_PRESETS.map(
@@ -1008,10 +1063,10 @@
                         type="number"
                         min="8"
                         step="8"
-                        value=${profile.raw_paper_width_dots}
-                        onInput=${(e) => setProfile({ ...profile, raw_paper_width_dots: parseInt(e.target.value, 10) || 384 })}
+                        value=${design.raw_paper_width_dots}
+                        onInput=${(e) => setDesign({ ...design, raw_paper_width_dots: parseInt(e.target.value, 10) || 384 })}
                       />
-                      <small class="field-hint">${dotsToPhysicalSizeLabel(profile.raw_paper_width_dots)}</small>
+                      <small class="field-hint">${dotsToPhysicalSizeLabel(design.raw_paper_width_dots)}</small>
                     </div>
                     <div class="field">
                       <label class="field-label">${S.receipt_chars_per_line}</label>
@@ -1019,14 +1074,14 @@
                         type="number"
                         min="8"
                         max="128"
-                        value=${profile.raw_chars_per_line}
-                        onInput=${(e) => setProfile({ ...profile, raw_chars_per_line: parseInt(e.target.value, 10) || 32 })}
+                        value=${design.raw_chars_per_line}
+                        onInput=${(e) => setDesign({ ...design, raw_chars_per_line: parseInt(e.target.value, 10) || 32 })}
                       />
                     </div>
                   </div>
 
                   <${BlockEditor}
-                    key=${selectedPrinter + "-header"}
+                    key=${selectedIndex + "-header"}
                     title=${S.receipt_header}
                     blocks=${headerBlocks}
                     onChange=${setHeaderBlocks}
@@ -1036,7 +1091,7 @@
                     previewLines=${headerPreview}
                   />
                   <${BlockEditor}
-                    key=${selectedPrinter + "-footer"}
+                    key=${selectedIndex + "-footer"}
                     title=${S.receipt_footer}
                     blocks=${footerBlocks}
                     onChange=${setFooterBlocks}
@@ -1072,7 +1127,7 @@
             </label>
           </section>
 
-          ${selectedPrinter
+          ${selectedMapping
             ? html`
                 <section class="settings-section">
                   <h2>${S.receipt_counters}</h2>
