@@ -55,6 +55,46 @@ class ConfigStoreTests(unittest.TestCase):
 
         self.assertEqual([w.widget_type for w in config.dashboard_widgets], ["recent_jobs", "logs"])
 
+    def test_saves_and_loads_printer_stats(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            store = ConfigStore(path)
+            store.save(
+                ClientConfig(
+                    printer_stats={
+                        "Receipt Printer": {
+                            "test": {"success": 3, "failed": 1},
+                            "remote": {"success": 40, "failed": 2},
+                        }
+                    }
+                )
+            )
+
+            config = store.load()
+
+        self.assertEqual(config.printer_stats["Receipt Printer"]["test"], {"success": 3, "failed": 1})
+        self.assertEqual(config.printer_stats["Receipt Printer"]["remote"], {"success": 40, "failed": 2})
+
+    def test_malformed_printer_stats_are_dropped(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "printer_stats": {
+                            "Receipt Printer": {"bogus_origin": {"success": 1}},
+                            "": {"test": {"success": 1}},
+                            "Label Printer": "not-a-dict",
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            config = ConfigStore(path).load()
+
+        self.assertEqual(config.printer_stats, {})
+
     def test_saves_and_loads_per_printer_profiles(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.json"
