@@ -129,8 +129,7 @@ class ConfigStoreTests(unittest.TestCase):
                                 PrinterMapping(
                                     remote_printer_id="ep-1",
                                     local_printer_name="Receipt",
-                                    raw_header_template="[align:center][image:logo1][bold]Thanks![/bold]",
-                                    raw_footer_template="[cut:full]",
+                                    raw_template="[align:center][image:logo1][bold]Thanks![/bold][body][cut:full]",
                                     raw_paper_width_dots=576,
                                     raw_chars_per_line=48,
                                     receipt_design_migrated=True,
@@ -144,11 +143,47 @@ class ConfigStoreTests(unittest.TestCase):
             config = store.load()
 
         mapping = config.servers[0].printer_mappings[0]
-        self.assertEqual(mapping.raw_header_template, "[align:center][image:logo1][bold]Thanks![/bold]")
-        self.assertEqual(mapping.raw_footer_template, "[cut:full]")
+        self.assertEqual(mapping.raw_template, "[align:center][image:logo1][bold]Thanks![/bold][body][cut:full]")
         self.assertEqual(mapping.raw_paper_width_dots, 576)
         self.assertEqual(mapping.raw_chars_per_line, 48)
         self.assertTrue(mapping.receipt_design_migrated)
+
+    def test_combines_the_brief_per_mapping_header_footer_format_into_a_unified_template(self) -> None:
+        # Between the mapping-scoping rescoping and the unified [body]-shortcode
+        # template, mappings briefly stored separate raw_header_template/
+        # raw_footer_template fields directly (not the older PrinterProfile-
+        # shared kind covered by _migrate_mapping_receipt_designs above).
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "servers": [
+                            {
+                                "id": "s1",
+                                "name": "Server",
+                                "server_url": "https://example.test",
+                                "printer_mappings": [
+                                    {
+                                        "remote_printer_id": "ep-1",
+                                        "local_printer_name": "Receipt",
+                                        "raw_header_template": "[bold]Hi[/bold]",
+                                        "raw_footer_template": "[cut:full]",
+                                        "receipt_design_migrated": True,
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            config = ConfigStore(path).load()
+
+        self.assertEqual(
+            config.servers[0].printer_mappings[0].raw_template, "[bold]Hi[/bold][body][cut:full]"
+        )
 
     def test_parse_printer_profiles_migrates_each_legacy_raw_preset_to_an_equivalent_shortcode(self) -> None:
         # _parse_printer_profiles still resolves presets into a template string
@@ -215,8 +250,7 @@ class ConfigStoreTests(unittest.TestCase):
             config = ConfigStore(path).load()
 
         mapping = config.servers[0].printer_mappings[0]
-        self.assertEqual(mapping.raw_header_template, "[align:center]Legacy[/align]")
-        self.assertEqual(mapping.raw_footer_template, "[cut:full]")
+        self.assertEqual(mapping.raw_template, "[align:center]Legacy[/align][body][cut:full]")
         self.assertEqual(mapping.raw_paper_width_dots, 576)
         self.assertEqual(mapping.raw_chars_per_line, 48)
         self.assertTrue(mapping.receipt_design_migrated)
@@ -247,8 +281,8 @@ class ConfigStoreTests(unittest.TestCase):
             config = ConfigStore(path).load()
 
         mappings = config.servers[0].printer_mappings
-        self.assertEqual(mappings[0].raw_header_template, "[bold]Shared[/bold]")
-        self.assertEqual(mappings[1].raw_header_template, "[bold]Shared[/bold]")
+        self.assertEqual(mappings[0].raw_template, "[bold]Shared[/bold][body]")
+        self.assertEqual(mappings[1].raw_template, "[bold]Shared[/bold][body]")
 
     def test_server_specific_legacy_profile_wins_over_global_for_migration(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -276,7 +310,7 @@ class ConfigStoreTests(unittest.TestCase):
             config = ConfigStore(path).load()
 
         self.assertEqual(
-            config.servers[0].printer_mappings[0].raw_header_template, "[bold]ServerOverride[/bold]"
+            config.servers[0].printer_mappings[0].raw_template, "[bold]ServerOverride[/bold][body]"
         )
 
     def test_already_migrated_mapping_left_blank_on_purpose_is_not_overwritten(self) -> None:
@@ -295,7 +329,7 @@ class ConfigStoreTests(unittest.TestCase):
                                     {
                                         "remote_printer_id": "ep-1",
                                         "local_printer_name": "Receipt",
-                                        "raw_header_template": "",
+                                        "raw_template": "",
                                         "receipt_design_migrated": True,
                                     }
                                 ],
@@ -308,7 +342,7 @@ class ConfigStoreTests(unittest.TestCase):
 
             config = ConfigStore(path).load()
 
-        self.assertEqual(config.servers[0].printer_mappings[0].raw_header_template, "")
+        self.assertEqual(config.servers[0].printer_mappings[0].raw_template, "")
 
     def test_invalid_raw_presets_fall_back_to_none(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
