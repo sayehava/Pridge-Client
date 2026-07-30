@@ -226,7 +226,7 @@
 
       return html`
         <div key=${category || "__uncategorized__"}>
-          ${showHeading ? html`<div class="plugin-category-separator"><span>${categoryLabel(category)}</span></div>` : null}
+          ${showHeading ? html`<div class="category-separator"><span>${categoryLabel(category)}</span></div>` : null}
           <div>
             ${groupPlugins.map((plugin, index) => renderRow(plugin, index, groupPlugins, finishDrop))}
             ${draggingId != null && groupPlugins.some((plugin) => plugin.plugin_id === draggingId)
@@ -260,29 +260,29 @@
         </div>
         <div class="utility-content">
         <section class="settings-section">
-          <div class="plugins-layout">
-            <nav class="plugin-category-tabs">
+          <div class="category-layout">
+            <nav class="category-tabs">
               <button
-                class=${activeTab === ALL_TAB ? "plugin-category-tab active" : "plugin-category-tab"}
+                class=${activeTab === ALL_TAB ? "category-tab active" : "category-tab"}
                 onClick=${() => setActiveTab(ALL_TAB)}
               >
                 <span>${S.plugins_all_tab}</span>
-                <span class="plugin-category-tab-count">${plugins ? plugins.length : 0}</span>
+                <span class="category-tab-count">${plugins ? plugins.length : 0}</span>
               </button>
               ${categories.map(
                 (category) => html`
                   <button
-                    class=${activeTab === category ? "plugin-category-tab active" : "plugin-category-tab"}
+                    class=${activeTab === category ? "category-tab active" : "category-tab"}
                     onClick=${() => setActiveTab(category)}
                     key=${category || "__uncategorized__"}
                   >
                     <span>${categoryLabel(category)}</span>
-                    <span class="plugin-category-tab-count">${countFor(category)}</span>
+                    <span class="category-tab-count">${countFor(category)}</span>
                   </button>
                 `
               )}
             </nav>
-            <div class="plugin-category-content">
+            <div class="category-content">
               <div class="plugin-filter-row">
                 <button class=${statusFilter === "all" ? "primary" : "ghost"} onClick=${() => setStatusFilter("all")}>${S.plugin_filter_all}</button>
                 <button class=${statusFilter === "active" ? "primary" : "ghost"} onClick=${() => setStatusFilter("active")}>${S.plugin_filter_active}</button>
