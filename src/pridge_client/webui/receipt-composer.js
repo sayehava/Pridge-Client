@@ -40,7 +40,6 @@
   function tagToBlock(closing, name, arg, full) {
     if (closing) {
       if (name === "bold") return { kind: "bold_toggle", state: "off" };
-      if (name === "italic") return { kind: "italic_toggle", state: "off" };
       return { kind: "raw", value: full };
     }
     switch (name) {
@@ -48,8 +47,6 @@
         return { kind: "align", value: (arg || "left").trim().toLowerCase() || "left" };
       case "bold":
         return { kind: "bold_toggle", state: "on" };
-      case "italic":
-        return { kind: "italic_toggle", state: "on" };
       case "hr":
         return { kind: "hr" };
       case "blank":
@@ -108,8 +105,6 @@
         return `[align:${block.value || "left"}]`;
       case "bold_toggle":
         return block.state === "off" ? "[/bold]" : "[bold]";
-      case "italic_toggle":
-        return block.state === "off" ? "[/italic]" : "[italic]";
       case "hr":
         return "[hr]";
       case "blank":
@@ -181,8 +176,6 @@
         return { kind: "align", value: "left" };
       case "bold_toggle":
         return { kind: "bold_toggle", state: "on" };
-      case "italic_toggle":
-        return { kind: "italic_toggle", state: "on" };
       case "hr":
         return { kind: "hr" };
       case "blank":
@@ -247,7 +240,6 @@
     "image",
     "align",
     "bold_toggle",
-    "italic_toggle",
     "hr",
     "blank",
     "newline",
@@ -269,7 +261,6 @@
         image: S.receipt_block_image,
         align: S.receipt_block_align,
         bold_toggle: S.receipt_block_bold,
-        italic_toggle: S.receipt_block_italic,
         hr: S.receipt_block_hr,
         blank: S.receipt_block_blank,
         newline: S.receipt_block_newline,
@@ -298,7 +289,6 @@
     const lines = [];
     let align = "left";
     let bold = false;
-    let italic = false;
     let current = { align, content: [] };
     // Flushing on an align/hr boundary should only emit a line if there's
     // actual content pending - an alignment change with nothing before it
@@ -328,12 +318,6 @@
         case "bold_end":
           bold = false;
           break;
-        case "italic_start":
-          italic = true;
-          break;
-        case "italic_end":
-          italic = false;
-          break;
         case "blank":
         case "newline":
           flushAlways();
@@ -343,7 +327,7 @@
           lines.push({ align: "center", content: [{ type: "hr", width: block.width || 32 }] });
           break;
         case "text":
-          current.content.push({ type: "text", value: block.value, bold, italic });
+          current.content.push({ type: "text", value: block.value, bold });
           break;
         case "image":
           current.content.push({ type: "image", image_id: block.image_id });
@@ -400,7 +384,7 @@
                 if (item.type === "marker") {
                   return html`<span class="receipt-preview-marker" key=${j}>${item.label}</span>`;
                 }
-                const style = { fontWeight: item.bold ? 700 : 400, fontStyle: item.italic ? "italic" : "normal" };
+                const style = { fontWeight: item.bold ? 700 : 400 };
                 return html`<span key=${j} style=${style}>${item.value}</span>`;
               })}
             </div>
@@ -440,14 +424,6 @@
             <option value="on">${S.receipt_bold_on}</option>
             <option value="off">${S.receipt_bold_off}</option>
           </select>
-        `;
-      case "italic_toggle":
-        return html`
-          <select value=${block.state} onChange=${(e) => onChange({ state: e.target.value })}>
-            <option value="on">${S.receipt_italic_on}</option>
-            <option value="off">${S.receipt_italic_off}</option>
-          </select>
-          <small class="hint-text">${S.receipt_italic_hint}</small>
         `;
       case "date": {
         const isKnownPreset = DATE_FORMAT_PRESETS.some((preset) => preset.value === block.format);
@@ -735,7 +711,6 @@
         items: [
           { tag: "[align:left]  [align:center]  [align:right]", desc: S.receipt_guide_align_desc },
           { tag: "[bold]...[/bold]", desc: S.receipt_guide_bold_desc },
-          { tag: "[italic]...[/italic]", desc: S.receipt_guide_italic_desc },
           { tag: "[hr]", desc: S.receipt_guide_hr_desc },
           { tag: "[blank]", desc: S.receipt_guide_blank_desc },
           { tag: "[newline]", desc: S.receipt_guide_newline_desc },
