@@ -1192,6 +1192,7 @@ class MappingReceiptDesignApiTests(unittest.TestCase):
         self.assertEqual(result["design"]["raw_template"], "")
         self.assertEqual(result["design"]["raw_paper_width_dots"], 384)
         self.assertEqual(result["design"]["raw_chars_per_line"], 32)
+        self.assertTrue(result["design"]["composer_enabled"])
 
     def test_get_mapping_receipt_design_errors_for_an_unknown_mapping(self):
         result = self.api.get_mapping_receipt_design(self.server_id, "no-such-mapping")
@@ -1233,6 +1234,38 @@ class MappingReceiptDesignApiTests(unittest.TestCase):
         result = self.api.update_mapping_receipt_design(self.server_id, "no-such-mapping", {})
 
         self.assertFalse(result["ok"])
+
+    def test_composer_can_be_disabled_without_losing_the_saved_design(self):
+        self.api.update_mapping_receipt_design(
+            self.server_id, "kitchen-1", {"raw_template": "[bold]Hi[/bold]"}
+        )
+
+        result = self.api.update_mapping_receipt_design(
+            self.server_id, "kitchen-1", {"composer_enabled": False}
+        )
+
+        self.assertFalse(result["design"]["composer_enabled"])
+        self.assertEqual(result["design"]["raw_template"], "[bold]Hi[/bold]")
+        reloaded = self.api.config_store.load().servers[0].printer_mappings[0]
+        self.assertFalse(reloaded.composer_enabled)
+        self.assertEqual(reloaded.raw_template, "[bold]Hi[/bold]")
+
+    def test_composer_enabled_survives_an_unrelated_server_save(self):
+        self.api.update_mapping_receipt_design(self.server_id, "kitchen-1", {"composer_enabled": False})
+
+        self.api.update_server(
+            self.server_id,
+            {
+                "name": "Office Renamed",
+                "server_url": "https://office.example.test",
+                "printer_mappings": [
+                    {"remote_printer_id": "kitchen-1", "local_printer_name": "Kitchen Printer"}
+                ],
+            },
+        )
+
+        reloaded = self.api.config_store.load().servers[0].printer_mappings[0]
+        self.assertFalse(reloaded.composer_enabled)
 
     def test_two_mappings_on_the_same_local_printer_have_independent_designs(self):
         self.api.update_server(
