@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import logging
 import random
 import re
 from datetime import datetime
@@ -14,10 +15,43 @@ from pridge_client.receipt_composer.store import DEFAULT_COUNTER_KEY
 
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Mapping
+
     from pridge_client.receipt_composer.store import ReceiptComposerStore
 
+    # A third-party plugin's custom shortcode resolver: given the tag's raw
+    # argument (None if the tag had no `:argument`), return the literal bytes
+    # to splice into the template output. Never called for a name the built-in
+    # vocabulary already recognizes - see plugin.md's cross-plugin shortcode idea.
+    ShortcodeResolver = Callable[[str | None], bytes]
+
+
+logger = logging.getLogger(__name__)
 
 TAG_RE = re.compile(r"\[(/?)([a-zA-Z_]+)(?::([^\]]*))?\]")
+
+# Names a third-party plugin's receipt_shortcodes may never claim - checked by
+# PrinterManager.receipt_shortcode_resolvers() so a plugin can never shadow the
+# built-in vocabulary regardless of registration order.
+BUILTIN_SHORTCODE_NAMES = frozenset(
+    {
+        "align",
+        "bold",
+        "hr",
+        "blank",
+        "newline",
+        "date",
+        "random",
+        "print_number",
+        "counter",
+        "image",
+        "cut",
+        "drawer",
+        "feed",
+        "hex",
+        "dec",
+    }
+)
 
 _ALIGN_BYTES = {
     "left": b"\x1b\x61\x00",
@@ -39,6 +73,7 @@ def render_template(
     paper_width_dots: int,
     chars_per_line: int,
     commit: bool = True,
+    custom_resolvers: "Mapping[str, ShortcodeResolver] | None" = None,
 ) -> bytes:
     """Resolve a Receipt Composer shortcode template to literal bytes.
 
@@ -51,6 +86,11 @@ def render_template(
     When `commit` is False (used for the settings-window preview), counters
     are peeked at their next value rather than actually incremented, so
     editing a template never burns through real print numbers.
+
+    `custom_resolvers` is an optional tag-name -> callable map contributed by
+    third-party renderer plugins (see PrinterManager.receipt_shortcode_resolvers);
+    it's only ever consulted after every built-in tag name has been ruled out,
+    so a plugin can never shadow or override the built-in vocabulary.
     """
     if not template:
         return b""
@@ -76,6 +116,7 @@ def render_template(
                     paper_width_dots=paper_width_dots,
                     chars_per_line=chars_per_line,
                     commit=commit,
+                    custom_resolvers=custom_resolvers,
                 )
             )
 
@@ -92,6 +133,7 @@ def render_template_blocks(
     printer_name: str,
     store: "ReceiptComposerStore",
     chars_per_line: int,
+    custom_resolvers: "Mapping[str, ShortcodeResolver] | None" = None,
 ) -> list[dict[str, Any]]:
     """Dry-run parse of a shortcode template into structured preview blocks.
 
@@ -114,7 +156,14 @@ def render_template_blocks(
         block = (
             _preview_closing_block(name)
             if closing
-            else _preview_block(name, arg, printer_name=printer_name, store=store, chars_per_line=chars_per_line)
+            else _preview_block(
+                name,
+                arg,
+                printer_name=printer_name,
+                store=store,
+                chars_per_line=chars_per_line,
+                custom_resolvers=custom_resolvers,
+            )
         )
         if block is not None:
             blocks.append(block)
@@ -133,6 +182,7 @@ def _preview_block(
     printer_name: str,
     store: "ReceiptComposerStore",
     chars_per_line: int,
+    custom_resolvers: "Mapping[str, ShortcodeResolver] | None" = None,
 ) -> dict[str, Any] | None:
     if name == "align":
         value = (arg or "").strip().lower()
@@ -178,6 +228,8 @@ def _preview_block(
         return {"type": "marker", "label": "hex"}
     if name == "dec":
         return {"type": "marker", "label": "dec"}
+    if custom_resolvers and name in custom_resolvers:
+        return {"type": "marker", "label": name}
     return None
 
 
@@ -196,6 +248,7 @@ def _resolve_tag(
     paper_width_dots: int,
     chars_per_line: int,
     commit: bool,
+    custom_resolvers: "Mapping[str, ShortcodeResolver] | None" = None,
 ) -> bytes:
     if name == "align":
         return _ALIGN_BYTES.get((arg or "").strip().lower(), b"")
@@ -239,13 +292,29 @@ def _resolve_tag(
         return _resolve_hex_tag(arg or "")
     if name == "dec":
         return _resolve_dec_tag(arg or "")
-    return b""
+    return _resolve_custom_tag(name, arg, custom_resolvers)
 
 
 def _resolve_closing_tag(name: str) -> bytes:
     if name == "bold":
         return _BOLD_OFF
     return b""
+
+
+def _resolve_custom_tag(
+    name: str, arg: str | None, custom_resolvers: "Mapping[str, ShortcodeResolver] | None"
+) -> bytes:
+    if not custom_resolvers:
+        return b""
+    resolver = custom_resolvers.get(name)
+    if resolver is None:
+        return b""
+    try:
+        result = resolver(arg)
+    except Exception:
+        logger.warning("Third-party shortcode '%s' raised while resolving; treating as empty.", name, exc_info=True)
+        return b""
+    return result if isinstance(result, (bytes, bytearray)) else b""
 
 
 def _resolve_image_tag(image_id: str, *, store: "ReceiptComposerStore", paper_width_dots: int) -> bytes:
