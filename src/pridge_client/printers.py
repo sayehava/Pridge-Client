@@ -202,6 +202,7 @@ class PrinterManager:
         raw_footer_template: str = "",
         raw_paper_width_dots: int = 384,
         raw_chars_per_line: int = 32,
+        receipt_scope_key: str = "",
     ) -> None:
         from pridge_client.receipt_composer.shortcodes import render_template
         from pridge_client.renderers.base import RenderError, RenderOptions
@@ -213,7 +214,12 @@ class PrinterManager:
 
         if mode == "raw":
             template_kwargs = {
-                "printer_name": printer_name,
+                # Receipt Composer content (templates, counters) is scoped by
+                # mapping, not by the physical printer_name used for the actual
+                # OS print call below - callers with no mapping context (e.g.
+                # printing to a printer with no matching mapping) fall back to
+                # printer_name, preserving pre-mapping-scoping behavior for them.
+                "printer_name": receipt_scope_key or printer_name,
                 "store": self._receipt_composer_store,
                 "paper_width_dots": raw_paper_width_dots,
                 "chars_per_line": raw_chars_per_line,
@@ -294,6 +300,7 @@ class PrinterManager:
         raw_footer_template: str = "",
         raw_paper_width_dots: int = 384,
         raw_chars_per_line: int = 32,
+        receipt_scope_key: str = "",
     ) -> None:
         if mode == "raw":
             # Intentionally inert: no ESC @ reset (don't touch printer state
@@ -309,6 +316,7 @@ class PrinterManager:
                 raw_footer_template=raw_footer_template,
                 raw_paper_width_dots=raw_paper_width_dots,
                 raw_chars_per_line=raw_chars_per_line,
+                receipt_scope_key=receipt_scope_key,
             )
             return
         if mode != "system_driver":
