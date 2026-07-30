@@ -258,6 +258,8 @@ window.PridgeStrings = Object.freeze({
   receipt_paper_width_custom: "Custom width…",
   receipt_chars_per_line: "Characters per Line",
   receipt_design: "Design",
+  receipt_composer_enabled_label: "Apply this design to print jobs",
+  receipt_composer_enabled_hint: "When off, the server's original data is printed unmodified for real jobs and Test Print — your design stays saved and ready to turn back on.",
   receipt_add_block: "Add",
   receipt_remove_block: "Remove",
   receipt_duplicate_block: "Duplicate",
