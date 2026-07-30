@@ -38,10 +38,14 @@ from pridge_client.config import (
     mapping_scope_key,
 )
 from pridge_client.logging_setup import (
+    ERROR_LOG_FILE_NAME,
+    ERROR_LOGGER_NAME,
+    clear_error_log_files,
     clear_log_files,
     configure_logging,
     export_logs_to,
     has_log_files,
+    log_detailed_error,
     log_directory_for,
     parse_log_export_date,
 )
@@ -66,13 +70,17 @@ from pridge_client.strings import (
     MESSAGE_READY,
     MESSAGE_CONNECTION_FAILED,
     MESSAGE_CONNECTION_SUCCESS,
+    MESSAGE_ERROR_LOGS_CLEARED,
+    MESSAGE_ERROR_LOG_EXPORTED,
     MESSAGE_LOG_DIRECTORY_FAILED,
     MESSAGE_LOG_EXPORTED,
     MESSAGE_LOG_EXPORT_FAILED,
     MESSAGE_LOGS_CLEARED,
+    MESSAGE_NO_ERROR_LOG_FILE,
     MESSAGE_NO_LOG_ENTRIES_IN_RANGE,
     MESSAGE_NO_LOG_FILE,
     MESSAGE_NOTHING_TO_CLEAR,
+    MESSAGE_NOTHING_TO_CLEAR_ERRORS,
     MESSAGE_PLUGIN_INSTALLED,
     MESSAGE_PLUGIN_INSTALL_FAILED,
     MESSAGE_PLUGIN_REMOVED,
@@ -119,6 +127,7 @@ APP_ICON_PATH = ASSET_DIR / "Icon.png"
 TRAY_ICON_PATH = ASSET_DIR / "IconTray.png"
 MAX_RECENT_JOBS = 50
 MAX_LOG_LINES = 300
+MAX_ERROR_LOG_LINES = 100
 MAX_DASHBOARD_WIDGETS_PER_PAGE = 4
 
 # The smoke test must never depend on a JS round trip to decide when the
@@ -137,12 +146,13 @@ def _log_stage(stage: str, detail: str) -> None:
 
 
 class QueueLogHandler(Handler):
-    def __init__(self, events: queue.Queue[tuple[str, object]]) -> None:
+    def __init__(self, events: queue.Queue[tuple[str, object]], event_name: str = "log") -> None:
         super().__init__()
         self.events = events
+        self.event_name = event_name
 
     def emit(self, record: LogRecord) -> None:
-        self.events.put(("log", self.format(record)))
+        self.events.put((self.event_name, self.format(record)))
 
 
 class ClientApi:
@@ -180,7 +190,15 @@ class ClientApi:
         self.ready_status = MESSAGE_READY
         self.recent_jobs: list[str] = []
         self.logs: list[str] = ["Pridge Client GUI loaded"]
-        self.printer_stats: dict[str, dict[str, int]] = {}
+        # Detailed, full-traceback error entries - a separate channel from
+        # self.logs so they never clutter the ordinary Logs/Status widget;
+        # see logging_setup.log_detailed_error for how entries land here.
+        self.error_details: list[str] = []
+        # Lifetime counts persist through config.json (see _bump_printer_stat);
+        # session counts are intentionally never saved, so they always read
+        # zero right after a restart - "how many since the client came up".
+        self.printer_stats: dict[str, dict[str, dict[str, int]]] = self.config.printer_stats
+        self.printer_stats_session: dict[str, dict[str, dict[str, int]]] = {}
 
         self._install_log_handler()
         if self.gui_smoke_test:
@@ -634,6 +652,7 @@ class ClientApi:
             )
         except PrinterError as exc:
             self._bump_printer_stat(name, origin="test", success=False)
+            log_detailed_error(f"Test print failed on printer {name}", exc)
             return self._error(str(exc))
         logger.info("Submitted test page to printer %s", name)
         self._bump_printer_stat(name, origin="test", success=True)
@@ -754,6 +773,7 @@ class ClientApi:
         catalog = [
             {"type": "recent_jobs", "title": "Recent Jobs", "source": "builtin", "category": "Core"},
             {"type": "logs", "title": "Logs / Status", "source": "builtin", "category": "Core"},
+            {"type": "error_log", "title": "Error Details", "source": "builtin", "category": "Core"},
             {
                 "type": "printer_stats",
                 "title": "Printer Activity",
@@ -1141,6 +1161,7 @@ class ClientApi:
             )
         except PrinterError as exc:
             self._bump_printer_stat(name, origin="test", success=False)
+            log_detailed_error(f"Test print failed on printer {name}", exc)
             return self._error(str(exc))
         logger.info("Submitted test page for mapping %s on server %s", remote_printer_id, server.id)
         self._bump_printer_stat(name, origin="test", success=True)
@@ -1291,6 +1312,48 @@ class ClientApi:
         logger.info("Logs cleared")
         return {"ok": True, "error": None, "message": MESSAGE_LOGS_CLEARED, "state": self._build_state()}
 
+    def export_error_log(self, start_date: str = "", end_date: str = "") -> dict:
+        directory = log_directory_for(self.config)
+        if not has_log_files(directory, ERROR_LOG_FILE_NAME):
+            return self._error(MESSAGE_NO_ERROR_LOG_FILE)
+
+        window = self._utility_windows.get("settings") or self._window
+        if window is None:
+            return self._error(MESSAGE_LOG_EXPORT_FAILED)
+
+        default_name = f"pridge-client-errors-{datetime.now().strftime('%Y%m%d-%H%M%S')}.log"
+        try:
+            selection = window.create_file_dialog(webview.FileDialog.SAVE, save_filename=default_name)
+        except Exception as exc:
+            logger.warning("Could not open the error log export dialog: %s", exc)
+            return self._error(MESSAGE_LOG_EXPORT_FAILED)
+
+        if not selection:
+            return self._ok()
+        destination = Path(selection[0] if isinstance(selection, (list, tuple)) else selection)
+
+        parsed_start = parse_log_export_date(start_date)
+        parsed_end = parse_log_export_date(end_date)
+        try:
+            wrote_any = export_logs_to(directory, destination, parsed_start, parsed_end, ERROR_LOG_FILE_NAME)
+        except OSError as exc:
+            logger.warning("Could not export the error log: %s", exc)
+            return self._error(MESSAGE_LOG_EXPORT_FAILED)
+
+        if not wrote_any:
+            destination.unlink(missing_ok=True)
+            return self._error(MESSAGE_NO_LOG_ENTRIES_IN_RANGE)
+
+        logger.info("Error log exported to %s", destination)
+        return {"ok": True, "error": None, "message": MESSAGE_ERROR_LOG_EXPORTED, "state": self._build_state()}
+
+    def clear_error_log(self) -> dict:
+        if not clear_error_log_files():
+            return self._error(MESSAGE_NOTHING_TO_CLEAR_ERRORS)
+        self.error_details = []
+        logger.info("Error log cleared")
+        return {"ok": True, "error": None, "message": MESSAGE_ERROR_LOGS_CLEARED, "state": self._build_state()}
+
     def choose_log_directory(self) -> dict:
         window = self._utility_windows.get("settings") or self._window
         if window is None:
@@ -1438,6 +1501,10 @@ class ClientApi:
                     "test_failed_count": self.printer_stats.get(printer.name, {}).get("test", {}).get("failed", 0),
                     "remote_success_count": self.printer_stats.get(printer.name, {}).get("remote", {}).get("success", 0),
                     "remote_failed_count": self.printer_stats.get(printer.name, {}).get("remote", {}).get("failed", 0),
+                    "session_test_success_count": self.printer_stats_session.get(printer.name, {}).get("test", {}).get("success", 0),
+                    "session_test_failed_count": self.printer_stats_session.get(printer.name, {}).get("test", {}).get("failed", 0),
+                    "session_remote_success_count": self.printer_stats_session.get(printer.name, {}).get("remote", {}).get("success", 0),
+                    "session_remote_failed_count": self.printer_stats_session.get(printer.name, {}).get("remote", {}).get("failed", 0),
                 }
                 for printer in self.printers
             ],
@@ -1458,6 +1525,7 @@ class ClientApi:
             },
             "recent_jobs": list(self.recent_jobs),
             "logs": list(self.logs),
+            "error_details": list(self.error_details),
         }
 
     def _server_public(self, server: ServerConfig) -> dict:
@@ -1502,6 +1570,7 @@ class ClientApi:
             logging=self.config.logging,
             appearance=self.config.appearance,
             dashboard_widgets=self.config.dashboard_widgets,
+            printer_stats=self.printer_stats,
         )
 
     def _runtime_config(self, server: ServerConfig) -> ClientConfig:
@@ -1685,6 +1754,13 @@ class ClientApi:
         handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
         logging.getLogger().addHandler(handler)
 
+        # The error logger has propagate=False (see configure_logging), so
+        # this handler only ever sees the detailed entries logged through
+        # log_detailed_error() - never anything from the main Logs/Status feed.
+        error_handler = QueueLogHandler(self.events, event_name="error_detail")
+        error_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
+        logging.getLogger(ERROR_LOGGER_NAME).addHandler(error_handler)
+
     def _drain_events(self) -> None:
         while True:
             try:
@@ -1712,6 +1788,10 @@ class ClientApi:
                 self.logs.append(str(payload))
                 if len(self.logs) > MAX_LOG_LINES:
                     self.logs = self.logs[-MAX_LOG_LINES:]
+            elif event == "error_detail":
+                self.error_details.append(str(payload))
+                if len(self.error_details) > MAX_ERROR_LOG_LINES:
+                    self.error_details = self.error_details[-MAX_ERROR_LOG_LINES:]
 
     def _apply_runtime_config(self, server_id: str, runtime_config: ClientConfig) -> None:
         server = self._server_by_id(server_id)
@@ -1725,6 +1805,12 @@ class ClientApi:
         printer_counts = self.printer_stats.setdefault(printer_name, {})
         counts = printer_counts.setdefault(origin, {"success": 0, "failed": 0})
         counts["success" if success else "failed"] += 1
+        self.config_store.save(self._current_config())
+
+        session_counts = self.printer_stats_session.setdefault(printer_name, {}).setdefault(
+            origin, {"success": 0, "failed": 0}
+        )
+        session_counts["success" if success else "failed"] += 1
 
     def _update_running_status(self) -> None:
         running = sum(1 for worker in self.workers.values() if worker.state.running)
