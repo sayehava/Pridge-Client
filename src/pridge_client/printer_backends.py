@@ -476,6 +476,32 @@ def _fit_image_to_page(img, dpi: float, target_page_size_pt: tuple[float, float]
     return canvas
 
 
+def _create_windows_printer_dc(win32ui, win32gui, printer_name: str, job_devmode):
+    """Creates the GDI device context used for a print job, preferring the
+    job-scoped DEVMODE (PageSize/Duplex overrides) but falling back to the
+    printer's plain default DC if that DEVMODE doesn't survive the handoff
+    from win32print's buffer into win32gui.CreateDC() for this driver (some
+    drivers attach private extra data that doesn't round-trip cleanly) -
+    losing the per-job override is preferable to failing the whole job.
+    """
+    dc = None
+    if job_devmode is not None:
+        try:
+            dc = win32ui.CreateDCFromHandle(win32gui.CreateDC("WINSPOOL", printer_name, None, job_devmode))
+        except Exception:
+            logger.warning(
+                "Job-scoped DEVMODE rejected for %s, falling back to the printer's default DC", printer_name
+            )
+            dc = None
+    if dc is None:
+        try:
+            dc = win32ui.CreateDC()
+            dc.CreatePrinterDC(printer_name)
+        except Exception as exc:
+            raise PrinterError("Could not create a printer device context.") from exc
+    return dc
+
+
 def _windows_gdi_print_pdf(
     pdf_data: bytes,
     printer_name: str,
@@ -516,14 +542,7 @@ def _windows_gdi_print_pdf(
         finally:
             win32print.ClosePrinter(handle)
 
-    try:
-        if job_devmode is not None:
-            dc = win32ui.CreateDCFromHandle(win32gui.CreateDC("WINSPOOL", printer_name, None, job_devmode))
-        else:
-            dc = win32ui.CreateDC()
-            dc.CreatePrinterDC(printer_name)
-    except Exception as exc:
-        raise PrinterError("Could not create a printer device context.") from exc
+    dc = _create_windows_printer_dc(win32ui, win32gui, printer_name, job_devmode)
 
     try:
         dpi_x = dc.GetDeviceCaps(win32con.LOGPIXELSX)
