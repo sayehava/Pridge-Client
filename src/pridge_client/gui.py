@@ -1040,6 +1040,7 @@ class ClientApi:
             printer_name=str(printer_name),
             store=self.printer_manager.receipt_composer_store,
             chars_per_line=profile.raw_chars_per_line,
+            custom_resolvers=self.printer_manager.receipt_shortcode_resolvers(),
         )
         return {"ok": True, "error": None, "blocks": blocks}
 
