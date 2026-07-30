@@ -264,10 +264,43 @@
         </div>`;
   }
 
+  function ErrorLogPanel({ errorDetails }) {
+    const panelRef = useRef(null);
+    const [copied, setCopied] = useState(false);
+    useEffect(() => {
+      const element = panelRef.current;
+      if (element) element.scrollTop = element.scrollHeight;
+    }, [errorDetails]);
+
+    const copyAll = () => {
+      const text = errorDetails.join("\n\n");
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1500);
+        });
+      }
+    };
+
+    return html`
+      <div class="error-log-widget">
+        <div class="error-log-toolbar">
+          <button onClick=${copyAll} disabled=${errorDetails.length === 0}>${copied ? S.copied : S.copy}</button>
+        </div>
+        ${errorDetails.length === 0
+          ? html`<div class="scroll-panel empty">${S.no_error_details}</div>`
+          : html`<div class="scroll-panel" ref=${panelRef}>
+              ${errorDetails.map((entry, index) => html`<pre class="error-log-entry" key=${index}>${entry}</pre>`)}
+            </div>`}
+      </div>
+    `;
+  }
+
   function WidgetCard({
     widget,
     recentJobs,
     logs,
+    errorDetails,
     printerDetails,
     servers,
     onRemove,
@@ -303,6 +336,8 @@
         : html`<div class="scroll-panel">${recentJobs.map((line, i) => html`<div class="job-line" key=${i}>${line}</div>`)}</div>`;
     } else if (widget.widget_type === "logs") {
       body = html`<${LogsPanel} logs=${logs} />`;
+    } else if (widget.widget_type === "error_log") {
+      body = html`<${ErrorLogPanel} errorDetails=${errorDetails} />`;
     } else if (widget.widget_type === "printer_stats") {
       const usedOnly = !!(widget.config && widget.config.used_only);
       const visiblePrinters = usedOnly
@@ -317,16 +352,40 @@
                   <div class="printer-stat-name">${printer.name}</div>
                   <div class="printer-stat-row">
                     <span class="printer-stat-label">${S.test_print}</span>
-                    <span class="printer-stat-counts">
-                      <span class="printer-stat-success">${printer.test_success_count}</span>
-                      <span class="printer-stat-failed">${printer.test_failed_count}</span>
+                    <span class="printer-stat-tiers">
+                      <span class="printer-stat-tier">
+                        <span class="printer-stat-tier-label">${S.stats_total}</span>
+                        <span class="printer-stat-counts">
+                          <span class="printer-stat-success">${printer.test_success_count}</span>
+                          <span class="printer-stat-failed">${printer.test_failed_count}</span>
+                        </span>
+                      </span>
+                      <span class="printer-stat-tier">
+                        <span class="printer-stat-tier-label">${S.stats_session}</span>
+                        <span class="printer-stat-counts">
+                          <span class="printer-stat-success">${printer.session_test_success_count}</span>
+                          <span class="printer-stat-failed">${printer.session_test_failed_count}</span>
+                        </span>
+                      </span>
                     </span>
                   </div>
                   <div class="printer-stat-row">
                     <span class="printer-stat-label">${S.remote_prints}</span>
-                    <span class="printer-stat-counts">
-                      <span class="printer-stat-success">${printer.remote_success_count}</span>
-                      <span class="printer-stat-failed">${printer.remote_failed_count}</span>
+                    <span class="printer-stat-tiers">
+                      <span class="printer-stat-tier">
+                        <span class="printer-stat-tier-label">${S.stats_total}</span>
+                        <span class="printer-stat-counts">
+                          <span class="printer-stat-success">${printer.remote_success_count}</span>
+                          <span class="printer-stat-failed">${printer.remote_failed_count}</span>
+                        </span>
+                      </span>
+                      <span class="printer-stat-tier">
+                        <span class="printer-stat-tier-label">${S.stats_session}</span>
+                        <span class="printer-stat-counts">
+                          <span class="printer-stat-success">${printer.session_remote_success_count}</span>
+                          <span class="printer-stat-failed">${printer.session_remote_failed_count}</span>
+                        </span>
+                      </span>
                     </span>
                   </div>
                 </div>
@@ -538,7 +597,7 @@
     `;
   }
 
-  function WidgetArea({ recentJobs, logs, printerDetails, servers }) {
+  function WidgetArea({ recentJobs, logs, errorDetails, printerDetails, servers }) {
     const [layout, setLayout] = useState(null);
     const [pageIndex, setPageIndex] = useState(0);
     const [showPicker, setShowPicker] = useState(false);
@@ -631,6 +690,7 @@
                 widget=${widget}
                 recentJobs=${recentJobs}
                 logs=${logs}
+                errorDetails=${errorDetails}
                 printerDetails=${printerDetails}
                 servers=${servers}
                 onRemove=${() => removeWidget(widget.id)}
@@ -765,6 +825,7 @@
           <${WidgetArea}
             recentJobs=${state.recent_jobs}
             logs=${state.logs}
+            errorDetails=${state.error_details}
             printerDetails=${state.printer_details}
             servers=${state.servers}
           />
