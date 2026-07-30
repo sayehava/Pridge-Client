@@ -123,6 +123,7 @@ class WorkerPrintingModeTests(unittest.TestCase):
             raw_footer_template="",
             raw_paper_width_dots=384,
             raw_chars_per_line=32,
+            receipt_scope_key="",
         )
         client.report_printed.assert_called_once_with("42")
 
@@ -163,6 +164,7 @@ class WorkerPrintingModeTests(unittest.TestCase):
             raw_footer_template="",
             raw_paper_width_dots=384,
             raw_chars_per_line=32,
+            receipt_scope_key="",
         )
 
     def test_job_history_entries_carry_the_printer_name_on_success(self) -> None:
@@ -195,6 +197,97 @@ class WorkerPrintingModeTests(unittest.TestCase):
         failed = [entry for entry in entries if entry.status == "failed"]
         self.assertEqual(len(failed), 1)
         self.assertEqual(failed[0].printer_name, "Office Driver")
+
+
+class WorkerReceiptMappingScopeTests(unittest.TestCase):
+    """Receipt Composer content (template + counters) is scoped to the
+    mapping a job arrived through, not to the local printer it targets."""
+
+    def test_uses_the_mapping_s_own_template_and_a_mapping_scoped_key(self) -> None:
+        server = ServerConfig(
+            id="office",
+            printer_mappings=[
+                PrinterMapping(
+                    remote_printer_id="kitchen-1",
+                    local_printer_name="Kitchen Printer",
+                    raw_header_template="[bold]Kitchen[/bold]",
+                    raw_footer_template="[cut:full]",
+                    raw_paper_width_dots=576,
+                    raw_chars_per_line=48,
+                )
+            ],
+        )
+        config = ClientConfig(server_url="https://example.test", servers=[server])
+        printer_manager = Mock()
+        client = Mock()
+        worker = PollingWorker(config, "token", printer_manager=printer_manager)
+        job = ReservedJob(
+            job_id="42",
+            payload_base64="JVBERg==",
+            content_type="application/pdf",
+            remote_printer_id="kitchen-1",
+        )
+
+        worker._process_job(client, job)
+
+        _args, kwargs = printer_manager.print_job.call_args
+        self.assertEqual(kwargs["raw_header_template"], "[bold]Kitchen[/bold]")
+        self.assertEqual(kwargs["raw_footer_template"], "[cut:full]")
+        self.assertEqual(kwargs["raw_paper_width_dots"], 576)
+        self.assertEqual(kwargs["raw_chars_per_line"], 48)
+        self.assertEqual(kwargs["receipt_scope_key"], "office::kitchen-1")
+
+    def test_two_mappings_on_the_same_local_printer_get_independent_scope_keys(self) -> None:
+        server = ServerConfig(
+            id="office",
+            printer_mappings=[
+                PrinterMapping(
+                    remote_printer_id="kitchen-1",
+                    local_printer_name="Shared Printer",
+                    raw_header_template="[bold]Kitchen[/bold]",
+                ),
+                PrinterMapping(
+                    remote_printer_id="register-1",
+                    local_printer_name="Shared Printer",
+                    raw_header_template="[bold]Register[/bold]",
+                ),
+            ],
+        )
+        config = ClientConfig(server_url="https://example.test", servers=[server])
+        printer_manager = Mock()
+        client = Mock()
+        worker = PollingWorker(config, "token", printer_manager=printer_manager)
+
+        worker._process_job(
+            client,
+            ReservedJob(job_id="1", payload_base64="JVBERg==", content_type="application/pdf", remote_printer_id="kitchen-1"),
+        )
+        worker._process_job(
+            client,
+            ReservedJob(job_id="2", payload_base64="JVBERg==", content_type="application/pdf", remote_printer_id="register-1"),
+        )
+
+        first_kwargs = printer_manager.print_job.call_args_list[0].kwargs
+        second_kwargs = printer_manager.print_job.call_args_list[1].kwargs
+        self.assertEqual(first_kwargs["receipt_scope_key"], "office::kitchen-1")
+        self.assertEqual(first_kwargs["raw_header_template"], "[bold]Kitchen[/bold]")
+        self.assertEqual(second_kwargs["receipt_scope_key"], "office::register-1")
+        self.assertEqual(second_kwargs["raw_header_template"], "[bold]Register[/bold]")
+
+    def test_job_with_no_matching_mapping_gets_a_blank_template_and_no_scope_key(self) -> None:
+        server = ServerConfig(id="office", default_printer="Fallback Printer")
+        config = ClientConfig(server_url="https://example.test", servers=[server])
+        printer_manager = Mock()
+        client = Mock()
+        worker = PollingWorker(config, "token", printer_manager=printer_manager)
+        job = ReservedJob(job_id="42", payload_base64="JVBERg==", content_type="application/pdf")
+
+        worker._process_job(client, job)
+
+        _args, kwargs = printer_manager.print_job.call_args
+        self.assertEqual(kwargs["raw_header_template"], "")
+        self.assertEqual(kwargs["raw_footer_template"], "")
+        self.assertEqual(kwargs["receipt_scope_key"], "")
 
 
 class WorkerStatusRecoveryTests(unittest.TestCase):
