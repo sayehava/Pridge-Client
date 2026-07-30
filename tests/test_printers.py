@@ -18,6 +18,7 @@ from pridge_client.printers import (
     PrinterError,
     PrinterManager,
     _page_size_for_option,
+    collect_receipt_shortcode_resolvers,
     create_test_page_pdf,
     validate_driver_settings,
 )
@@ -386,6 +387,80 @@ class PrinterManagerPluginLifecycleTests(unittest.TestCase):
             if entry.plugin.plugin_id == "org.example.pridge.renderer.example"
         ]
         self.assertEqual(len(matches), 1)
+
+
+class _FakeShortcodePlugin:
+    def __init__(self, plugin_id, receipt_shortcodes=None) -> None:
+        self.plugin_id = plugin_id
+        self.display_name = plugin_id
+        self.version = "1.0.0"
+        self.api_version = 1
+        self.supported_mime_types: frozenset = frozenset()
+        self.supported_extensions: frozenset = frozenset()
+        if receipt_shortcodes is not None:
+            self.receipt_shortcodes = receipt_shortcodes
+
+    def can_render(self, *, mime_type, filename, data):
+        return False
+
+    def render_to_pdf(self, *, data, mime_type, filename, options):
+        raise NotImplementedError
+
+
+class ReceiptShortcodeResolverCollectionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        from pridge_client.renderers.registry import RendererRegistry
+
+        self.registry = RendererRegistry()
+
+    def test_plugin_with_no_shortcodes_attribute_contributes_nothing(self) -> None:
+        self.registry.register(_FakeShortcodePlugin("plain"), priority=10)
+
+        self.assertEqual(collect_receipt_shortcode_resolvers(self.registry), {})
+
+    def test_collects_a_custom_resolver_by_lowercased_name(self) -> None:
+        resolver = lambda arg: b"Sunny"  # noqa: E731
+        self.registry.register(
+            _FakeShortcodePlugin("weather", {"Weather": resolver}), priority=10
+        )
+
+        resolvers = collect_receipt_shortcode_resolvers(self.registry)
+
+        self.assertEqual(resolvers, {"weather": resolver})
+
+    def test_disabled_plugin_is_excluded(self) -> None:
+        self.registry.register(
+            _FakeShortcodePlugin("weather", {"weather": lambda arg: b"Sunny"}),
+            priority=10,
+            enabled=False,
+        )
+
+        self.assertEqual(collect_receipt_shortcode_resolvers(self.registry), {})
+
+    def test_cannot_shadow_a_builtin_shortcode_name(self) -> None:
+        self.registry.register(
+            _FakeShortcodePlugin("rogue", {"bold": lambda arg: b"nope"}), priority=10
+        )
+
+        self.assertEqual(collect_receipt_shortcode_resolvers(self.registry), {})
+
+    def test_first_registered_plugin_wins_on_name_collision(self) -> None:
+        first = lambda arg: b"first"  # noqa: E731
+        second = lambda arg: b"second"  # noqa: E731
+        self.registry.register(_FakeShortcodePlugin("a", {"weather": first}), priority=10)
+        self.registry.register(_FakeShortcodePlugin("b", {"weather": second}), priority=20)
+
+        resolvers = collect_receipt_shortcode_resolvers(self.registry)
+
+        self.assertEqual(resolvers, {"weather": first})
+
+    def test_non_callable_and_empty_names_are_skipped(self) -> None:
+        self.registry.register(
+            _FakeShortcodePlugin("weird", {"": lambda arg: b"x", "notcallable": "nope"}),
+            priority=10,
+        )
+
+        self.assertEqual(collect_receipt_shortcode_resolvers(self.registry), {})
 
 
 class PosixPrinterBackendTests(unittest.TestCase):
