@@ -125,6 +125,71 @@ class ShortcodeTagTests(unittest.TestCase):
         self.assertEqual(_render("A[blod]B", self.store), b"AB")
 
 
+class CustomShortcodeResolverTests(unittest.TestCase):
+    """Covers the cross-plugin shortcode hook: render_template/render_template_blocks
+    accept an optional custom_resolvers map (built by
+    PrinterManager.receipt_shortcode_resolvers from enabled renderer plugins).
+    """
+
+    def setUp(self) -> None:
+        self.temporary_directory = TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.store = ReceiptComposerStore(Path(self.temporary_directory.name))
+
+    def test_custom_resolver_is_called_with_the_tag_argument(self) -> None:
+        resolvers = {"weather": lambda arg: f"Weather:{arg}".encode("ascii")}
+
+        result = _render("[weather:sunny]", self.store, custom_resolvers=resolvers)
+
+        self.assertEqual(result, b"Weather:sunny")
+
+    def test_custom_resolver_receives_none_when_tag_has_no_argument(self) -> None:
+        seen = []
+        resolvers = {"stamp": lambda arg: seen.append(arg) or b"STAMPED"}
+
+        result = _render("[stamp]", self.store, custom_resolvers=resolvers)
+
+        self.assertEqual(result, b"STAMPED")
+        self.assertEqual(seen, [None])
+
+    def test_a_tag_with_no_matching_resolver_still_resolves_to_nothing(self) -> None:
+        resolvers = {"weather": lambda arg: b"Sunny"}
+
+        self.assertEqual(_render("[unrelated]", self.store, custom_resolvers=resolvers), b"")
+
+    def test_resolver_exception_resolves_to_nothing_rather_than_crashing(self) -> None:
+        def _boom(arg):
+            raise RuntimeError("plugin bug")
+
+        result = _render("A[weather]B", self.store, custom_resolvers={"weather": _boom})
+
+        self.assertEqual(result, b"AB")
+
+    def test_non_bytes_return_value_resolves_to_nothing(self) -> None:
+        resolvers = {"weather": lambda arg: "not-bytes"}
+
+        self.assertEqual(_render("[weather]", self.store, custom_resolvers=resolvers), b"")
+
+    def test_built_in_tag_names_are_never_routed_to_a_custom_resolver(self) -> None:
+        resolvers = {"bold": lambda arg: b"HIJACKED"}
+
+        result = _render("[bold]Hi[/bold]", self.store, custom_resolvers=resolvers)
+
+        self.assertEqual(result, b"\x1b\x45\x01Hi\x1b\x45\x00")
+
+    def test_preview_blocks_show_a_marker_for_a_registered_custom_tag(self) -> None:
+        resolvers = {"weather": lambda arg: b"Sunny"}
+
+        blocks = _blocks("[weather:sunny]", self.store, custom_resolvers=resolvers)
+
+        self.assertEqual(blocks, [{"type": "marker", "label": "weather"}])
+
+    def test_preview_blocks_drop_a_tag_with_no_matching_resolver(self) -> None:
+        blocks = _blocks("[unregistered]", self.store, custom_resolvers={"weather": lambda arg: b"Sunny"})
+
+        self.assertEqual(blocks, [])
+
+
 class ShortcodeCounterTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary_directory = TemporaryDirectory()
