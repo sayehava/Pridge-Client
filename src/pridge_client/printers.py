@@ -198,8 +198,7 @@ class PrinterManager:
         submission_method: str | None = None,
         explicit_renderer: str | None = None,
         fit_mode: str = "fit",
-        raw_header_template: str = "",
-        raw_footer_template: str = "",
+        raw_template: str = "",
         raw_paper_width_dots: int = 384,
         raw_chars_per_line: int = 32,
         receipt_scope_key: str = "",
@@ -213,22 +212,22 @@ class PrinterManager:
             raise PrinterError("Print payload is empty.")
 
         if mode == "raw":
-            template_kwargs = {
-                # Receipt Composer content (templates, counters) is scoped by
+            rendered = render_template(
+                raw_template,
+                # Receipt Composer content (template, counters) is scoped by
                 # mapping, not by the physical printer_name used for the actual
                 # OS print call below - callers with no mapping context (e.g.
                 # printing to a printer with no matching mapping) fall back to
                 # printer_name, preserving pre-mapping-scoping behavior for them.
-                "printer_name": receipt_scope_key or printer_name,
-                "store": self._receipt_composer_store,
-                "paper_width_dots": raw_paper_width_dots,
-                "chars_per_line": raw_chars_per_line,
-                "custom_resolvers": self.receipt_shortcode_resolvers(),
-            }
-            header = render_template(raw_header_template, **template_kwargs)
-            footer = render_template(raw_footer_template, **template_kwargs)
+                printer_name=receipt_scope_key or printer_name,
+                store=self._receipt_composer_store,
+                paper_width_dots=raw_paper_width_dots,
+                chars_per_line=raw_chars_per_line,
+                custom_resolvers=self.receipt_shortcode_resolvers(),
+                body_bytes=data,
+            )
             logger.info("Sending raw job to printer %s", printer_name)
-            self.backend.print_raw(printer_name, header + data + footer, job_name)
+            self.backend.print_raw(printer_name, rendered, job_name)
             return
         if mode != "system_driver":
             raise PrinterError("The configured printing mode is not supported.")
@@ -296,24 +295,22 @@ class PrinterManager:
         driver_settings: Mapping[str, str] | None = None,
         submission_method: str | None = None,
         fit_mode: str = "fit",
-        raw_header_template: str = "",
-        raw_footer_template: str = "",
+        raw_template: str = "",
         raw_paper_width_dots: int = 384,
         raw_chars_per_line: int = 32,
         receipt_scope_key: str = "",
     ) -> None:
         if mode == "raw":
             # Intentionally inert: no ESC @ reset (don't touch printer state
-            # Pridge doesn't own) and no assumed cut — the header/footer
-            # template under test is what should decide that, so this test
-            # actually exercises the same real RAW path end to end.
+            # Pridge doesn't own) and no assumed cut — the template under
+            # test is what should decide that, so this test actually
+            # exercises the same real RAW path end to end.
             self.print_job(
                 printer_name,
                 _raw_test_body(raw_chars_per_line),
                 mode="raw",
                 job_name="Pridge Test Page",
-                raw_header_template=raw_header_template,
-                raw_footer_template=raw_footer_template,
+                raw_template=raw_template,
                 raw_paper_width_dots=raw_paper_width_dots,
                 raw_chars_per_line=raw_chars_per_line,
                 receipt_scope_key=receipt_scope_key,
