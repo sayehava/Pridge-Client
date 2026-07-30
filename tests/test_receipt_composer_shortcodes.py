@@ -125,6 +125,48 @@ class ShortcodeTagTests(unittest.TestCase):
         self.assertEqual(_render("A[blod]B", self.store), b"AB")
 
 
+class BodyShortcodeTests(unittest.TestCase):
+    """[body] is where the real incoming print job content is spliced into a
+    mapping's single unified template - this is the core of the redesign
+    that replaced separate header/footer templates with one design.
+    """
+
+    def setUp(self) -> None:
+        self.temporary_directory = TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.store = ReceiptComposerStore(Path(self.temporary_directory.name))
+
+    def test_body_is_spliced_in_at_its_position(self) -> None:
+        result = _render("[bold]Hi[/bold][body][cut:full]", self.store, body_bytes=b"REAL CONTENT")
+
+        self.assertEqual(result, b"\x1b\x45\x01Hi\x1b\x45\x00REAL CONTENT\x1d\x56\x00")
+
+    def test_body_bytes_are_appended_at_the_end_when_the_template_never_uses_body(self) -> None:
+        result = _render("[bold]Hi[/bold]", self.store, body_bytes=b"REAL CONTENT")
+
+        self.assertEqual(result, b"\x1b\x45\x01Hi\x1b\x45\x00REAL CONTENT")
+
+    def test_blank_template_with_body_bytes_passes_the_payload_through_unmodified(self) -> None:
+        result = _render("", self.store, body_bytes=b"REAL CONTENT")
+
+        self.assertEqual(result, b"REAL CONTENT")
+
+    def test_blank_template_with_no_body_bytes_resolves_to_nothing(self) -> None:
+        result = _render("", self.store, body_bytes=b"")
+
+        self.assertEqual(result, b"")
+
+    def test_a_second_body_tag_is_dropped_not_duplicated(self) -> None:
+        result = _render("[body][body]", self.store, body_bytes=b"REAL CONTENT")
+
+        self.assertEqual(result, b"REAL CONTENT")
+
+    def test_body_shortcode_cannot_be_shadowed_by_a_custom_resolver(self) -> None:
+        from pridge_client.receipt_composer.shortcodes import BUILTIN_SHORTCODE_NAMES
+
+        self.assertIn("body", BUILTIN_SHORTCODE_NAMES)
+
+
 class CustomShortcodeResolverTests(unittest.TestCase):
     """Covers the cross-plugin shortcode hook: render_template/render_template_blocks
     accept an optional custom_resolvers map (built by
@@ -182,12 +224,14 @@ class CustomShortcodeResolverTests(unittest.TestCase):
 
         blocks = _blocks("[weather:sunny]", self.store, custom_resolvers=resolvers)
 
-        self.assertEqual(blocks, [{"type": "marker", "label": "weather"}])
+        self.assertEqual(
+            blocks, [{"type": "marker", "label": "weather"}, {"type": "body_placeholder", "implicit": True}]
+        )
 
     def test_preview_blocks_drop_a_tag_with_no_matching_resolver(self) -> None:
         blocks = _blocks("[unregistered]", self.store, custom_resolvers={"weather": lambda arg: b"Sunny"})
 
-        self.assertEqual(blocks, [])
+        self.assertEqual(blocks, [{"type": "body_placeholder", "implicit": True}])
 
 
 class ShortcodeCounterTests(unittest.TestCase):
@@ -269,8 +313,12 @@ class ShortcodePreviewBlockTests(unittest.TestCase):
         self.addCleanup(self.temporary_directory.cleanup)
         self.store = ReceiptComposerStore(Path(self.temporary_directory.name))
 
+    BODY_PLACEHOLDER = {"type": "body_placeholder", "implicit": True}
+
     def test_plain_text_becomes_a_single_text_block(self) -> None:
-        self.assertEqual(_blocks("Thank you!", self.store), [{"type": "text", "value": "Thank you!"}])
+        self.assertEqual(
+            _blocks("Thank you!", self.store), [{"type": "text", "value": "Thank you!"}, self.BODY_PLACEHOLDER]
+        )
 
     def test_align_bold_and_layout_tags_become_typed_blocks(self) -> None:
         self.assertEqual(
@@ -283,23 +331,30 @@ class ShortcodePreviewBlockTests(unittest.TestCase):
                 {"type": "hr", "width": 10},
                 {"type": "blank"},
                 {"type": "newline"},
+                self.BODY_PLACEHOLDER,
             ],
         )
 
     def test_unrecognized_align_value_falls_back_to_left(self) -> None:
-        self.assertEqual(_blocks("[align:diagonal]", self.store), [{"type": "align", "value": "left"}])
+        self.assertEqual(
+            _blocks("[align:diagonal]", self.store), [{"type": "align", "value": "left"}, self.BODY_PLACEHOLDER]
+        )
 
     def test_print_number_and_counter_are_peeked_not_incremented(self) -> None:
         blocks = _blocks("[print_number][counter:vip]", self.store)
 
-        self.assertEqual(blocks, [{"type": "text", "value": "1"}, {"type": "text", "value": "1"}])
+        self.assertEqual(
+            blocks, [{"type": "text", "value": "1"}, {"type": "text", "value": "1"}, self.BODY_PLACEHOLDER]
+        )
         self.assertEqual(self.store.get_counters("Kitchen Printer"), {})
 
     def test_image_tag_becomes_an_image_block(self) -> None:
-        self.assertEqual(_blocks("[image:abc123]", self.store), [{"type": "image", "image_id": "abc123"}])
+        self.assertEqual(
+            _blocks("[image:abc123]", self.store), [{"type": "image", "image_id": "abc123"}, self.BODY_PLACEHOLDER]
+        )
 
     def test_empty_image_tag_is_dropped(self) -> None:
-        self.assertEqual(_blocks("[image:]", self.store), [])
+        self.assertEqual(_blocks("[image:]", self.store), [self.BODY_PLACEHOLDER])
 
     def test_cut_drawer_feed_hex_and_dec_become_marker_blocks(self) -> None:
         self.assertEqual(
@@ -310,18 +365,41 @@ class ShortcodePreviewBlockTests(unittest.TestCase):
                 {"type": "marker", "label": "feed:6"},
                 {"type": "marker", "label": "hex"},
                 {"type": "marker", "label": "dec"},
+                self.BODY_PLACEHOLDER,
             ],
         )
 
     def test_cut_marker_shows_the_feed_count_when_set(self) -> None:
-        self.assertEqual(_blocks("[cut:full:6]", self.store), [{"type": "marker", "label": "cut:full +6feed"}])
-        self.assertEqual(_blocks("[cut:full:0]", self.store), [{"type": "marker", "label": "cut:full"}])
+        self.assertEqual(
+            _blocks("[cut:full:6]", self.store), [{"type": "marker", "label": "cut:full +6feed"}, self.BODY_PLACEHOLDER]
+        )
+        self.assertEqual(
+            _blocks("[cut:full:0]", self.store), [{"type": "marker", "label": "cut:full"}, self.BODY_PLACEHOLDER]
+        )
 
     def test_unknown_tag_is_dropped(self) -> None:
-        self.assertEqual(_blocks("[blod]", self.store), [])
+        self.assertEqual(_blocks("[blod]", self.store), [self.BODY_PLACEHOLDER])
 
-    def test_empty_template_returns_no_blocks(self) -> None:
-        self.assertEqual(_blocks("", self.store), [])
+    def test_empty_template_returns_only_the_implicit_body_placeholder(self) -> None:
+        self.assertEqual(_blocks("", self.store), [self.BODY_PLACEHOLDER])
+
+    def test_explicit_body_tag_produces_a_non_implicit_placeholder_at_its_position(self) -> None:
+        self.assertEqual(
+            _blocks("[bold]Hi[/bold][body][cut:full]", self.store),
+            [
+                {"type": "bold_start"},
+                {"type": "text", "value": "Hi"},
+                {"type": "bold_end"},
+                {"type": "body_placeholder"},
+                {"type": "marker", "label": "cut:full"},
+            ],
+        )
+
+    def test_a_second_body_tag_is_dropped_not_duplicated(self) -> None:
+        self.assertEqual(
+            _blocks("[body][body]", self.store),
+            [{"type": "body_placeholder"}],
+        )
 
 
 if __name__ == "__main__":
