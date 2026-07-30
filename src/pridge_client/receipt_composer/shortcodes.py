@@ -50,6 +50,7 @@ BUILTIN_SHORTCODE_NAMES = frozenset(
         "feed",
         "hex",
         "dec",
+        "body",
     }
 )
 
@@ -74,6 +75,7 @@ def render_template(
     chars_per_line: int,
     commit: bool = True,
     custom_resolvers: "Mapping[str, ShortcodeResolver] | None" = None,
+    body_bytes: bytes = b"",
 ) -> bytes:
     """Resolve a Receipt Composer shortcode template to literal bytes.
 
@@ -91,12 +93,20 @@ def render_template(
     third-party renderer plugins (see PrinterManager.receipt_shortcode_resolvers);
     it's only ever consulted after every built-in tag name has been ruled out,
     so a plugin can never shadow or override the built-in vocabulary.
+
+    `body_bytes` is the real incoming print job content, spliced in wherever
+    `[body]` appears in the template (only the first occurrence - any further
+    ones are silently dropped rather than duplicating real content). If the
+    template never uses `[body]` at all, `body_bytes` is appended at the end
+    instead, so a blank or decoration-only template can never silently
+    swallow the actual print job.
     """
     if not template:
-        return b""
+        return bytes(body_bytes)
 
     output = bytearray()
     pos = 0
+    body_written = False
     for match in TAG_RE.finditer(template):
         literal = template[pos : match.start()]
         if literal:
@@ -106,6 +116,10 @@ def render_template(
         closing, name, arg = match.group(1), match.group(2).lower(), match.group(3)
         if closing:
             output.extend(_resolve_closing_tag(name))
+        elif name == "body":
+            if not body_written:
+                output.extend(body_bytes)
+                body_written = True
         else:
             output.extend(
                 _resolve_tag(
@@ -123,6 +137,9 @@ def render_template(
     trailing = template[pos:]
     if trailing:
         output.extend(_encode_text(trailing))
+
+    if not body_written and body_bytes:
+        output.extend(body_bytes)
 
     return bytes(output)
 
@@ -142,10 +159,11 @@ def render_template_blocks(
     incremented — this must be safe to call on every keystroke.
     """
     if not template:
-        return []
+        return [{"type": "body_placeholder", "implicit": True}]
 
     blocks: list[dict[str, Any]] = []
     pos = 0
+    body_seen = False
     for match in TAG_RE.finditer(template):
         literal = template[pos : match.start()]
         if literal:
@@ -153,6 +171,11 @@ def render_template_blocks(
         pos = match.end()
 
         closing, name, arg = match.group(1), match.group(2).lower(), match.group(3)
+        if not closing and name == "body":
+            if not body_seen:
+                blocks.append({"type": "body_placeholder"})
+                body_seen = True
+            continue
         block = (
             _preview_closing_block(name)
             if closing
@@ -171,6 +194,9 @@ def render_template_blocks(
     trailing = template[pos:]
     if trailing:
         blocks.append({"type": "text", "value": trailing})
+
+    if not body_seen:
+        blocks.append({"type": "body_placeholder", "implicit": True})
 
     return blocks
 
