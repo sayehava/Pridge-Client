@@ -27,13 +27,6 @@ _ALIGN_BYTES = {
 _BOLD_ON = b"\x1b\x45\x01"
 _BOLD_OFF = b"\x1b\x45\x00"
 
-# There is no universal ESC/POS italic command. Rather than guess a byte
-# sequence that may do something unintended on a given printer model, italic
-# is a documented no-op in this version — see raw_composer strings for the
-# user-facing hint.
-_ITALIC_ON = b""
-_ITALIC_OFF = b""
-
 DEFAULT_RANDOM_DIGITS = 6
 DEFAULT_DATE_FORMAT = "%Y-%m-%d"
 
@@ -146,8 +139,6 @@ def _preview_block(
         return {"type": "align", "value": value if value in _ALIGN_BYTES else "left"}
     if name == "bold":
         return {"type": "bold_start"}
-    if name == "italic":
-        return {"type": "italic_start"}
     if name == "hr":
         return {"type": "hr", "width": max(1, chars_per_line)}
     if name == "blank":
@@ -193,8 +184,6 @@ def _preview_block(
 def _preview_closing_block(name: str) -> dict[str, Any] | None:
     if name == "bold":
         return {"type": "bold_end"}
-    if name == "italic":
-        return {"type": "italic_end"}
     return None
 
 
@@ -212,8 +201,6 @@ def _resolve_tag(
         return _ALIGN_BYTES.get((arg or "").strip().lower(), b"")
     if name == "bold":
         return _BOLD_ON
-    if name == "italic":
-        return _ITALIC_ON
     if name == "hr":
         return _encode_text("-" * max(1, chars_per_line) + "\n")
     if name in ("blank", "newline"):
@@ -258,8 +245,6 @@ def _resolve_tag(
 def _resolve_closing_tag(name: str) -> bytes:
     if name == "bold":
         return _BOLD_OFF
-    if name == "italic":
-        return _ITALIC_OFF
     return b""
 
 
