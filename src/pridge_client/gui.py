@@ -1094,6 +1094,7 @@ class ClientApi:
         mapping.raw_chars_per_line = self._safe_int(
             fields.get("raw_chars_per_line", mapping.raw_chars_per_line), mapping.raw_chars_per_line, 8, 128
         )
+        mapping.composer_enabled = bool(fields.get("composer_enabled", mapping.composer_enabled))
         mapping.receipt_design_migrated = True
         self.config_store.save(self._current_config())
         return {
@@ -1131,7 +1132,9 @@ class ClientApi:
                 name,
                 mode="raw",
                 driver_settings=profile.driver_settings,
-                raw_template=mapping.raw_template,
+                # Test Print mirrors real jobs exactly, including the
+                # composer_enabled toggle - what you test is what you get.
+                raw_template=mapping.raw_template if mapping.composer_enabled else "",
                 raw_paper_width_dots=mapping.raw_paper_width_dots,
                 raw_chars_per_line=mapping.raw_chars_per_line,
                 receipt_scope_key=mapping_scope_key(server.id, mapping.remote_printer_id),
@@ -1148,6 +1151,7 @@ class ClientApi:
             "raw_template": mapping.raw_template,
             "raw_paper_width_dots": mapping.raw_paper_width_dots,
             "raw_chars_per_line": mapping.raw_chars_per_line,
+            "composer_enabled": mapping.composer_enabled,
         }
 
     def get_receipt_counters(self, server_id: str, remote_printer_id: str) -> dict:
@@ -1603,6 +1607,7 @@ class ClientApi:
                     raw_template=previous.raw_template if previous else "",
                     raw_paper_width_dots=previous.raw_paper_width_dots if previous else 384,
                     raw_chars_per_line=previous.raw_chars_per_line if previous else 32,
+                    composer_enabled=previous.composer_enabled if previous else True,
                     receipt_design_migrated=previous.receipt_design_migrated if previous else False,
                 )
             )
