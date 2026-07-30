@@ -8,7 +8,16 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from pridge_client.config import ClientConfig, ClientTokenStore, ConfigStore, DashboardWidget, PrinterProfile
+from pridge_client.config import (
+    ClientConfig,
+    ClientTokenStore,
+    ConfigStore,
+    DashboardWidget,
+    PrinterMapping,
+    PrinterProfile,
+    ServerConfig,
+    _parse_printer_profiles,
+)
 
 
 class ConfigStoreTests(unittest.TestCase):
@@ -103,32 +112,48 @@ class ConfigStoreTests(unittest.TestCase):
         self.assertEqual(profile.raw_footer_preset, "custom")
         self.assertEqual(profile.raw_footer_custom_hex, "1D 56 00")
 
-    def test_saves_and_loads_raw_composer_template_settings(self) -> None:
+    def test_saves_and_loads_mapping_receipt_composer_template_settings(self) -> None:
+        # Receipt Composer content now lives on the mapping itself, not the
+        # PrinterProfile shared by everything pointing at a local printer.
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.json"
             store = ConfigStore(path)
             store.save(
                 ClientConfig(
-                    printer_profiles={
-                        "Receipt": PrinterProfile(
-                            raw_header_template="[align:center][image:logo1][bold]Thanks![/bold]",
-                            raw_footer_template="[cut:full]",
-                            raw_paper_width_dots=576,
-                            raw_chars_per_line=48,
+                    servers=[
+                        ServerConfig(
+                            id="s1",
+                            name="Server",
+                            server_url="https://example.test",
+                            printer_mappings=[
+                                PrinterMapping(
+                                    remote_printer_id="ep-1",
+                                    local_printer_name="Receipt",
+                                    raw_header_template="[align:center][image:logo1][bold]Thanks![/bold]",
+                                    raw_footer_template="[cut:full]",
+                                    raw_paper_width_dots=576,
+                                    raw_chars_per_line=48,
+                                    receipt_design_migrated=True,
+                                )
+                            ],
                         )
-                    }
+                    ]
                 )
             )
 
             config = store.load()
 
-        profile = config.printer_profiles["Receipt"]
-        self.assertEqual(profile.raw_header_template, "[align:center][image:logo1][bold]Thanks![/bold]")
-        self.assertEqual(profile.raw_footer_template, "[cut:full]")
-        self.assertEqual(profile.raw_paper_width_dots, 576)
-        self.assertEqual(profile.raw_chars_per_line, 48)
+        mapping = config.servers[0].printer_mappings[0]
+        self.assertEqual(mapping.raw_header_template, "[align:center][image:logo1][bold]Thanks![/bold]")
+        self.assertEqual(mapping.raw_footer_template, "[cut:full]")
+        self.assertEqual(mapping.raw_paper_width_dots, 576)
+        self.assertEqual(mapping.raw_chars_per_line, 48)
+        self.assertTrue(mapping.receipt_design_migrated)
 
-    def test_migrates_each_legacy_raw_preset_to_an_equivalent_shortcode(self) -> None:
+    def test_parse_printer_profiles_migrates_each_legacy_raw_preset_to_an_equivalent_shortcode(self) -> None:
+        # _parse_printer_profiles still resolves presets into a template string
+        # for _migrate_mapping_receipt_designs to consume - it just no longer
+        # stores that string on PrinterProfile itself.
         cases = [
             ({"raw_header_preset": "full_cut"}, "[cut:full]"),
             ({"raw_header_preset": "partial_cut"}, "[cut:partial]"),
@@ -137,20 +162,28 @@ class ConfigStoreTests(unittest.TestCase):
             ({"raw_header_preset": "custom", "raw_header_custom_hex": "1D 56 00"}, "[hex:1D5600]"),
         ]
         for profile_fields, expected_template in cases:
-            with tempfile.TemporaryDirectory() as directory:
-                path = Path(directory) / "config.json"
-                path.write_text(
-                    json.dumps({"printer_profiles": {"Receipt": profile_fields}}),
-                    encoding="utf-8",
-                )
+            _profiles, legacy_designs = _parse_printer_profiles({"Receipt": profile_fields})
 
-                config = ConfigStore(path).load()
+            header, _footer, _paper_width, _chars = legacy_designs["Receipt"]
+            self.assertEqual(header, expected_template, profile_fields)
 
-            self.assertEqual(
-                config.printer_profiles["Receipt"].raw_header_template, expected_template, profile_fields
-            )
+    def test_parse_printer_profiles_does_not_overwrite_an_explicit_raw_template_with_a_migrated_legacy_preset(
+        self,
+    ) -> None:
+        _profiles, legacy_designs = _parse_printer_profiles(
+            {"Receipt": {"raw_header_preset": "full_cut", "raw_header_template": "[drawer]"}}
+        )
 
-    def test_does_not_overwrite_an_explicit_raw_template_with_a_migrated_legacy_preset(self) -> None:
+        header, _footer, _paper_width, _chars = legacy_designs["Receipt"]
+        self.assertEqual(header, "[drawer]")
+
+    def test_parse_printer_profiles_legacy_paper_width_is_rounded_down_to_a_byte_boundary_and_clamped(self) -> None:
+        _profiles, legacy_designs = _parse_printer_profiles({"Receipt": {"raw_paper_width_dots": 401}})
+
+        _header, _footer, paper_width, _chars = legacy_designs["Receipt"]
+        self.assertEqual(paper_width, 400)
+
+    def test_migrates_a_legacy_global_printer_profile_template_onto_a_mapping_targeting_that_printer(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.json"
             path.write_text(
@@ -158,10 +191,22 @@ class ConfigStoreTests(unittest.TestCase):
                     {
                         "printer_profiles": {
                             "Receipt": {
-                                "raw_header_preset": "full_cut",
-                                "raw_header_template": "[drawer]",
+                                "raw_header_template": "[align:center]Legacy[/align]",
+                                "raw_footer_template": "[cut:full]",
+                                "raw_paper_width_dots": 576,
+                                "raw_chars_per_line": 48,
                             }
-                        }
+                        },
+                        "servers": [
+                            {
+                                "id": "s1",
+                                "name": "Server",
+                                "server_url": "https://example.test",
+                                "printer_mappings": [
+                                    {"remote_printer_id": "ep-1", "local_printer_name": "Receipt"}
+                                ],
+                            }
+                        ],
                     }
                 ),
                 encoding="utf-8",
@@ -169,19 +214,101 @@ class ConfigStoreTests(unittest.TestCase):
 
             config = ConfigStore(path).load()
 
-        self.assertEqual(config.printer_profiles["Receipt"].raw_header_template, "[drawer]")
+        mapping = config.servers[0].printer_mappings[0]
+        self.assertEqual(mapping.raw_header_template, "[align:center]Legacy[/align]")
+        self.assertEqual(mapping.raw_footer_template, "[cut:full]")
+        self.assertEqual(mapping.raw_paper_width_dots, 576)
+        self.assertEqual(mapping.raw_chars_per_line, 48)
+        self.assertTrue(mapping.receipt_design_migrated)
 
-    def test_raw_paper_width_dots_is_rounded_down_to_a_byte_boundary_and_clamped(self) -> None:
+    def test_migration_copies_the_shared_legacy_template_to_every_mapping_on_that_printer(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.json"
             path.write_text(
-                json.dumps({"printer_profiles": {"Receipt": {"raw_paper_width_dots": 401}}}),
+                json.dumps(
+                    {
+                        "printer_profiles": {"Receipt": {"raw_header_template": "[bold]Shared[/bold]"}},
+                        "servers": [
+                            {
+                                "id": "s1",
+                                "name": "Server",
+                                "server_url": "https://example.test",
+                                "printer_mappings": [
+                                    {"remote_printer_id": "kitchen", "local_printer_name": "Receipt"},
+                                    {"remote_printer_id": "register", "local_printer_name": "Receipt"},
+                                ],
+                            }
+                        ],
+                    }
+                ),
                 encoding="utf-8",
             )
 
             config = ConfigStore(path).load()
 
-        self.assertEqual(config.printer_profiles["Receipt"].raw_paper_width_dots, 400)
+        mappings = config.servers[0].printer_mappings
+        self.assertEqual(mappings[0].raw_header_template, "[bold]Shared[/bold]")
+        self.assertEqual(mappings[1].raw_header_template, "[bold]Shared[/bold]")
+
+    def test_server_specific_legacy_profile_wins_over_global_for_migration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "printer_profiles": {"Receipt": {"raw_header_template": "[bold]Global[/bold]"}},
+                        "servers": [
+                            {
+                                "id": "s1",
+                                "name": "Server",
+                                "server_url": "https://example.test",
+                                "printer_profiles": {"Receipt": {"raw_header_template": "[bold]ServerOverride[/bold]"}},
+                                "printer_mappings": [
+                                    {"remote_printer_id": "ep-1", "local_printer_name": "Receipt"}
+                                ],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            config = ConfigStore(path).load()
+
+        self.assertEqual(
+            config.servers[0].printer_mappings[0].raw_header_template, "[bold]ServerOverride[/bold]"
+        )
+
+    def test_already_migrated_mapping_left_blank_on_purpose_is_not_overwritten(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "printer_profiles": {"Receipt": {"raw_header_template": "[bold]Legacy[/bold]"}},
+                        "servers": [
+                            {
+                                "id": "s1",
+                                "name": "Server",
+                                "server_url": "https://example.test",
+                                "printer_mappings": [
+                                    {
+                                        "remote_printer_id": "ep-1",
+                                        "local_printer_name": "Receipt",
+                                        "raw_header_template": "",
+                                        "receipt_design_migrated": True,
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            config = ConfigStore(path).load()
+
+        self.assertEqual(config.servers[0].printer_mappings[0].raw_header_template, "")
 
     def test_invalid_raw_presets_fall_back_to_none(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
