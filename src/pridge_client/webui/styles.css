@@ -487,6 +487,10 @@ button {
   width: 100%;
 }
 
+.widget-picker.widget-picker-wide {
+  max-width: 640px;
+}
+
 .widget-picker-list {
   display: flex;
   flex-direction: column;
@@ -499,6 +503,83 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.widget-receipt-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+}
+
+.widget-receipt-composer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.widget-receipt-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.widget-receipt-item:last-child {
+  border-bottom: none;
+}
+
+.widget-receipt-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.82rem;
+}
+
+.widget-receipt-add-btn,
+.widget-receipt-edit-btn,
+.widget-receipt-remove-btn {
+  padding: 1px 8px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  min-width: 0;
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+
+.widget-receipt-add-btn {
+  color: var(--success);
+  border-color: var(--success);
+}
+
+.widget-receipt-add-btn:hover {
+  background: var(--success);
+  color: #fff;
+}
+
+.widget-receipt-edit-btn {
+  color: var(--text-muted);
+}
+
+.widget-receipt-edit-btn:hover {
+  background: var(--panel-bg);
+}
+
+.widget-receipt-remove-btn {
+  color: var(--danger);
+}
+
+.widget-receipt-remove-btn:hover {
+  background: var(--danger);
+  color: #fff;
 }
 
 .widget-settings-list {
@@ -1773,20 +1854,23 @@ button.stone-option.selected {
   border: 2px solid rgba(8, 14, 27, 0.22);
 }
 
-.plugins-layout {
+/* Shared by any picker with category tabs on the left - the Plugins window
+   and the dashboard's Add Widget picker both use these same class names so
+   they look and behave identically. */
+.category-layout {
   display: flex;
   gap: 16px;
   align-items: flex-start;
 }
 
-.plugin-category-tabs {
+.category-tabs {
   flex: 0 0 168px;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.plugin-category-tab {
+.category-tab {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1801,23 +1885,23 @@ button.stone-option.selected {
   font-size: 13px;
 }
 
-.plugin-category-tab:hover {
+.category-tab:hover {
   background: var(--panel-bg);
   transform: none;
 }
 
-.plugin-category-tab.active {
+.category-tab.active {
   background: linear-gradient(135deg, var(--accent-bright), var(--accent-deep));
   color: #fff;
 }
 
-.plugin-category-tab-count {
+.category-tab-count {
   font-size: 11px;
   opacity: 0.75;
   flex: 0 0 auto;
 }
 
-.plugin-category-content {
+.category-content {
   flex: 1;
   min-width: 0;
 }
@@ -1833,7 +1917,7 @@ button.stone-option.selected {
   font-size: 12px;
 }
 
-.plugin-category-separator {
+.category-separator {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1844,16 +1928,22 @@ button.stone-option.selected {
   letter-spacing: 0.04em;
 }
 
-.plugin-category-separator:first-child {
+.category-separator:first-child {
   margin-top: 0;
 }
 
-.plugin-category-separator::before,
-.plugin-category-separator::after {
+.category-separator::before,
+.category-separator::after {
   content: "";
   flex: 1;
   height: 1px;
   background: var(--border);
+}
+
+.category-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 8px;
 }
 
 .renderer-row {
