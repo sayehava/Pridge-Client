@@ -34,6 +34,26 @@ class PrinterMapping:
     remote_printer_id: str
     local_printer_name: str
     remote_printer_name: str = ""
+    # Receipt Composer content is scoped to this specific mapping (one server's
+    # one remote endpoint), not to the local printer it happens to target today
+    # - the same physical printer can be mapped from several endpoints (kitchen
+    # ticket, register receipt, delivery slip) that each need their own design.
+    raw_header_template: str = ""
+    raw_footer_template: str = ""
+    raw_paper_width_dots: int = 384
+    raw_chars_per_line: int = 32
+    # Set once by _migrate_mapping_receipt_designs on first load after this
+    # field existed, so a mapping deliberately left blank is never mistaken
+    # for one that hasn't been migrated yet and overwritten on a later load.
+    receipt_design_migrated: bool = False
+
+
+def mapping_scope_key(server_id: str, remote_printer_id: str) -> str:
+    """Identity key for one mapping's Receipt Composer content (template and
+    counters) - a physical printer's shared local_printer_name is deliberately
+    not part of this key, since that's exactly the ambiguity being scoped away.
+    """
+    return f"{server_id}::{remote_printer_id}"
 
 
 @dataclass
@@ -50,10 +70,6 @@ class PrinterProfile:
     raw_header_custom_hex: str = ""
     raw_footer_preset: str = ""
     raw_footer_custom_hex: str = ""
-    raw_header_template: str = ""
-    raw_footer_template: str = ""
-    raw_paper_width_dots: int = 384
-    raw_chars_per_line: int = 32
 
 
 @dataclass
@@ -144,12 +160,13 @@ class ConfigStore:
         if not isinstance(appearance_raw, dict):
             appearance_raw = {}
 
-        servers = _parse_servers(raw)
+        global_printer_profiles, global_legacy_designs = _parse_printer_profiles(raw.get("printer_profiles", {}))
+        servers = _parse_servers(raw, global_legacy_designs)
         config = ClientConfig(
             server_url=str(raw.get("server_url", "")),
             servers=servers,
             selected_printer=str(raw.get("selected_printer", "")),
-            printer_profiles=_parse_printer_profiles(raw.get("printer_profiles", {})),
+            printer_profiles=global_printer_profiles,
             polling_interval_seconds=_positive_int(raw.get("polling_interval_seconds", 5), 5),
             heartbeat_interval_seconds=_positive_int(raw.get("heartbeat_interval_seconds", 30), 30),
             start_polling_on_launch=bool(raw.get("start_polling_on_launch", False)),
@@ -321,11 +338,15 @@ def _appearance_grade(raw: dict[str, Any]) -> str:
     return next((name for limit, name in thresholds if legacy_opacity <= limit), "Jet")
 
 
-def _parse_servers(raw: dict[str, Any]) -> list[ServerConfig]:
+def _parse_servers(raw: dict[str, Any], global_legacy_designs: dict[str, "LegacyReceiptDesign"]) -> list[ServerConfig]:
     legacy_printer = str(raw.get("selected_printer", "")).strip()
     raw_servers = raw.get("servers", [])
     if isinstance(raw_servers, list):
-        servers = [_parse_server(item, legacy_printer) for item in raw_servers if isinstance(item, dict)]
+        servers = [
+            _parse_server(item, legacy_printer, global_legacy_designs)
+            for item in raw_servers
+            if isinstance(item, dict)
+        ]
         servers = [server for server in servers if server.server_url]
         if servers:
             return servers
@@ -346,8 +367,15 @@ def _parse_servers(raw: dict[str, Any]) -> list[ServerConfig]:
     ]
 
 
-def _parse_server(raw: dict[str, Any], legacy_printer: str = "") -> ServerConfig:
+def _parse_server(
+    raw: dict[str, Any],
+    legacy_printer: str = "",
+    global_legacy_designs: dict[str, "LegacyReceiptDesign"] | None = None,
+) -> ServerConfig:
     server_id = str(raw.get("id", "")).strip() or _safe_id(str(raw.get("name", "server")))
+    printer_profiles, server_legacy_designs = _parse_printer_profiles(raw.get("printer_profiles", {}))
+    printer_mappings = _parse_printer_mappings(raw.get("printer_mappings", []))
+    _migrate_mapping_receipt_designs(printer_mappings, server_legacy_designs, global_legacy_designs or {})
     return ServerConfig(
         id=server_id,
         name=str(raw.get("name", "Server")).strip() or "Server",
@@ -356,8 +384,8 @@ def _parse_server(raw: dict[str, Any], legacy_printer: str = "") -> ServerConfig
         polling_interval_seconds=_positive_int(raw.get("polling_interval_seconds", 5), 5),
         heartbeat_interval_seconds=_positive_int(raw.get("heartbeat_interval_seconds", 30), 30),
         default_printer=str(raw.get("default_printer", legacy_printer)).strip(),
-        printer_mappings=_parse_printer_mappings(raw.get("printer_mappings", [])),
-        printer_profiles=_parse_printer_profiles(raw.get("printer_profiles", {})),
+        printer_mappings=printer_mappings,
+        printer_profiles=printer_profiles,
     )
 
 
@@ -373,14 +401,54 @@ def _parse_printer_mappings(raw: Any) -> list[PrinterMapping]:
         local_printer_name = str(item.get("local_printer_name", "")).strip()
         if not remote_printer_id or not local_printer_name:
             continue
+        raw_paper_width_dots = _bounded_int(item.get("raw_paper_width_dots", 384), 384, 8, 4096)
+        raw_paper_width_dots = max(8, (raw_paper_width_dots // 8) * 8)
         mappings.append(
             PrinterMapping(
                 remote_printer_id=remote_printer_id,
                 remote_printer_name=str(item.get("remote_printer_name", "")).strip(),
                 local_printer_name=local_printer_name,
+                raw_header_template=str(item.get("raw_header_template", "")).strip(),
+                raw_footer_template=str(item.get("raw_footer_template", "")).strip(),
+                raw_paper_width_dots=raw_paper_width_dots,
+                raw_chars_per_line=_bounded_int(item.get("raw_chars_per_line", 32), 32, 8, 128),
+                receipt_design_migrated=bool(item.get("receipt_design_migrated", False)),
             )
         )
     return mappings
+
+
+# (header_template, footer_template, paper_width_dots, chars_per_line) captured from
+# a pre-mapping-scoping config.json's printer_profiles entry, purely to seed
+# _migrate_mapping_receipt_designs - never stored anywhere itself.
+LegacyReceiptDesign = tuple[str, str, int, int]
+
+
+def _migrate_mapping_receipt_designs(
+    mappings: list[PrinterMapping],
+    server_legacy_designs: dict[str, "LegacyReceiptDesign"],
+    global_legacy_designs: dict[str, "LegacyReceiptDesign"],
+) -> None:
+    """One-time migration for configs saved before Receipt Composer content
+    moved from PrinterProfile (shared by every mapping pointing at a local
+    printer) to PrinterMapping (one copy per mapping). Every mapping that
+    shared a printer's old template starts from an identical copy of it -
+    the same content the whole printer used to show - then diverges
+    independently as each mapping is edited from that point on.
+    """
+    for mapping in mappings:
+        if mapping.receipt_design_migrated:
+            continue
+        design = server_legacy_designs.get(mapping.local_printer_name) or global_legacy_designs.get(
+            mapping.local_printer_name
+        )
+        if design is not None:
+            header, footer, paper_width_dots, chars_per_line = design
+            mapping.raw_header_template = header
+            mapping.raw_footer_template = footer
+            mapping.raw_paper_width_dots = paper_width_dots
+            mapping.raw_chars_per_line = chars_per_line
+        mapping.receipt_design_migrated = True
 
 
 def _migrate_legacy_raw_macro(preset: str, custom_hex: str) -> str:
@@ -402,11 +470,12 @@ def _migrate_legacy_raw_macro(preset: str, custom_hex: str) -> str:
     return ""
 
 
-def _parse_printer_profiles(raw: Any) -> dict[str, PrinterProfile]:
+def _parse_printer_profiles(raw: Any) -> tuple[dict[str, PrinterProfile], dict[str, "LegacyReceiptDesign"]]:
     if not isinstance(raw, dict):
-        return {}
+        return {}, {}
 
     profiles: dict[str, PrinterProfile] = {}
+    legacy_designs: dict[str, "LegacyReceiptDesign"] = {}
     for raw_name, raw_profile in raw.items():
         name = str(raw_name).strip()
         if not name or not isinstance(raw_profile, dict):
@@ -459,12 +528,9 @@ def _parse_printer_profiles(raw: Any) -> dict[str, PrinterProfile]:
             raw_header_custom_hex=raw_header_custom_hex,
             raw_footer_preset=raw_footer_preset,
             raw_footer_custom_hex=raw_footer_custom_hex,
-            raw_header_template=raw_header_template,
-            raw_footer_template=raw_footer_template,
-            raw_paper_width_dots=raw_paper_width_dots,
-            raw_chars_per_line=raw_chars_per_line,
         )
-    return profiles
+        legacy_designs[name] = (raw_header_template, raw_footer_template, raw_paper_width_dots, raw_chars_per_line)
+    return profiles, legacy_designs
 
 
 def _parse_dashboard_widgets(raw: Any) -> list[DashboardWidget]:
