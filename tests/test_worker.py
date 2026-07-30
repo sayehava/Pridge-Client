@@ -119,8 +119,7 @@ class WorkerPrintingModeTests(unittest.TestCase):
             submission_method=None,
             explicit_renderer=None,
             fit_mode="fit",
-            raw_header_template="",
-            raw_footer_template="",
+            raw_template="",
             raw_paper_width_dots=384,
             raw_chars_per_line=32,
             receipt_scope_key="",
@@ -160,8 +159,7 @@ class WorkerPrintingModeTests(unittest.TestCase):
             submission_method="pdfium",
             explicit_renderer=None,
             fit_mode="fit",
-            raw_header_template="",
-            raw_footer_template="",
+            raw_template="",
             raw_paper_width_dots=384,
             raw_chars_per_line=32,
             receipt_scope_key="",
@@ -210,8 +208,7 @@ class WorkerReceiptMappingScopeTests(unittest.TestCase):
                 PrinterMapping(
                     remote_printer_id="kitchen-1",
                     local_printer_name="Kitchen Printer",
-                    raw_header_template="[bold]Kitchen[/bold]",
-                    raw_footer_template="[cut:full]",
+                    raw_template="[bold]Kitchen[/bold][body][cut:full]",
                     raw_paper_width_dots=576,
                     raw_chars_per_line=48,
                 )
@@ -231,8 +228,7 @@ class WorkerReceiptMappingScopeTests(unittest.TestCase):
         worker._process_job(client, job)
 
         _args, kwargs = printer_manager.print_job.call_args
-        self.assertEqual(kwargs["raw_header_template"], "[bold]Kitchen[/bold]")
-        self.assertEqual(kwargs["raw_footer_template"], "[cut:full]")
+        self.assertEqual(kwargs["raw_template"], "[bold]Kitchen[/bold][body][cut:full]")
         self.assertEqual(kwargs["raw_paper_width_dots"], 576)
         self.assertEqual(kwargs["raw_chars_per_line"], 48)
         self.assertEqual(kwargs["receipt_scope_key"], "office::kitchen-1")
@@ -244,12 +240,12 @@ class WorkerReceiptMappingScopeTests(unittest.TestCase):
                 PrinterMapping(
                     remote_printer_id="kitchen-1",
                     local_printer_name="Shared Printer",
-                    raw_header_template="[bold]Kitchen[/bold]",
+                    raw_template="[bold]Kitchen[/bold]",
                 ),
                 PrinterMapping(
                     remote_printer_id="register-1",
                     local_printer_name="Shared Printer",
-                    raw_header_template="[bold]Register[/bold]",
+                    raw_template="[bold]Register[/bold]",
                 ),
             ],
         )
@@ -270,9 +266,9 @@ class WorkerReceiptMappingScopeTests(unittest.TestCase):
         first_kwargs = printer_manager.print_job.call_args_list[0].kwargs
         second_kwargs = printer_manager.print_job.call_args_list[1].kwargs
         self.assertEqual(first_kwargs["receipt_scope_key"], "office::kitchen-1")
-        self.assertEqual(first_kwargs["raw_header_template"], "[bold]Kitchen[/bold]")
+        self.assertEqual(first_kwargs["raw_template"], "[bold]Kitchen[/bold]")
         self.assertEqual(second_kwargs["receipt_scope_key"], "office::register-1")
-        self.assertEqual(second_kwargs["raw_header_template"], "[bold]Register[/bold]")
+        self.assertEqual(second_kwargs["raw_template"], "[bold]Register[/bold]")
 
     def test_job_with_no_matching_mapping_gets_a_blank_template_and_no_scope_key(self) -> None:
         server = ServerConfig(id="office", default_printer="Fallback Printer")
@@ -285,8 +281,7 @@ class WorkerReceiptMappingScopeTests(unittest.TestCase):
         worker._process_job(client, job)
 
         _args, kwargs = printer_manager.print_job.call_args
-        self.assertEqual(kwargs["raw_header_template"], "")
-        self.assertEqual(kwargs["raw_footer_template"], "")
+        self.assertEqual(kwargs["raw_template"], "")
         self.assertEqual(kwargs["receipt_scope_key"], "")
 
 
