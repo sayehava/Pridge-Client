@@ -2,14 +2,18 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileComment: Additional terms apply; see ADDITIONAL_TERMS.md.
 
+from __future__ import annotations
+
 import unittest
 from types import SimpleNamespace
 
 from pridge_client.printer_backends import (
+    _create_windows_printer_dc,
     _windows_duplex_option,
     _windows_job_devmode,
     _windows_paper_size_option,
 )
+from pridge_client.printers import PrinterError
 
 
 class FakeWin32Con:
@@ -175,6 +179,92 @@ class WindowsJobDevmodeTests(unittest.TestCase):
         result = _windows_job_devmode(win32print, FakeWin32Con, handle="H", printer_name="Printer", settings={"PageSize": "9"})
 
         self.assertIsNone(result)
+
+
+class FakeWin32Gui:
+    def __init__(self, create_dc_result="raw-dc", raises: Exception | None = None) -> None:
+        self.create_dc_result = create_dc_result
+        self.raises = raises
+        self.calls: list[tuple] = []
+
+    def CreateDC(self, driver, device, output, devmode):
+        self.calls.append((driver, device, output, devmode))
+        if self.raises is not None:
+            raise self.raises
+        return self.create_dc_result
+
+
+class FakeWin32Ui:
+    def __init__(self, from_handle_raises: Exception | None = None, create_printer_dc_raises: Exception | None = None) -> None:
+        self.from_handle_raises = from_handle_raises
+        self.create_printer_dc_raises = create_printer_dc_raises
+        self.from_handle_calls: list = []
+        self.create_printer_dc_calls: list = []
+
+    def CreateDCFromHandle(self, raw_dc):
+        self.from_handle_calls.append(raw_dc)
+        if self.from_handle_raises is not None:
+            raise self.from_handle_raises
+        return SimpleNamespace(source="job_devmode", raw_dc=raw_dc)
+
+    def CreateDC(self):
+        return self
+
+    def CreatePrinterDC(self, printer_name):
+        self.create_printer_dc_calls.append(printer_name)
+        if self.create_printer_dc_raises is not None:
+            raise self.create_printer_dc_raises
+
+
+class CreateWindowsPrinterDcTests(unittest.TestCase):
+    def test_no_job_devmode_uses_plain_printer_dc(self) -> None:
+        win32gui = FakeWin32Gui()
+        win32ui = FakeWin32Ui()
+
+        dc = _create_windows_printer_dc(win32ui, win32gui, "Printer", None)
+
+        self.assertIs(dc, win32ui)
+        self.assertEqual(win32ui.create_printer_dc_calls, ["Printer"])
+        self.assertEqual(win32gui.calls, [])
+
+    def test_job_devmode_used_when_create_dc_succeeds(self) -> None:
+        win32gui = FakeWin32Gui(create_dc_result="raw-dc")
+        win32ui = FakeWin32Ui()
+        devmode = SimpleNamespace(PaperSize=9)
+
+        dc = _create_windows_printer_dc(win32ui, win32gui, "Printer", devmode)
+
+        self.assertEqual(dc.source, "job_devmode")
+        self.assertEqual(dc.raw_dc, "raw-dc")
+        self.assertEqual(win32ui.create_printer_dc_calls, [])
+
+    def test_falls_back_to_plain_dc_when_job_devmode_create_dc_fails(self) -> None:
+        win32gui = FakeWin32Gui(raises=RuntimeError("driver rejected DEVMODE"))
+        win32ui = FakeWin32Ui()
+        devmode = SimpleNamespace(PaperSize=9)
+
+        dc = _create_windows_printer_dc(win32ui, win32gui, "Printer", devmode)
+
+        self.assertIs(dc, win32ui)
+        self.assertEqual(win32ui.create_printer_dc_calls, ["Printer"])
+
+    def test_falls_back_to_plain_dc_when_create_dc_from_handle_fails(self) -> None:
+        win32gui = FakeWin32Gui(create_dc_result="raw-dc")
+        win32ui = FakeWin32Ui(from_handle_raises=RuntimeError("bad devmode buffer"))
+        devmode = SimpleNamespace(PaperSize=9)
+
+        dc = _create_windows_printer_dc(win32ui, win32gui, "Printer", devmode)
+
+        self.assertIs(dc, win32ui)
+        self.assertEqual(win32ui.create_printer_dc_calls, ["Printer"])
+
+    def test_raises_printer_error_when_fallback_also_fails(self) -> None:
+        win32gui = FakeWin32Gui(raises=RuntimeError("driver rejected DEVMODE"))
+        win32ui = FakeWin32Ui(create_printer_dc_raises=RuntimeError("printer offline"))
+        devmode = SimpleNamespace(PaperSize=9)
+
+        with self.assertRaises(PrinterError):
+            _create_windows_printer_dc(win32ui, win32gui, "Printer", devmode)
 
 
 if __name__ == "__main__":
