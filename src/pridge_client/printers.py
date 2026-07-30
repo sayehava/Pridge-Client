@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Mapping
+from typing import Callable, Mapping
 
 from pridge_client.version import __version__
 
@@ -217,6 +217,7 @@ class PrinterManager:
                 "store": self._receipt_composer_store,
                 "paper_width_dots": raw_paper_width_dots,
                 "chars_per_line": raw_chars_per_line,
+                "custom_resolvers": self.receipt_shortcode_resolvers(),
             }
             header = render_template(raw_header_template, **template_kwargs)
             footer = render_template(raw_footer_template, **template_kwargs)
@@ -385,6 +386,52 @@ class PrinterManager:
     @property
     def receipt_composer_store(self):
         return self._receipt_composer_store
+
+    def receipt_shortcode_resolvers(self) -> dict[str, Callable[[str | None], bytes]]:
+        """Collect custom `[tag]` resolvers contributed by enabled renderer
+        plugins (built-in or third-party) that declare a `receipt_shortcodes`
+        dict attribute - read with getattr so a plugin never has to declare
+        it, same pattern as the optional `settings_window` attribute.
+
+        Recomputed on every call rather than cached, since plugins can be
+        installed/removed/reordered/enabled at any time and this is only
+        called once per print job or preview keystroke - not hot enough to
+        need caching.
+        """
+        return collect_receipt_shortcode_resolvers(self._registry)
+
+
+def collect_receipt_shortcode_resolvers(registry) -> dict[str, Callable[[str | None], bytes]]:
+    """Scan `registry.enabled_plugins()` for a `receipt_shortcodes` dict
+    attribute and merge them into one tag-name -> resolver map. A separate
+    function (rather than a PrinterManager method body) so it's testable
+    against a plain RendererRegistry without constructing a full PrinterManager.
+    """
+    from pridge_client.receipt_composer.shortcodes import BUILTIN_SHORTCODE_NAMES
+
+    resolvers: dict[str, Callable[[str | None], bytes]] = {}
+    for plugin in registry.enabled_plugins():
+        declared = getattr(plugin, "receipt_shortcodes", None)
+        if not declared:
+            continue
+        for raw_name, resolver in declared.items():
+            name = str(raw_name).strip().lower()
+            if not name or not callable(resolver):
+                continue
+            if name in BUILTIN_SHORTCODE_NAMES:
+                logger.warning(
+                    "Plugin %s tried to register built-in shortcode name '%s'; ignoring.",
+                    getattr(plugin, "plugin_id", "?"),
+                    name,
+                )
+                continue
+            if name in resolvers:
+                logger.warning(
+                    "Shortcode '%s' is already registered by another plugin; keeping the first one.", name
+                )
+                continue
+            resolvers[name] = resolver
+    return resolvers
 
 
 def validate_driver_settings(
