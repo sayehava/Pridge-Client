@@ -134,6 +134,7 @@ class ClientConfig:
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     appearance: AppearanceConfig = field(default_factory=AppearanceConfig)
     dashboard_widgets: list[DashboardWidget] = field(default_factory=_default_dashboard_widgets)
+    printer_stats: dict[str, dict[str, dict[str, int]]] = field(default_factory=dict)
 
 
 class ConfigError(ValueError):
@@ -188,6 +189,7 @@ class ConfigStore:
                 darkness_grade=_appearance_grade(appearance_raw),
             ),
             dashboard_widgets=_parse_dashboard_widgets(raw.get("dashboard_widgets")),
+            printer_stats=_parse_printer_stats(raw.get("printer_stats")),
         )
         if migrate_legacy:
             self.save(config)
@@ -546,6 +548,33 @@ def _parse_printer_profiles(raw: Any) -> tuple[dict[str, PrinterProfile], dict[s
         )
         legacy_designs[name] = (raw_header_template, raw_footer_template, raw_paper_width_dots, raw_chars_per_line)
     return profiles, legacy_designs
+
+
+def _parse_printer_stats(raw: Any) -> dict[str, dict[str, dict[str, int]]]:
+    """Lifetime print counts survive restarts precisely because they live
+    here in config.json, saved through the same ConfigStore.save() every
+    other setting already goes through, instead of a plain in-memory dict.
+    """
+    if not isinstance(raw, dict):
+        return {}
+
+    stats: dict[str, dict[str, dict[str, int]]] = {}
+    for raw_name, raw_origins in raw.items():
+        name = str(raw_name).strip()
+        if not name or not isinstance(raw_origins, dict):
+            continue
+        origins: dict[str, dict[str, int]] = {}
+        for origin, raw_counts in raw_origins.items():
+            origin_key = str(origin).strip()
+            if origin_key not in ("test", "remote") or not isinstance(raw_counts, dict):
+                continue
+            origins[origin_key] = {
+                "success": _bounded_int(raw_counts.get("success", 0), 0, 0, 1_000_000_000),
+                "failed": _bounded_int(raw_counts.get("failed", 0), 0, 0, 1_000_000_000),
+            }
+        if origins:
+            stats[name] = origins
+    return stats
 
 
 def _parse_dashboard_widgets(raw: Any) -> list[DashboardWidget]:
