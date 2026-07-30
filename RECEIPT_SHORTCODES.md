@@ -1,7 +1,11 @@
 # Receipt Composer Shortcode Reference
 
-Every RAW-mode printer has a header and a footer, each written as a single line
-of text mixing literal characters with shortcode tags like `[align:center]`.
+Every server-to-printer mapping has its own header and footer, each written as
+a single line of text mixing literal characters with shortcode tags like
+`[align:center]`. If the same physical printer is mapped from several
+endpoints (a kitchen ticket, a register receipt, a delivery slip), each
+mapping gets its own independent design and print counters — editing one
+never affects another.
 The Receipt Composer settings window builds this same text for you through
 its block editor, but you can also type or paste it directly — see the
 Blocks/Plain Text toggle at the top of each editor. This file and the
@@ -36,7 +40,7 @@ the name is new.
 | `[date]` | Today's date, formatted `YYYY-MM-DD`. |
 | `[date:FORMAT]` | Date and/or time in a custom format, using Python's [`strftime`](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes) codes — `%Y` `%m` `%d` `%H` `%M` `%S` `%p` and so on. The Date block in the settings window has a dropdown of common presets (date only, various date/time combinations, 12h/24h time) that fill in a starting format, which you can then edit freely. |
 | `[random]` / `[random:N]` | A random number, 6 digits by default, or `N` digits (1-12), zero-padded. |
-| `[print_number]` | The printer's built-in running counter — every printer has one automatically, no setup required. Increases by 1 on every real print (Test Print included); previewing a template never increments it. |
+| `[print_number]` | The mapping's built-in running counter — every mapping has one automatically, no setup required, independent of any other mapping even on the same physical printer. Increases by 1 on every real print (Test Print included); previewing a template never increments it. |
 | `[counter:name]` | A counter you name yourself, tracked independently of the default one — useful for separate sequences, e.g. one counter for dine-in receipts and another for takeout. Add, reset, or remove named counters in the Print Counters section of the Receipt Composer window. |
 
 ## Images
@@ -79,3 +83,13 @@ migrated automatically the first time it loads — `full_cut` becomes
 `[drawer]`, `feed` becomes `[feed:4]`, and a custom hex value becomes
 `[hex:...]`. Nothing needs to be done by hand; the presets themselves are no
 longer editable from the UI once migrated.
+
+## Migrating from per-printer designs
+
+Earlier Pridge Client versions kept one shared header/footer design per local
+printer, so several server mappings pointing at the same physical printer all
+showed (and edited) the exact same content. The first time a config from that
+era loads, every mapping that shared a printer's old design gets its own
+identical copy of it — the same content the printer used to show — and from
+then on each mapping's design is edited and printed independently. Nothing
+needs to be done by hand.
