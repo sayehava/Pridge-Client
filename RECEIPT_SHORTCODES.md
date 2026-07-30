@@ -1,11 +1,13 @@
 # Receipt Composer Shortcode Reference
 
-Every server-to-printer mapping has its own header and footer, each written as
-a single line of text mixing literal characters with shortcode tags like
-`[align:center]`. If the same physical printer is mapped from several
-endpoints (a kitchen ticket, a register receipt, a delivery slip), each
-mapping gets its own independent design and print counters — editing one
-never affects another.
+Every server-to-printer mapping has its own single, unified design, written as
+one line of text mixing literal characters with shortcode tags like
+`[align:center]`. There's no separate header/footer to think about — a
+`[body]` tag marks where the incoming print job's own content goes, and
+everything else in the template is decoration around it. If the same
+physical printer is mapped from several endpoints (a kitchen ticket, a
+register receipt, a delivery slip), each mapping gets its own independent
+design and print counters — editing one never affects another.
 The Receipt Composer settings window builds this same text for you through
 its block editor, but you can also type or paste it directly — see the
 Blocks/Plain Text toggle at the top of each editor. This file and the
@@ -27,6 +29,7 @@ the name is new.
 
 | Shortcode | What it does |
 | --- | --- |
+| `[body]` | Marks where the incoming print job's own content goes. If you never add it, the content is still appended automatically at the end, so it's never silently dropped — only the first use counts, a second `[body]` is ignored rather than printing the content twice. |
 | `[align:left]` / `[align:center]` / `[align:right]` | Sets alignment for everything printed after it, until changed again. |
 | `[bold]...[/bold]` | Bolds the text between the two tags. |
 | `[hr]` | A dashed line the width of the printer's configured Characters per Line. |
@@ -69,6 +72,8 @@ the name is new.
 [align:left]Order #[print_number]
 [date:%Y-%m-%d %H:%M]
 [hr]
+[body]
+[hr]
 [align:center]Thank you for your visit![newline][newline]
 [cut:full]
 ```
@@ -93,3 +98,12 @@ era loads, every mapping that shared a printer's old design gets its own
 identical copy of it — the same content the printer used to show — and from
 then on each mapping's design is edited and printed independently. Nothing
 needs to be done by hand.
+
+## Migrating from separate header/footer templates
+
+A brief earlier version of Receipt Composer had a separate header and footer
+per mapping, with the print job's real content implicitly sandwiched between
+them. The first time a mapping from that version loads, its header and footer
+are combined into a single template automatically, with a `[body]` tag
+inserted between them — `header + [body] + footer` — so it behaves exactly
+like it always did. Nothing needs to be done by hand.
