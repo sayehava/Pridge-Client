@@ -286,12 +286,16 @@ class WindowsPrinterBackend:
         try:
             info = win32print.GetPrinter(handle, 2)
             driver_name = str(info.get("pDriverName", "")).strip()
+            port_name = str(info.get("pPortName", "")).strip()
+            devmode = info.get("pDevMode")
         finally:
             win32print.ClosePrinter(handle)
+        options = _windows_driver_options(printer_name, port_name, devmode)
         return PrinterCapabilities(
             printer_name=printer_name,
             system_driver_available=bool(driver_name),
             driver_name=driver_name,
+            options=options,
             supports_native_dialog=bool(driver_name),
         )
 
@@ -341,6 +345,78 @@ class WindowsPrinterBackend:
             return win32print.OpenPrinter(printer_name)
         except Exception as exc:
             raise PrinterError("The selected printer is no longer available.") from exc
+
+
+# Windows exposes driver options (paper, duplex, ...) through DeviceCapabilities
+# and DEVMODE, not through anything Pridge Client can query generically like the
+# CUPS `lpoptions -l` output PosixPrinterBackend parses below. Building these
+# options here is what lets a printer's saved profile actually carry paper/duplex
+# choices scoped to Pridge Client, instead of the only control surface being the
+# OS-wide Printer Properties dialog opened by open_driver_settings.
+def _windows_driver_options(printer_name: str, port_name: str, devmode) -> tuple[DriverOption, ...]:
+    try:
+        import win32print
+        import win32con
+    except ImportError:
+        return ()
+
+    options: list[DriverOption] = []
+
+    paper_option = _windows_paper_size_option(win32print, win32con, printer_name, port_name, devmode)
+    if paper_option is not None:
+        options.append(paper_option)
+
+    duplex_option = _windows_duplex_option(win32print, win32con, printer_name, port_name, devmode)
+    if duplex_option is not None:
+        options.append(duplex_option)
+
+    return tuple(options)
+
+
+def _windows_paper_size_option(win32print, win32con, printer_name: str, port_name: str, devmode) -> DriverOption | None:
+    try:
+        names = win32print.DeviceCapabilities(printer_name, port_name, win32con.DC_PAPERNAMES)
+        ids = win32print.DeviceCapabilities(printer_name, port_name, win32con.DC_PAPERS)
+    except Exception as exc:
+        logger.debug("Could not enumerate Windows paper sizes for %s: %s", printer_name, exc)
+        return None
+    if not names or not ids or len(names) != len(ids):
+        return None
+
+    choices: list[DriverChoice] = []
+    seen: set[str] = set()
+    for paper_id, name in zip(ids, names):
+        choice_id = str(int(paper_id))
+        label = str(name).strip().rstrip("\x00")
+        if not label or choice_id in seen:
+            continue
+        seen.add(choice_id)
+        choices.append(DriverChoice(id=choice_id, label=label))
+    if not choices:
+        return None
+
+    current = str(int(getattr(devmode, "PaperSize", 0) or 0)) if devmode is not None else ""
+    default_id = current if current in seen else choices[0].id
+    return DriverOption(id="PageSize", label="Paper Size", choices=tuple(choices), default=default_id)
+
+
+def _windows_duplex_option(win32print, win32con, printer_name: str, port_name: str, devmode) -> DriverOption | None:
+    try:
+        supported = win32print.DeviceCapabilities(printer_name, port_name, win32con.DC_DUPLEX)
+    except Exception as exc:
+        logger.debug("Could not query Windows duplex support for %s: %s", printer_name, exc)
+        return None
+    if not supported or int(supported) <= 0:
+        return None
+
+    choices = (
+        DriverChoice(id=str(win32con.DMDUP_SIMPLEX), label="Off"),
+        DriverChoice(id=str(win32con.DMDUP_VERTICAL), label="Long edge"),
+        DriverChoice(id=str(win32con.DMDUP_HORIZONTAL), label="Short edge"),
+    )
+    current = str(int(getattr(devmode, "Duplex", 0) or 0)) if devmode is not None else ""
+    default_id = current if current in {choice.id for choice in choices} else str(win32con.DMDUP_SIMPLEX)
+    return DriverOption(id="Duplex", label="Duplex", choices=choices, default=default_id)
 
 
 def _fit_image_to_page(img, dpi: float, target_page_size_pt: tuple[float, float]):
