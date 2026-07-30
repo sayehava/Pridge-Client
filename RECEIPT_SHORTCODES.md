@@ -9,8 +9,8 @@ in-app "Shortcode Reference" panel (top of the Receipt Composer window)
 describe the same syntax; the in-app version is always the authoritative one
 for the version you're running.
 
-A tag looks like `[name]` or `[name:argument]`. Two tags — `[bold]` and
-`[italic]` — are paired: everything between `[bold]` and `[/bold]` is bold.
+A tag looks like `[name]` or `[name:argument]`. `[bold]` is a paired tag:
+everything between `[bold]` and `[/bold]` is bold.
 
 **Unknown or misspelled tags never print as literal text.** `[algn:center]`
 (typo) or `[blorp]` (made up) silently produce nothing, rather than printing
@@ -25,7 +25,6 @@ the name is new.
 | --- | --- |
 | `[align:left]` / `[align:center]` / `[align:right]` | Sets alignment for everything printed after it, until changed again. |
 | `[bold]...[/bold]` | Bolds the text between the two tags. |
-| `[italic]...[/italic]` | Shown in the block editor's preview only. There is no universal ESC/POS italic command, so on real hardware this prints as normal text — a documented no-op, not a bug. |
 | `[hr]` | A dashed line the width of the printer's configured Characters per Line. |
 | `[blank]` | One blank line. Add this tag again for each extra line, or use `[feed:N]` below to add several at once — they produce the same result, `[feed:N]` is just more compact. |
 | `[newline]` | A line break — the same one line of blank space as `[blank]`, just a different name for the same tag. |
