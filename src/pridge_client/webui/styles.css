@@ -1082,6 +1082,25 @@ button.page-number.active {
   color: var(--text-muted);
 }
 
+.printer-stat-tiers {
+  display: flex;
+  gap: 14px;
+  flex: 0 0 auto;
+}
+
+.printer-stat-tier {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.printer-stat-tier-label {
+  color: var(--text-muted);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 .printer-stat-counts {
   display: flex;
   gap: 8px;
@@ -1105,6 +1124,34 @@ button.page-number.active {
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--text-dim);
+}
+
+.error-log-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+}
+
+.error-log-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.error-log-entry {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--danger);
+  margin: 0 0 10px 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.error-log-entry:last-child {
+  border-bottom: none;
 }
 
 /* Toast for errors */
