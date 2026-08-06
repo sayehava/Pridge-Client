@@ -56,6 +56,7 @@ class ConfigureLoggingTests(unittest.TestCase):
         self.log_dir = Path(self.temporary_directory.name)
         self.addCleanup(self.temporary_directory.cleanup)
         self.addCleanup(_close_and_clear_root_handlers)
+        self.addCleanup(_close_and_clear_error_handlers)
 
     def test_writes_to_the_configured_directory(self) -> None:
         configure_logging(ClientConfig(), log_dir=self.log_dir)
