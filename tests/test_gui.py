@@ -1399,6 +1399,90 @@ class MappingReceiptDesignApiTests(unittest.TestCase):
         self.assertEqual(design["design"]["raw_template"], "[bold]Hi[/bold]")
 
 
+class ArchiveApiTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        config_path = Path(self.temporary_directory.name) / "config.json"
+        self.printer_manager = Mock()
+        self.printer_manager.list_printers.return_value = []
+        self.api = ClientApi(
+            config_store=ConfigStore(config_path),
+            token_store=MemoryTokenStore(),
+            printer_manager=self.printer_manager,
+            archive_store=ArchiveStore(Path(self.temporary_directory.name) / "archive.sqlite3"),
+        )
+
+    def tearDown(self):
+        self.temporary_directory.cleanup()
+
+    def test_lists_archived_jobs_newest_first_without_the_raw_payload(self):
+        self.api.archive_store.record_job("job-1", "Kitchen", "printed", b"first")
+        self.api.archive_store.record_job("job-2", "Kitchen", "failed", b"second", detail="no paper")
+
+        result = self.api.list_archived_jobs()
+
+        self.assertTrue(result["ok"])
+        self.assertEqual([job["job_id"] for job in result["jobs"]], ["job-2", "job-1"])
+        self.assertEqual(result["jobs"][0]["detail"], "no paper")
+        self.assertNotIn("payload", result["jobs"][0])
+
+    def test_reprint_job_resends_the_archived_payload_to_the_same_printer(self):
+        entry_id = self.api.archive_store.record_job(
+            "job-1", "Kitchen", "failed", b"receipt bytes", mode="raw", detail="no paper"
+        )
+
+        result = self.api.reprint_job(entry_id)
+
+        self.assertTrue(result["ok"])
+        self.printer_manager.print_job.assert_called_once()
+        args, kwargs = self.printer_manager.print_job.call_args
+        self.assertEqual(args[0], "Kitchen")
+        self.assertEqual(args[1], b"receipt bytes")
+        self.assertEqual(kwargs["mode"], "raw")
+        statuses = [job.status for job in self.api.archive_store.list_jobs()]
+        self.assertIn("reprinted", statuses)
+
+    def test_reprint_job_reports_a_printer_error_without_archiving_again(self):
+        entry_id = self.api.archive_store.record_job("job-1", "Kitchen", "printed", b"receipt bytes")
+        self.printer_manager.print_job.side_effect = PrinterError("printer offline")
+
+        result = self.api.reprint_job(entry_id)
+
+        self.assertFalse(result["ok"])
+        self.assertIn("printer offline", result["error"])
+        statuses = [job.status for job in self.api.archive_store.list_jobs()]
+        self.assertNotIn("reprinted", statuses)
+
+    def test_reprint_job_errors_for_an_unknown_id(self):
+        result = self.api.reprint_job("does-not-exist")
+
+        self.assertFalse(result["ok"])
+        self.printer_manager.print_job.assert_not_called()
+
+    @patch("pridge_client.gui.set_start_at_login")
+    def test_archive_retention_settings_persist_through_update_application_settings(self, _set_start_at_login):
+        result = self.api.update_application_settings({"archive_retention_days": 90, "archive_retention_forever": False})
+        self.assertTrue(result["ok"])
+        self.assertEqual(self.api.config.archive.retention_days, 90)
+        self.assertFalse(self.api.config.archive.retention_forever)
+
+        result = self.api.update_application_settings({"archive_retention_forever": True})
+        self.assertTrue(result["ok"])
+        self.assertTrue(self.api.config.archive.retention_forever)
+
+        reloaded = self.api.config_store.load()
+        self.assertTrue(reloaded.archive.retention_forever)
+        self.assertEqual(reloaded.archive.retention_days, 90)
+
+    def test_clear_archive_removes_all_entries(self):
+        self.api.archive_store.record_job("job-1", "Kitchen", "printed", b"receipt")
+
+        result = self.api.clear_archive()
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(self.api.archive_store.list_jobs(), [])
+
+
 class DashboardWidgetTests(unittest.TestCase):
     def setUp(self):
         self.previous_handlers = list(logging.getLogger().handlers)
