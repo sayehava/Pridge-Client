@@ -181,3 +181,82 @@ class PrintersDataTests(TuiControllerTestCase):
 
         self.assertEqual(self.controller.printers_data(), [])
         self.assertEqual(self.controller.dashboard_data()["printer_count"], 0)
+
+
+class DashboardDataTests(TuiControllerTestCase):
+    def test_dashboard_data_counts_printers_and_todays_printed_jobs(self) -> None:
+        self.printer_manager._printers = [Printer(name="A"), Printer(name="B")]
+        self.controller.archive_store.record_job("job-1", "A", "printed", b"x")
+        self.controller.archive_store.record_job("job-2", "A", "failed", b"x", detail="no paper")
+
+        data = self.controller.dashboard_data()
+
+        self.assertEqual(data["printer_count"], 2)
+        self.assertEqual(data["printed_today"], 1)
+        self.assertEqual(len(data["recent_jobs"]), 2)
+        self.assertEqual(data["recent_jobs"][0]["status"], "failed")  # newest first
+
+    def test_dashboard_data_buckets_job_history_by_hour(self) -> None:
+        with self.controller.archive_store._connect() as connection:
+            connection.execute(
+                "INSERT INTO archived_jobs (id, job_id, printer_name, status, detail, created_at, payload) "
+                "VALUES ('a', 'job-old', 'A', 'printed', '', ?, ?)",
+                ((datetime.now(timezone.utc) - timedelta(hours=5)).isoformat(), b"x"),
+            )
+
+        data = self.controller.dashboard_data()
+
+        self.assertEqual(len(data["job_history"]), 12)
+        self.assertEqual(sum(data["job_history"]), 1)
+
+
+class ListLengthTests(TuiControllerTestCase):
+    def test_list_length_matches_each_screens_data(self) -> None:
+        self.controller.config.servers = [ServerConfig(id="a", name="A")]
+        self.printer_manager._printers = [Printer(name="P1")]
+        self.printer_manager.renderer_registry.register(FakePlugin("builtin.pdf"))
+
+        self.assertEqual(_list_length(self.controller, "Servers"), 1)
+        self.assertEqual(_list_length(self.controller, "Printers"), 1)
+        self.assertEqual(_list_length(self.controller, "Plugins"), 1)
+        self.assertEqual(_list_length(self.controller, "Settings"), 3)
+        self.assertEqual(_list_length(self.controller, "About"), 0)
+
+
+class DrawResilienceTests(TuiControllerTestCase):
+    @patch("sys.stdout")
+    def test_a_data_source_error_does_not_crash_the_render(self, _stdout) -> None:
+        self.printer_manager.list_printers = Mock(side_effect=RuntimeError("boom"))
+
+        try:
+            _draw(self.controller, "Printers", {"Printers": 0}, 100, 30, "")
+        except Exception as exc:  # pragma: no cover - the assertion below is what matters
+            self.fail(f"_draw raised instead of degrading gracefully: {exc}")
+
+
+class DetachTests(unittest.TestCase):
+    @patch("pridge_client.tui.subprocess.Popen")
+    @patch("pridge_client.tui.command", return_value=["fake-exe", "--headless"])
+    def test_spawns_a_detached_headless_child(self, fake_command, popen) -> None:
+        _detach_and_exit()
+
+        fake_command.assert_called_once_with("--headless")
+        popen.assert_called_once()
+        args, kwargs = popen.call_args
+        self.assertEqual(args[0], ["fake-exe", "--headless"])
+        self.assertTrue(kwargs["start_new_session"])
+        # Not just detached from the process group - also disconnected from
+        # this session's actual terminal, or the terminal (and, over SSH,
+        # the connection) never really gets released.
+        self.assertNotEqual(kwargs["stdin"], sys.stdin)
+        self.assertNotEqual(kwargs["stdout"], sys.stdout)
+        self.assertNotEqual(kwargs["stderr"], sys.stderr)
+
+    @patch("pridge_client.tui.subprocess.Popen", side_effect=OSError("no more processes"))
+    @patch("pridge_client.tui.command", return_value=["fake-exe", "--headless"])
+    def test_a_spawn_failure_is_logged_not_raised(self, _fake_command, _popen) -> None:
+        _detach_and_exit()  # must not raise
+
+
+if __name__ == "__main__":
+    unittest.main()
