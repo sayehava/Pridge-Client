@@ -205,6 +205,10 @@
               <div class="setting-copy"><strong>${S.start_at_login}</strong></div>
               <input class="setting-check" type="checkbox" checked=${form.start_at_login} onChange=${(event) => change("start_at_login", event.target.checked)} />
             </div>
+            <div class="setting-row">
+              <div class="setting-copy"><strong>${S.restart_on_crash}</strong></div>
+              <input class="setting-check" type="checkbox" checked=${form.restart_on_crash} onChange=${(event) => change("restart_on_crash", event.target.checked)} />
+            </div>
           </section>
           <section class="settings-section">
             <h2>${S.diagnostics}</h2>
