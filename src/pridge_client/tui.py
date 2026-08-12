@@ -97,3 +97,45 @@ class TuiController:
         self.archive_store = archive_store or ArchiveStore()
         self.config = self.config_store.load()
         self.workers: dict[str, PollingWorker] = {}
+
+    # ------------------------------------------------------------------
+    # Worker lifecycle - same shape as gui.py's start_worker/stop_worker
+    # ------------------------------------------------------------------
+    def start(self) -> None:
+        for server in self.config.servers:
+            if server.enabled:
+                self.start_worker(server)
+
+    def start_worker(self, server: ServerConfig) -> None:
+        existing = self.workers.get(server.id)
+        if existing and existing.state.running:
+            return
+        worker = PollingWorker(
+            _runtime_config(self.config, server),
+            self.token_store.get(server.id),
+            printer_manager=self.printer_manager,
+            archive_store=self.archive_store,
+        )
+        self.workers[server.id] = worker
+        worker.start()
+
+    def stop_worker(self, server_id: str) -> None:
+        worker = self.workers.pop(server_id, None)
+        if worker:
+            worker.stop()
+            worker.join(timeout=5)
+
+    def stop_all(self) -> None:
+        for server_id in list(self.workers.keys()):
+            self.stop_worker(server_id)
+
+    def toggle_server(self, index: int) -> None:
+        if index < 0 or index >= len(self.config.servers):
+            return
+        server = self.config.servers[index]
+        worker = self.workers.get(server.id)
+        if worker and worker.state.running:
+            self.stop_worker(server.id)
+        else:
+            self.start_worker(server)
+
