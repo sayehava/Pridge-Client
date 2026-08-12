@@ -320,3 +320,65 @@ def _draw(controller: TuiController, screen_name: str, selection: dict, width: i
     sys.stdout.flush()
 
 
+def _detach_and_exit() -> None:
+    """Spawns a brand-new detached --headless process so the print service
+    survives past this session, then this process's own workers are the
+    caller's responsibility to stop (see run_tui's finally block).
+
+    Not a fork of this process: PollingWorker's background threads would
+    not survive a POSIX fork (only the calling thread continues in the
+    child), so a fresh headless child - the same mechanism the crash
+    watchdog in supervisor.py already uses - is the correct approach here,
+    not just a simpler one.
+    """
+    child_command = command("--headless")
+    try:
+        with open(os.devnull, "rb") as devnull_in, open(os.devnull, "ab") as devnull_out:
+            # start_new_session alone only detaches the process/session
+            # group - without also redirecting these away from the
+            # controlling terminal, the child inherits this session's
+            # stdin/stdout/stderr and keeps the terminal (and, over SSH,
+            # the connection) from ever really being released.
+            subprocess.Popen(
+                child_command,
+                start_new_session=True,
+                stdin=devnull_in,
+                stdout=devnull_out,
+                stderr=devnull_out,
+            )
+    except OSError as exc:
+        logger.warning("Could not spawn a detached headless process: %s", exc)
+
+
+def _read_key(fd: int) -> str | None:
+    """Reads one logical key, resolving arrow-key escape sequences.
+
+    Arrow keys send ESC '[' <letter>, three bytes read one at a time - a
+    naive read of just the ESC byte mistakes them for the standalone Escape
+    key and quits the view. A short peek after ESC tells the two apart.
+
+    Reads go through os.read() on the raw fd, not sys.stdin.read(): the
+    latter is a buffered TextIOWrapper that can slurp all 3 bytes of an
+    arrow sequence from the kernel in one syscall and hold the extra 2 in
+    its own internal buffer, invisible to a follow-up select() on the fd -
+    which would make every arrow key look like a bare Escape.
+    """
+    ready, _, _ = select.select([fd], [], [], REFRESH_INTERVAL_SECONDS)
+    if not ready:
+        return None
+    ch = os.read(fd, 1).decode(errors="replace")
+    if ch != "\x1b":
+        return ch
+    ready2, _, _ = select.select([fd], [], [], 0.05)
+    if not ready2:
+        return "ESC"
+    ch2 = os.read(fd, 1).decode(errors="replace")
+    if ch2 != "[":
+        return "ESC"
+    ready3, _, _ = select.select([fd], [], [], 0.05)
+    if not ready3:
+        return "ESC"
+    ch3 = os.read(fd, 1).decode(errors="replace")
+    return {"A": "UP", "B": "DOWN", "C": "RIGHT", "D": "LEFT"}.get(ch3)
+
+
