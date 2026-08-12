@@ -1489,6 +1489,72 @@ class ClientApi:
             worker.stop()
             worker.join(timeout=5)
 
+    def list_archived_jobs(self) -> dict:
+        jobs = [self._archived_job_public(job) for job in self.archive_store.list_jobs()]
+        return {"ok": True, "error": None, "jobs": jobs}
+
+    def reprint_job(self, entry_id: str) -> dict:
+        archived = self.archive_store.get_job(entry_id)
+        if archived is None:
+            return self._error(MESSAGE_ARCHIVED_JOB_NOT_FOUND)
+        try:
+            for copy_number in range(archived.copies):
+                logger.info("Reprinting job %s copy %s of %s", archived.job_id, copy_number + 1, archived.copies)
+                self.printer_manager.print_job(
+                    archived.printer_name,
+                    archived.payload,
+                    mode=archived.mode,
+                    driver_settings=archived.driver_settings,
+                    content_type=archived.content_type or None,
+                    filename=archived.filename or None,
+                    job_name=f"Pridge {archived.job_id} (reprint)",
+                    submission_method=archived.submission_method or None,
+                    explicit_renderer=archived.explicit_renderer or None,
+                    fit_mode=archived.fit_mode,
+                    raw_template=archived.raw_template,
+                    raw_paper_width_dots=archived.raw_paper_width_dots,
+                    raw_chars_per_line=archived.raw_chars_per_line,
+                    receipt_scope_key=archived.receipt_scope_key,
+                )
+        except PrinterError as exc:
+            log_detailed_error(f"Reprint failed for job {archived.job_id}", exc)
+            return self._error(str(exc))
+        self.archive_store.record_job(
+            archived.job_id,
+            archived.printer_name,
+            "reprinted",
+            archived.payload,
+            mode=archived.mode,
+            driver_settings=archived.driver_settings,
+            content_type=archived.content_type,
+            filename=archived.filename,
+            submission_method=archived.submission_method,
+            explicit_renderer=archived.explicit_renderer,
+            fit_mode=archived.fit_mode,
+            raw_template=archived.raw_template,
+            raw_paper_width_dots=archived.raw_paper_width_dots,
+            raw_chars_per_line=archived.raw_chars_per_line,
+            receipt_scope_key=archived.receipt_scope_key,
+            copies=archived.copies,
+        )
+        return {"ok": True, "error": None, "message": MESSAGE_REPRINT_SUBMITTED, "state": self._build_state()}
+
+    def clear_archive(self) -> dict:
+        self.archive_store.clear()
+        return {"ok": True, "error": None, "message": MESSAGE_ARCHIVE_CLEARED, "state": self._build_state()}
+
+    def _archived_job_public(self, job: ArchivedJob) -> dict:
+        return {
+            "id": job.id,
+            "job_id": job.job_id,
+            "printer_name": job.printer_name,
+            "status": job.status,
+            "detail": job.detail,
+            "created_at": job.created_at.isoformat(),
+            "filename": job.filename,
+            "copies": job.copies,
+        }
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
