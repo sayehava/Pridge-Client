@@ -200,6 +200,113 @@ class WorkerPrintingModeTests(unittest.TestCase):
         self.assertEqual(failed[0].printer_name, "Office Driver")
 
 
+class WorkerArchivingTests(unittest.TestCase):
+    def test_archives_a_printed_job_with_its_payload_and_print_parameters(self) -> None:
+        server = ServerConfig(id="office", default_printer="Office Driver")
+        config = ClientConfig(
+            server_url="https://example.test",
+            servers=[server],
+            printer_profiles={"Office Driver": PrinterProfile(mode="system_driver", driver_settings={"PageSize": "A4"})},
+        )
+        printer_manager = Mock()
+        archive_store = Mock()
+        worker = PollingWorker(config, "token", printer_manager=printer_manager, archive_store=archive_store)
+        job = ReservedJob(job_id="42", payload_base64="JVBERg==", content_type="application/pdf", copies=2)
+
+        worker._process_job(Mock(), job)
+
+        archive_store.record_job.assert_called_once_with(
+            "42",
+            "Office Driver",
+            "printed",
+            b"%PDF",
+            detail="",
+            mode="system_driver",
+            driver_settings={"PageSize": "A4"},
+            content_type="application/pdf",
+            filename="",
+            submission_method="",
+            explicit_renderer="",
+            fit_mode="fit",
+            raw_template="",
+            raw_paper_width_dots=384,
+            raw_chars_per_line=32,
+            receipt_scope_key="",
+            copies=2,
+        )
+        archive_store.prune.assert_called_once_with(config.archive.retention_days)
+
+    def test_archives_a_failed_job_so_it_can_be_reprinted_from_history(self) -> None:
+        # This is the "printer ran out of paper" scenario: the job failed at
+        # the printer, but the exact bytes that were sent are still archived
+        # so the job can be resent from the History window.
+        server = ServerConfig(id="office", default_printer="Office Driver")
+        config = ClientConfig(server_url="https://example.test", servers=[server])
+        printer_manager = Mock()
+        printer_manager.print_job.side_effect = PrinterError("no paper")
+        archive_store = Mock()
+        worker = PollingWorker(config, "token", printer_manager=printer_manager, archive_store=archive_store)
+        job = ReservedJob(job_id="42", payload_base64="JVBERg==", content_type="application/pdf")
+
+        worker._process_job(Mock(), job)
+
+        archive_store.record_job.assert_called_once()
+        args, kwargs = archive_store.record_job.call_args
+        self.assertEqual(args[:4], ("42", "Office Driver", "failed", b"%PDF"))
+        self.assertEqual(kwargs["detail"], "no paper")
+
+    def test_does_not_archive_when_the_payload_never_decoded(self) -> None:
+        server = ServerConfig(id="office", default_printer="Office Driver")
+        config = ClientConfig(server_url="https://example.test", servers=[server])
+        archive_store = Mock()
+        worker = PollingWorker(config, "token", archive_store=archive_store)
+        job = ReservedJob(job_id="42", payload_base64="not-valid-base64", content_type="application/pdf")
+
+        worker._process_job(Mock(), job)
+
+        archive_store.record_job.assert_not_called()
+
+    def test_skips_pruning_when_retention_is_set_to_forever(self) -> None:
+        server = ServerConfig(id="office", default_printer="Office Driver")
+        config = ClientConfig(server_url="https://example.test", servers=[server], archive=ArchiveConfig(retention_forever=True))
+        archive_store = Mock()
+        worker = PollingWorker(config, "token", printer_manager=Mock(), archive_store=archive_store)
+        job = ReservedJob(job_id="42", payload_base64="JVBERg==", content_type="application/pdf")
+
+        worker._process_job(Mock(), job)
+
+        archive_store.record_job.assert_called_once()
+        archive_store.prune.assert_not_called()
+
+    def test_an_archiving_failure_does_not_break_job_processing(self) -> None:
+        server = ServerConfig(id="office", default_printer="Office Driver")
+        config = ClientConfig(server_url="https://example.test", servers=[server])
+        client = Mock()
+        archive_store = Mock()
+        archive_store.record_job.side_effect = RuntimeError("disk full")
+        worker = PollingWorker(config, "token", printer_manager=Mock(), archive_store=archive_store)
+        job = ReservedJob(job_id="42", payload_base64="JVBERg==", content_type="application/pdf")
+
+        worker._process_job(client, job)
+
+        client.report_printed.assert_called_once_with("42")
+
+    def test_a_reprintable_job_round_trips_through_a_real_archive_store(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            archive_store = ArchiveStore(Path(directory) / "archive.sqlite3")
+            server = ServerConfig(id="office", default_printer="Office Driver")
+            config = ClientConfig(server_url="https://example.test", servers=[server])
+            worker = PollingWorker(config, "token", printer_manager=Mock(), archive_store=archive_store)
+            job = ReservedJob(job_id="42", payload_base64="JVBERg==", content_type="application/pdf")
+
+            worker._process_job(Mock(), job)
+
+            archived = archive_store.list_jobs()
+            self.assertEqual(len(archived), 1)
+            self.assertEqual(archived[0].payload, b"%PDF")
+            self.assertEqual(archived[0].status, "printed")
+
+
 class WorkerReceiptMappingScopeTests(unittest.TestCase):
     """Receipt Composer content (template + counters) is scoped to the
     mapping a job arrived through, not to the local printer it targets."""
@@ -378,7 +485,7 @@ class WorkerCompatibilityWarningTests(unittest.TestCase):
             polling_interval_seconds=0,
             heartbeat_interval_seconds=0,
         )
-        worker = PollingWorker(config, "token")
+        worker = PollingWorker(config, "token", archive_store=Mock())
 
         worker.start()
         try:
