@@ -21,6 +21,7 @@ from urllib.parse import urlencode
 import webview
 
 from pridge_client.api import ApiError, PridgeClient
+from pridge_client.archive import ArchivedJob, ArchiveStore
 from pridge_client.autostart import AutoStartError, set_start_at_login
 from pridge_client.build_info import BUILD_SYSTEM, BUILD_VARIANT
 from pridge_client.config import (
@@ -67,7 +68,10 @@ from pridge_client.printers import (
 )
 from pridge_client.strings import (
     APP_NAME,
+    MESSAGE_ARCHIVE_CLEARED,
+    MESSAGE_ARCHIVED_JOB_NOT_FOUND,
     MESSAGE_READY,
+    MESSAGE_REPRINT_SUBMITTED,
     MESSAGE_CONNECTION_FAILED,
     MESSAGE_CONNECTION_SUCCESS,
     MESSAGE_ERROR_LOGS_CLEARED,
@@ -96,6 +100,7 @@ from pridge_client.strings import (
     MESSAGE_WINDOW_HIDDEN,
     MESSAGE_WINDOW_MINIMIZED,
     MENU_ABOUT,
+    MENU_HISTORY,
     MENU_PLUGINS,
     MENU_PRINTERS,
     MENU_QUIT,
@@ -107,6 +112,7 @@ from pridge_client.strings import (
     WINDOW_ABOUT,
     WINDOW_APP_MAPPING,
     WINDOW_EDIT_SERVER,
+    WINDOW_HISTORY,
     WINDOW_PLUGINS,
     WINDOW_PRINTERS,
     WINDOW_RECEIPT_COMPOSER,
@@ -163,11 +169,13 @@ class ClientApi:
         config_store: ConfigStore | None = None,
         token_store: ClientTokenStore | None = None,
         printer_manager: PrinterManager | None = None,
+        archive_store: ArchiveStore | None = None,
         gui_smoke_test: bool = False,
     ) -> None:
         self.config_store = config_store or ConfigStore()
         self.token_store = token_store or ClientTokenStore()
         self.printer_manager = printer_manager or PrinterManager()
+        self.archive_store = archive_store or ArchiveStore()
         self.config = self.config_store.load()
         self.workers: dict[str, PollingWorker] = {}
         self._server_windows: dict[str, webview.Window] = {}
@@ -370,6 +378,15 @@ class ClientApi:
             page="printers.html",
             width=680,
             height=760,
+        )
+
+    def open_history_window(self) -> dict:
+        return self._open_utility_window(
+            key="history",
+            title=WINDOW_HISTORY,
+            page="history.html",
+            width=760,
+            height=780,
         )
 
     def open_app_mapping_window(self) -> dict:
@@ -1458,6 +1475,7 @@ class ClientApi:
             runtime_config,
             self.token_store.get(server.id),
             printer_manager=self.printer_manager,
+            archive_store=self.archive_store,
             on_status=lambda status, server_id=server.id, name=server.name: self.events.put(("status", (server_id, name, status))),
             on_job=lambda job, name=server.name: self.events.put(("job", (name, job))),
             on_config=lambda config, server_id=server.id: self.events.put(("config", (server_id, config))),
@@ -1841,6 +1859,7 @@ def _run_gui_normal() -> None:
         (MENU_PLUGINS, api.open_plugins_window),
         (MENU_SERVERS, api.open_servers_window),
         (MENU_PRINTERS, api.open_printers_window),
+        (MENU_HISTORY, api.open_history_window),
         (MENU_SETTINGS, api.open_settings_window),
         (MENU_ABOUT, api.open_about_window),
         (MENU_QUIT, api.quit_application),
