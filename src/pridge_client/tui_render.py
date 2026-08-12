@@ -149,3 +149,82 @@ FONT5: dict[str, list[str]] = {
 }
 
 
+def render_banner(word: str = "PRIDGE") -> list[str]:
+    glyphs = [FONT5[c] for c in word]
+    n = len(glyphs)
+    rows = []
+    for r in range(5):
+        cells = []
+        for i, g in enumerate(glyphs):
+            fg = rgb_fg("%02x%02x%02x" % lerp_rgb(CYAN_RGB, ACCENT_RGB, i / max(1, n - 1)))
+            block = "".join("██" if c == "#" else "  " for c in g[r])
+            cells.append(f"{fg}{block}{RESET}")
+        rows.append(" ".join(cells))
+    return rows
+
+
+def box_top(width: int, title: str = "") -> str:
+    if title:
+        label = f" {title} "
+        dashes_left = 2
+        dashes_right = max(0, width - 2 - dashes_left - len(label))
+        return f"{PRIDGE_BLUE}╔{'═' * dashes_left}{RESET}{BOLD}{ACCENT}{label}{RESET}{PRIDGE_BLUE}{'═' * dashes_right}╗{RESET}"
+    return f"{PRIDGE_BLUE}╔{'═' * (width - 2)}╗{RESET}"
+
+
+def box_bottom(width: int) -> str:
+    return f"{PRIDGE_BLUE}╚{'═' * (width - 2)}╝{RESET}"
+
+
+def box_row(width: int, content: str = "") -> str:
+    inner = width - 4
+    if visible_len(content) > inner:
+        content = visible_truncate(content, inner)
+    return f"{PRIDGE_BLUE}║{RESET} {pad(content, inner)} {PRIDGE_BLUE}║{RESET}"
+
+
+def box(width: int, title: str, rows: list[str]) -> list[str]:
+    out = [box_top(width, title)]
+    for row in rows:
+        out.append(box_row(width, row))
+    out.append(box_bottom(width))
+    return out
+
+
+def status_pill(status: str) -> str:
+    if status == "Running":
+        return f"{SUCCESS}●{RESET} {SUCCESS}{status}{RESET}"
+    if status == "Stopped":
+        return f"{DIM_MUTED}●{RESET} {MUTED}{status}{RESET}"
+    return f"{DANGER}●{RESET} {DANGER}{status}{RESET}"
+
+
+SPARK_CHARS = " ▁▂▃▄▅▆▇█"
+
+
+def sparkline(values: list[float], fg: str = ACCENT) -> str:
+    if not values:
+        return ""
+    lo, hi = min(values), max(values)
+    span = (hi - lo) or 1
+    chars = [SPARK_CHARS[int((v - lo) / span * (len(SPARK_CHARS) - 1))] for v in values]
+    return f"{fg}{''.join(chars)}{RESET}"
+
+
+def meter(pct: float, width: int, fg: str = ACCENT) -> str:
+    pct = max(0.0, min(1.0, pct))
+    filled = round(width * pct)
+    return f"{fg}{'█' * filled}{DIM_MUTED}{'░' * (width - filled)}{RESET}"
+
+
+def zip_columns(col_a: list[str], col_b: list[str], gap: str = "  ") -> list[str]:
+    height = max(len(col_a), len(col_b))
+    a_width = max((visible_len(r) for r in col_a), default=0)
+    out = []
+    for i in range(height):
+        left = col_a[i] if i < len(col_a) else ""
+        right = col_b[i] if i < len(col_b) else ""
+        out.append(pad(left, a_width) + gap + right)
+    return out
+
+
