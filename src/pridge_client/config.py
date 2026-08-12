@@ -17,6 +17,7 @@ from typing import Any
 APP_DIR_NAME = "Pridge Client"
 CONFIG_DIR_NAME = "pridge-client"
 CONFIG_FILE_NAME = "config.json"
+ARCHIVE_FILE_NAME = "print-archive.sqlite3"
 KEYRING_SERVICE = "pridge-client"
 KEYRING_USERNAME = "client-token"
 LEGACY_APP_DIR_NAMES = ("PrintBridge Client", "PrintBridge Endpoint")
@@ -101,6 +102,12 @@ class LoggingConfig:
 
 
 @dataclass
+class ArchiveConfig:
+    retention_forever: bool = False
+    retention_days: int = 30
+
+
+@dataclass
 class AppearanceConfig:
     darkness_grade: str = "Onyx"
 
@@ -131,7 +138,9 @@ class ClientConfig:
     heartbeat_interval_seconds: int = 30
     start_polling_on_launch: bool = False
     start_at_login: bool = False
+    restart_on_crash: bool = True
     logging: LoggingConfig = field(default_factory=LoggingConfig)
+    archive: ArchiveConfig = field(default_factory=ArchiveConfig)
     appearance: AppearanceConfig = field(default_factory=AppearanceConfig)
     dashboard_widgets: list[DashboardWidget] = field(default_factory=_default_dashboard_widgets)
     printer_stats: dict[str, dict[str, dict[str, int]]] = field(default_factory=dict)
@@ -167,6 +176,9 @@ class ConfigStore:
         appearance_raw = raw.get("appearance", {})
         if not isinstance(appearance_raw, dict):
             appearance_raw = {}
+        archive_raw = raw.get("archive", {})
+        if not isinstance(archive_raw, dict):
+            archive_raw = {}
 
         global_printer_profiles, global_legacy_designs = _parse_printer_profiles(raw.get("printer_profiles", {}))
         servers = _parse_servers(raw, global_legacy_designs)
@@ -179,11 +191,16 @@ class ConfigStore:
             heartbeat_interval_seconds=_positive_int(raw.get("heartbeat_interval_seconds", 30), 30),
             start_polling_on_launch=bool(raw.get("start_polling_on_launch", False)),
             start_at_login=bool(raw.get("start_at_login", False)),
+            restart_on_crash=bool(raw.get("restart_on_crash", True)),
             logging=LoggingConfig(
                 level=str(logging_raw.get("level", "INFO")),
                 file_enabled=bool(logging_raw.get("file_enabled", True)),
                 retention_days=_positive_int(logging_raw.get("retention_days", 14), 14),
                 directory=str(logging_raw.get("directory", "")),
+            ),
+            archive=ArchiveConfig(
+                retention_forever=bool(archive_raw.get("retention_forever", False)),
+                retention_days=_positive_int(archive_raw.get("retention_days", 30), 30),
             ),
             appearance=AppearanceConfig(
                 darkness_grade=_appearance_grade(appearance_raw),
@@ -310,6 +327,10 @@ def default_log_dir() -> Path:
 
 def default_config_path() -> Path:
     return default_config_dir() / CONFIG_FILE_NAME
+
+
+def default_archive_path() -> Path:
+    return default_config_dir() / ARCHIVE_FILE_NAME
 
 
 def legacy_config_paths() -> tuple[Path, ...]:
