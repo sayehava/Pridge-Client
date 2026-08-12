@@ -44,8 +44,18 @@ class _FakeWinReg:
 
 
 class AutoStartTests(unittest.TestCase):
-    def test_headless_command_uses_client_package(self) -> None:
-        self.assertEqual(command()[1:], ["-m", "pridge_client", "--headless"])
+    def test_headless_command_uses_client_package_in_development_builds(self) -> None:
+        with patch("pridge_client.autostart.BUILD_VARIANT", "Development"):
+            self.assertEqual(command("--headless")[1:], ["-m", "pridge_client", "--headless"])
+
+    def test_command_invokes_the_frozen_executable_directly_in_packaged_builds(self) -> None:
+        # A packaged build has no separate Python interpreter to hand "-m
+        # pridge_client" to - sys.executable already is the app, so passing
+        # that module flag made the frozen exe exit immediately on startup.
+        with patch("pridge_client.autostart.BUILD_VARIANT", "PyInstaller"):
+            self.assertEqual(command("--headless")[1:], ["--headless"])
+        with patch("pridge_client.autostart.BUILD_VARIANT", "Native"):
+            self.assertEqual(command("--headless")[1:], ["--headless"])
 
     def test_macos_launch_agent_replaces_legacy_identifier(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
