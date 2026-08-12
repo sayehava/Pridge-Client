@@ -342,6 +342,74 @@
               </button>
             </div>
           </section>
+          <section class="settings-section">
+            <h2>${S.print_history}</h2>
+            <p>${S.print_history_hint}</p>
+            <div class="setting-row">
+              <div class="setting-copy"><strong>${S.keep_print_history_for}</strong></div>
+              <select value=${archiveRetentionUnit} onChange=${(event) => changeArchiveRetentionUnit(event.target.value)}>
+                <option value="days">${S.retention_unit_days}</option>
+                <option value="duration">${S.retention_unit_years_months}</option>
+                <option value="forever">${S.retention_unit_forever}</option>
+              </select>
+            </div>
+            ${archiveRetentionUnit === "days"
+              ? html`
+                  <div class="setting-row">
+                    <div class="setting-copy"></div>
+                    <div class="field-row">
+                      <input
+                        type="number"
+                        min="1"
+                        max="3650"
+                        value=${form.archive_retention_days}
+                        onChange=${(event) => change("archive_retention_days", event.target.value)}
+                      />
+                      <span class="seconds-label">${S.days}</span>
+                    </div>
+                  </div>
+                `
+              : null}
+            ${archiveRetentionUnit === "duration"
+              ? html`
+                  <div class="setting-row">
+                    <div class="setting-copy"></div>
+                    <div class="field-row">
+                      <input
+                        type="number"
+                        min="0"
+                        max="99"
+                        value=${archiveRetentionYears}
+                        onChange=${(event) => {
+                          const years = Math.max(0, parseInt(event.target.value, 10) || 0);
+                          setArchiveRetentionYears(years);
+                          setArchiveRetentionDays(years, archiveRetentionMonths);
+                        }}
+                      />
+                      <span class="seconds-label">${S.years}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="11"
+                        value=${archiveRetentionMonths}
+                        onChange=${(event) => {
+                          const months = Math.max(0, Math.min(11, parseInt(event.target.value, 10) || 0));
+                          setArchiveRetentionMonths(months);
+                          setArchiveRetentionDays(archiveRetentionYears, months);
+                        }}
+                      />
+                      <span class="seconds-label">${S.months}</span>
+                    </div>
+                  </div>
+                `
+              : null}
+            <div class="setting-row">
+              <div class="setting-copy"><strong>${S.clear_history}</strong><small>${S.clear_history_settings_hint}</small></div>
+              <button class="danger" onClick=${() => setShowClearHistoryConfirm(true)} disabled=${clearingHistory}>
+                ${clearingHistory ? S.clearing_history : S.clear_history}
+              </button>
+            </div>
+          </section>
           ${message ? html`<div class="settings-message">${message}</div>` : null}
           ${showClearConfirm
             ? html`<${ClearLogsConfirm} onCancel=${() => setShowClearConfirm(false)} onConfirm=${clearLogs} />`
