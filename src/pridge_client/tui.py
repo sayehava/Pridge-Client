@@ -382,3 +382,86 @@ def _read_key(fd: int) -> str | None:
     return {"A": "UP", "B": "DOWN", "C": "RIGHT", "D": "LEFT"}.get(ch3)
 
 
+def run_tui(controller: TuiController) -> None:
+    if sys.platform == "win32":
+        raise RuntimeError(
+            "TUI mode requires a POSIX terminal (Linux/macOS) and is not yet available on Windows."
+        )
+
+    import termios
+    import tty
+
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    resized = {"flag": True}
+    detaching = {"flag": False}
+
+    def request_detach(_signum=None, _frame=None) -> None:
+        detaching["flag"] = True
+
+    def on_resize(_signum, _frame) -> None:
+        resized["flag"] = True
+
+    signal.signal(signal.SIGWINCH, on_resize)
+    signal.signal(signal.SIGINT, request_detach)
+    signal.signal(signal.SIGHUP, request_detach)
+
+    screen_name = "Dashboard"
+    selection = {"Servers": 0, "Printers": 0, "Plugins": 0, "Settings": 0}
+    message = ""
+
+    try:
+        tty.setcbreak(fd)
+        sys.stdout.write(tui_render.HIDE_CURSOR)
+
+        width, _ = shutil.get_terminal_size(fallback=(80, 24))
+        sys.stdout.write(tui_render.render_splash(max(40, width), __version__))
+        sys.stdout.flush()
+        ready, _, _ = select.select([fd], [], [], SPLASH_TIMEOUT_SECONDS)
+        if ready:
+            os.read(fd, 1)
+
+        last_render = 0.0
+        while not detaching["flag"]:
+            width, height = shutil.get_terminal_size(fallback=(80, 24))
+            now = time.monotonic()
+            if resized["flag"] or now - last_render >= REFRESH_INTERVAL_SECONDS:
+                resized["flag"] = False
+                last_render = now
+                _draw(controller, screen_name, selection, width, height, message)
+                message = ""
+
+            key = _read_key(fd)
+            if detaching["flag"]:
+                break
+            if key is None:
+                continue
+            if key in ("q", "ESC"):
+                detaching["flag"] = True
+                break
+            if key in "123456":
+                screen_name = tui_render.SCREENS[int(key) - 1]
+            elif key in ("\r", "\n", "DOWN") and _list_length(controller, screen_name) > 0:
+                count = _list_length(controller, screen_name)
+                selection[screen_name] = (selection[screen_name] + 1) % count
+            elif key in ("\x7f", "\x08", "UP") and _list_length(controller, screen_name) > 0:
+                count = _list_length(controller, screen_name)
+                selection[screen_name] = (selection[screen_name] - 1) % count
+            elif key == " " and screen_name == "Servers":
+                controller.toggle_server(selection["Servers"])
+            elif key == " " and screen_name == "Plugins":
+                controller.toggle_plugin(selection["Plugins"])
+            elif key == " " and screen_name == "Settings":
+                message = controller.toggle_setting(selection["Settings"])
+            else:
+                continue
+
+            width, height = shutil.get_terminal_size(fallback=(80, 24))
+            _draw(controller, screen_name, selection, width, height, message)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        sys.stdout.write(tui_render.SHOW_CURSOR + tui_render.RESET + tui_render.CLEAR_SCREEN)
+        sys.stdout.flush()
+        _detach_and_exit()
+        controller.stop_all()
+        print(f"{tui_render.DIM_MUTED}Exited the view — Pridge Client keeps running in the background.{tui_render.RESET}")
