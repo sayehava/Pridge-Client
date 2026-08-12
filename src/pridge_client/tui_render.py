@@ -82,3 +82,70 @@ def chip(key: str, action: str) -> str:
     return f"{ACCENT_BG}{BOLD}{TEXT} {key} {RESET} {MUTED}{action}{RESET}"
 
 
+def visible_len(s: str) -> int:
+    """Length ignoring ANSI escape sequences, for padding math."""
+    out, in_esc = 0, False
+    for ch in s:
+        if ch == "\x1b":
+            in_esc = True
+        elif in_esc:
+            if ch == "m":
+                in_esc = False
+        else:
+            out += 1
+    return out
+
+
+def pad(s: str, width: int) -> str:
+    return s + " " * max(0, width - visible_len(s))
+
+
+def truncate(s: str, width: int) -> str:
+    return s if len(s) <= width else s[: max(0, width - 1)] + "…"
+
+
+def visible_truncate(s: str, width: int) -> str:
+    """Truncates by *visible* characters, passing ANSI escapes through
+    untouched and closing with RESET so color never bleeds past the cut -
+    the safety net every box row and header line runs through, since a
+    terminal can be resized to any width the layout code didn't plan for.
+    """
+    if visible_len(s) <= width or width <= 0:
+        return s
+    out: list[str] = []
+    count = 0
+    i = 0
+    budget = max(0, width - 1)
+    while i < len(s) and count < budget:
+        if s[i] == "\x1b":
+            j = s.index("m", i) + 1
+            out.append(s[i:j])
+            i = j
+            continue
+        out.append(s[i])
+        count += 1
+        i += 1
+    out.append("…")
+    out.append(RESET)
+    return "".join(out)
+
+
+def center(s: str, width: int) -> str:
+    w = visible_len(s)
+    if w >= width:
+        return visible_truncate(s, width)
+    return " " * ((width - w) // 2) + s
+
+
+# 5x5 block glyphs, just enough letters to spell PRIDGE for the splash/about
+# banner - a hand-built "font" since this is stdlib-only, no curses/figlet.
+FONT5: dict[str, list[str]] = {
+    "P": ["####.", "#...#", "####.", "#....", "#...."],
+    "R": ["####.", "#...#", "####.", "#..#.", "#...#"],
+    "I": [".###.", "..#..", "..#..", "..#..", ".###."],
+    "D": ["###..", "#..#.", "#..#.", "#..#.", "###.."],
+    "G": [".###.", "#....", "#.##.", "#..#.", ".###."],
+    "E": ["####.", "#....", "###..", "#....", "####."],
+}
+
+
