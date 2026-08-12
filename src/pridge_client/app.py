@@ -24,6 +24,7 @@ def main() -> None:
     parser.add_argument("--version", action="store_true", help="Show version and exit.")
     parser.add_argument("--headless", action="store_true", help="Start without opening the settings window.")
     parser.add_argument("--gui-smoke-test", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--supervised-child", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     if args.version:
@@ -33,6 +34,13 @@ def main() -> None:
     config = ConfigStore().load()
     configure_logging(config)
     logger.info("%s %s starting", APP_NAME, __version__)
+
+    if config.restart_on_crash and not args.supervised_child and not args.gui_smoke_test:
+        from pridge_client.supervisor import run_supervised
+
+        extra_args = ["--headless"] if args.headless else []
+        raise SystemExit(run_supervised(extra_args))
+
     if args.headless:
         token_store = ClientTokenStore()
         workers = [
@@ -78,4 +86,5 @@ def _runtime_config(config: ClientConfig, server: ServerConfig) -> ClientConfig:
         start_polling_on_launch=config.start_polling_on_launch,
         start_at_login=config.start_at_login,
         logging=config.logging,
+        archive=config.archive,
     )
