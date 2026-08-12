@@ -2,12 +2,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileComment: Additional terms apply; see ADDITIONAL_TERMS.md.
 
+import tempfile
 import time
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from pridge_client.api import ApiError, ReservedJob, ServerInstructions, parse_server_instructions
-from pridge_client.config import ClientConfig, PrinterMapping, PrinterProfile, ServerConfig
+from pridge_client.archive import ArchiveStore
+from pridge_client.config import ArchiveConfig, ClientConfig, PrinterMapping, PrinterProfile, ServerConfig
 from pridge_client.printers import PrinterError
 from pridge_client.worker import PollingWorker, decode_payload, resolve_printer_name
 
@@ -99,7 +102,7 @@ class WorkerPrintingModeTests(unittest.TestCase):
         )
         printer_manager = Mock()
         client = Mock()
-        worker = PollingWorker(config, "token", printer_manager=printer_manager)
+        worker = PollingWorker(config, "token", printer_manager=printer_manager, archive_store=Mock())
         job = ReservedJob(
             job_id="42",
             payload_base64="JVBERg==",
@@ -143,7 +146,7 @@ class WorkerPrintingModeTests(unittest.TestCase):
         )
         printer_manager = Mock()
         client = Mock()
-        worker = PollingWorker(config, "token", printer_manager=printer_manager)
+        worker = PollingWorker(config, "token", printer_manager=printer_manager, archive_store=Mock())
         job = ReservedJob(job_id="42", payload_base64="JVBERg==", content_type="application/pdf")
 
         worker._process_job(client, job)
@@ -171,7 +174,7 @@ class WorkerPrintingModeTests(unittest.TestCase):
         printer_manager = Mock()
         client = Mock()
         entries = []
-        worker = PollingWorker(config, "token", printer_manager=printer_manager, on_job=entries.append)
+        worker = PollingWorker(config, "token", printer_manager=printer_manager, archive_store=Mock(), on_job=entries.append)
         job = ReservedJob(job_id="42", payload_base64="JVBERg==", content_type="application/pdf")
 
         worker._process_job(client, job)
@@ -187,7 +190,7 @@ class WorkerPrintingModeTests(unittest.TestCase):
         printer_manager.print_job.side_effect = PrinterError("no paper")
         client = Mock()
         entries = []
-        worker = PollingWorker(config, "token", printer_manager=printer_manager, on_job=entries.append)
+        worker = PollingWorker(config, "token", printer_manager=printer_manager, archive_store=Mock(), on_job=entries.append)
         job = ReservedJob(job_id="42", payload_base64="JVBERg==", content_type="application/pdf")
 
         worker._process_job(client, job)
@@ -217,7 +220,7 @@ class WorkerReceiptMappingScopeTests(unittest.TestCase):
         config = ClientConfig(server_url="https://example.test", servers=[server])
         printer_manager = Mock()
         client = Mock()
-        worker = PollingWorker(config, "token", printer_manager=printer_manager)
+        worker = PollingWorker(config, "token", printer_manager=printer_manager, archive_store=Mock())
         job = ReservedJob(
             job_id="42",
             payload_base64="JVBERg==",
@@ -252,7 +255,7 @@ class WorkerReceiptMappingScopeTests(unittest.TestCase):
         config = ClientConfig(server_url="https://example.test", servers=[server])
         printer_manager = Mock()
         client = Mock()
-        worker = PollingWorker(config, "token", printer_manager=printer_manager)
+        worker = PollingWorker(config, "token", printer_manager=printer_manager, archive_store=Mock())
 
         worker._process_job(
             client,
@@ -275,7 +278,7 @@ class WorkerReceiptMappingScopeTests(unittest.TestCase):
         config = ClientConfig(server_url="https://example.test", servers=[server])
         printer_manager = Mock()
         client = Mock()
-        worker = PollingWorker(config, "token", printer_manager=printer_manager)
+        worker = PollingWorker(config, "token", printer_manager=printer_manager, archive_store=Mock())
         job = ReservedJob(job_id="42", payload_base64="JVBERg==", content_type="application/pdf")
 
         worker._process_job(client, job)
@@ -299,7 +302,7 @@ class WorkerReceiptMappingScopeTests(unittest.TestCase):
         config = ClientConfig(server_url="https://example.test", servers=[server])
         printer_manager = Mock()
         client = Mock()
-        worker = PollingWorker(config, "token", printer_manager=printer_manager)
+        worker = PollingWorker(config, "token", printer_manager=printer_manager, archive_store=Mock())
         job = ReservedJob(
             job_id="42",
             payload_base64="JVBERg==",
@@ -338,7 +341,7 @@ class WorkerStatusRecoveryTests(unittest.TestCase):
             heartbeat_interval_seconds=0,
         )
         statuses: list[str] = []
-        worker = PollingWorker(config, "token", on_status=statuses.append)
+        worker = PollingWorker(config, "token", archive_store=Mock(), on_status=statuses.append)
 
         worker.start()
         try:
