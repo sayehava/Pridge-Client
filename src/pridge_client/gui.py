@@ -185,6 +185,7 @@ class ClientApi:
         self.selected_printer = self.config.selected_printer
         self.start_polling_on_launch = self.config.start_polling_on_launch
         self.start_at_login = self.config.start_at_login
+        self.restart_on_crash = self.config.restart_on_crash
         self.connection_status = STATUS_STOPPED
         self.heartbeat_status = STATUS_STOPPED
         self.ready_status = MESSAGE_READY
@@ -872,6 +873,7 @@ class ClientApi:
     def update_application_settings(self, fields: dict) -> dict:
         self.start_polling_on_launch = bool(fields.get("start_polling_on_launch", self.start_polling_on_launch))
         self.start_at_login = bool(fields.get("start_at_login", self.start_at_login))
+        self.restart_on_crash = bool(fields.get("restart_on_crash", self.restart_on_crash))
         darkness_grade = str(fields.get("darkness_grade", self.config.appearance.darkness_grade)).strip().title()
         if darkness_grade in DARKNESS_GRADES:
             self.config.appearance.darkness_grade = darkness_grade
@@ -1515,6 +1517,7 @@ class ClientApi:
             "selected_printer": self.selected_printer,
             "start_polling_on_launch": self.start_polling_on_launch,
             "start_at_login": self.start_at_login,
+            "restart_on_crash": self.restart_on_crash,
             "appearance": {
                 "darkness_grade": self.config.appearance.darkness_grade,
             },
