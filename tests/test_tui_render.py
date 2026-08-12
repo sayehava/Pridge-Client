@@ -89,3 +89,4 @@ class HeaderFooterTests(unittest.TestCase):
     def test_footer_stays_within_width(self) -> None:
         lines = t.footer(30, "a busy status message that is far too long")
         for line in lines:
+            self.assertLessEqual(t.visible_len(line), 30)
