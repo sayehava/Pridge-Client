@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from pridge_client.config import (
+    ArchiveConfig,
     ClientConfig,
     ClientTokenStore,
     ConfigStore,
@@ -45,6 +46,40 @@ class ConfigStoreTests(unittest.TestCase):
         self.assertEqual(len(config.dashboard_widgets), 2)
         self.assertEqual(config.dashboard_widgets[1].widget_type, "org.example.widget")
         self.assertEqual(config.dashboard_widgets[1].page, 1)
+
+    def test_archive_retention_defaults_to_thirty_days(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = ConfigStore(Path(directory) / "config.json").load()
+
+        self.assertFalse(config.archive.retention_forever)
+        self.assertEqual(config.archive.retention_days, 30)
+
+    def test_saves_and_loads_archive_retention_settings(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            store = ConfigStore(path)
+            store.save(ClientConfig(archive=ArchiveConfig(retention_forever=True, retention_days=999)))
+
+            config = store.load()
+
+        self.assertTrue(config.archive.retention_forever)
+        self.assertEqual(config.archive.retention_days, 999)
+
+    def test_restart_on_crash_defaults_to_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = ConfigStore(Path(directory) / "config.json").load()
+
+        self.assertTrue(config.restart_on_crash)
+
+    def test_saves_and_loads_the_restart_on_crash_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            store = ConfigStore(path)
+            store.save(ClientConfig(restart_on_crash=False))
+
+            config = store.load()
+
+        self.assertFalse(config.restart_on_crash)
 
     def test_malformed_dashboard_widgets_fall_back_to_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
