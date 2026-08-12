@@ -266,3 +266,57 @@ class TuiController:
         return {"version": __version__, "build_variant": BUILD_VARIANT, "build_system": BUILD_SYSTEM}
 
 
+def _list_length(controller: TuiController, screen_name: str) -> int:
+    if screen_name == "Servers":
+        return len(controller.servers_data())
+    if screen_name == "Printers":
+        return len(controller.printers_data())
+    if screen_name == "Plugins":
+        return len(controller.plugins_data())
+    if screen_name == "Settings":
+        return len(controller.settings_data())
+    return 0
+
+
+def _draw(controller: TuiController, screen_name: str, selection: dict, width: int, height: int, message: str) -> None:
+    # A transient error gathering any one screen's data (e.g. the OS print
+    # service being briefly unreachable) must never crash the whole
+    # interactive session - same "never let this kill the loop" rule
+    # worker.py's own polling loop already follows.
+    try:
+        frame = tui_render.render_frame(
+            screen_name,
+            width,
+            height,
+            __version__,
+            controller.dashboard_data(),
+            controller.servers_data(),
+            controller.printers_data(),
+            controller.plugins_data(),
+            controller.settings_data(),
+            BUILD_VARIANT,
+            BUILD_SYSTEM,
+            selection,
+            message=message,
+        )
+    except Exception as exc:  # noqa: BLE001 - rendering must never crash the session
+        logger.warning("TUI render failed: %s", exc)
+        frame = tui_render.render_frame(
+            screen_name,
+            width,
+            height,
+            __version__,
+            {"printer_count": 0, "printed_today": 0, "job_history": [], "recent_jobs": []},
+            [],
+            [],
+            [],
+            [],
+            BUILD_VARIANT,
+            BUILD_SYSTEM,
+            selection,
+            message=f"{tui_render.DANGER}A data source is temporarily unavailable{tui_render.RESET}",
+        )
+    sys.stdout.write(frame)
+    sys.stdout.flush()
+
+
