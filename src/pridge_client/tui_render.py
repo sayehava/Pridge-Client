@@ -371,3 +371,70 @@ def printers_screen(width: int, printers: list[dict], selected: int) -> list[str
     return box(width, "Printers", rows)
 
 
+def plugins_screen(width: int, plugins: list[dict], selected: int) -> list[str]:
+    if not plugins:
+        return box(width, "Plugins", [f"{DIM_MUTED}No plugins installed{RESET}"])
+    rows = []
+    last_category = None
+    for i, p in enumerate(plugins):
+        if p["category"] != last_category:
+            if last_category is not None:
+                rows.append("")
+            label = p["category"].upper()
+            trail = f"{BORDER}{'─' * max(0, width - 8 - len(label))}{RESET}"
+            rows.append(f"{ACCENT}▎{RESET} {DIM_MUTED}{label}{RESET} {trail}")
+            last_category = p["category"]
+        marker = f"{ACCENT}▸{RESET}" if i == selected else " "
+        badge = f"{ACCENT_BG}{TEXT} Core {RESET}" if p["core"] else f"{WARNING} 3rd-party {RESET}"
+        state = f"{SUCCESS}●{RESET}" if p["enabled"] else f"{DIM_MUTED}○{RESET}"
+        rows.append(f"{marker} {state} {pad(p['name'], 22)} {badge}")
+    rows.append("")
+    rows.append(f"{BORDER}{'─' * max(0, width - 4)}{RESET}")
+    rows.append(chip("space", "enable / disable"))
+    return box(width, "Plugins", rows)
+
+
+def settings_screen(width: int, settings: list[dict], selected: int) -> list[str]:
+    def toggle_row(index: int, label: str, enabled: bool) -> str:
+        marker = f"{ACCENT}▸{RESET} " if index == selected else "  "
+        dot = f"{SUCCESS}●{RESET}" if enabled else f"{DIM_MUTED}○{RESET}"
+        state = f"{SUCCESS}enabled{RESET}" if enabled else f"{DIM_MUTED}disabled{RESET}"
+        return f"{marker}{MUTED}{pad(label, 20)}{RESET} {dot} {state}"
+
+    divider = f"{BORDER}{'─' * max(0, width - 4)}{RESET}"
+
+    rows = [toggle_row(i, item["label"], item["enabled"]) for i, item in enumerate(settings)]
+    rows.extend(
+        [
+            "",
+            divider,
+            "",
+            f"{DIM_MUTED}SHORTCUTS — THIS VIEW{RESET}",
+            f"{chip('1-6', 'screen')}  {chip('⏎', 'next')}  {chip('⌫', 'back')}  "
+            f"{chip('␣', 'toggle')}  {chip('q', 'exit view')}",
+            f"{DIM_MUTED}Exiting the view detaches the print service - it keeps running.{RESET}",
+        ]
+    )
+    return box(width, "Settings", rows)
+
+
+def about_screen(width: int, version: str, build_variant: str, build_system: str) -> list[str]:
+    rows = []
+    if width >= 72:
+        rows.extend(render_banner())
+        rows.append("")
+    else:
+        rows.append(f"{BOLD}{PRIDGE_BLUE}Pridge Client{RESET}")
+        rows.append("")
+    rows.extend(
+        [
+            f"{DIM_MUTED}v{version}{RESET}",
+            "Desktop printing client for Pridge.",
+            f"{MUTED}GPL-3.0-or-later{RESET}",
+            "",
+            f"{MUTED}Build{RESET}  {build_system} · {build_variant}",
+        ]
+    )
+    return box(width, "About", rows)
+
+
