@@ -15,7 +15,7 @@ class ApplicationStartupTests(unittest.TestCase):
     @patch("pridge_client.app.ConfigStore")
     @patch("sys.argv", ["pridge-client"])
     def test_reports_gui_startup_failure(self, config_store, _configure_logging, show_error, _run_gui):
-        config_store.return_value.load.return_value = Mock(servers=[], logging=Mock())
+        config_store.return_value.load.return_value = Mock(servers=[], logging=Mock(), restart_on_crash=False)
 
         with self.assertLogs("pridge_client.app", level="ERROR") as captured:
             with self.assertRaises(SystemExit) as raised:
@@ -35,6 +35,35 @@ class ApplicationStartupTests(unittest.TestCase):
         app.main()
 
         run_gui.assert_called_once_with(gui_smoke_test=True)
+
+
+class SupervisorHandoffTests(unittest.TestCase):
+    @patch("pridge_client.supervisor.run_supervised", return_value=0)
+    @patch("pridge_client.app.configure_logging")
+    @patch("pridge_client.app.ConfigStore")
+    @patch("sys.argv", ["pridge-client", "--headless"])
+    def test_delegates_to_the_supervisor_when_restart_on_crash_is_enabled(self, config_store, _configure_logging, run_supervised):
+        config_store.return_value.load.return_value = Mock(servers=[], logging=Mock(), restart_on_crash=True)
+
+        with self.assertRaises(SystemExit) as raised:
+            app.main()
+
+        self.assertEqual(raised.exception.code, 0)
+        run_supervised.assert_called_once_with(["--headless"])
+
+    @patch("pridge_client.gui.run_gui")
+    @patch("pridge_client.supervisor.run_supervised")
+    @patch("pridge_client.app.configure_logging")
+    @patch("pridge_client.app.ConfigStore")
+    @patch("sys.argv", ["pridge-client", "--supervised-child"])
+    def test_supervised_child_runs_directly_without_recursing(
+        self, config_store, _configure_logging, run_supervised, _run_gui
+    ):
+        config_store.return_value.load.return_value = Mock(servers=[], logging=Mock(), restart_on_crash=True)
+
+        app.main()
+
+        run_supervised.assert_not_called()
 
 
 if __name__ == "__main__":
