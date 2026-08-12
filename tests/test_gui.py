@@ -686,6 +686,17 @@ class ClientApiTests(unittest.TestCase):
         settings_window.evaluate_js.assert_not_called()
         set_start_at_login.assert_called_once_with(True)
 
+    @patch("pridge_client.gui.set_start_at_login")
+    def test_updates_restart_on_crash_setting(self, _set_start_at_login):
+        self.assertTrue(self.api.restart_on_crash)
+
+        result = self.api.update_application_settings({"restart_on_crash": False})
+
+        self.assertTrue(result["ok"])
+        self.assertFalse(self.api.restart_on_crash)
+        self.assertFalse(result["state"]["restart_on_crash"])
+        self.assertFalse(self.api.config_store.load().restart_on_crash)
+
     def test_exports_the_current_run_log_to_a_chosen_destination(self):
         log_dir = Path(self.temporary_directory.name) / "logs"
         log_dir.mkdir()
