@@ -10,6 +10,8 @@ import shlex
 import sys
 from pathlib import Path
 
+from pridge_client.build_info import BUILD_VARIANT
+
 
 APP_ID = "com.pridge.client"
 LEGACY_APP_IDS = ("com.printbridge.client", "com.printbridge.endpoint")
@@ -31,8 +33,15 @@ def set_start_at_login(enabled: bool) -> None:
         raise AutoStartError(f"Unsupported platform: {system}")
 
 
-def command() -> list[str]:
-    return [sys.executable, "-m", "pridge_client", "--headless"]
+def command(*extra_args: str) -> list[str]:
+    # In a packaged build (PyInstaller/Nuitka), sys.executable *is* the app's
+    # own binary - there is no separate Python interpreter to hand "-m
+    # pridge_client" to. Passing that literal module flag to the frozen exe
+    # made it exit immediately on unrecognized arguments, which is why the
+    # login item silently failed to start the app in packaged builds.
+    if BUILD_VARIANT == "Development":
+        return [sys.executable, "-m", "pridge_client", *extra_args]
+    return [sys.executable, *extra_args]
 
 
 def _set_macos_launch_agent(enabled: bool) -> None:
@@ -46,7 +55,7 @@ def _set_macos_launch_agent(enabled: bool) -> None:
         return
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    args = "\n".join(f"    <string>{_xml_escape(part)}</string>" for part in command())
+    args = "\n".join(f"    <string>{_xml_escape(part)}</string>" for part in command("--headless"))
     path.write_text(
         f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -82,7 +91,7 @@ def _set_linux_desktop_entry(enabled: bool) -> None:
         return
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    exec_line = " ".join(shlex.quote(part) for part in command())
+    exec_line = " ".join(shlex.quote(part) for part in command("--headless"))
     path.write_text(
         "\n".join(
             [
@@ -115,7 +124,7 @@ def _set_windows_run_key(enabled: bool) -> None:
         raise AutoStartError(f"Could not open the Windows Run registry key: {exc}") from exc
     with key:
         if enabled:
-            value = " ".join(f'"{part}"' if " " in part else part for part in command())
+            value = " ".join(f'"{part}"' if " " in part else part for part in command("--headless"))
             winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, value)
         else:
             try:
