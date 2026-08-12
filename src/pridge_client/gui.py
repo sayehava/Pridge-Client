@@ -908,6 +908,12 @@ class ClientApi:
             )
         if "log_directory" in fields:
             self.config.logging.directory = str(fields["log_directory"] or "").strip()
+        if "archive_retention_forever" in fields:
+            self.config.archive.retention_forever = bool(fields["archive_retention_forever"])
+        if "archive_retention_days" in fields:
+            self.config.archive.retention_days = self._safe_int(
+                fields["archive_retention_days"], self.config.archive.retention_days, 1, 3650
+            )
         logging_changed = (
             self.config.logging.file_enabled,
             self.config.logging.retention_days,
@@ -1610,6 +1616,10 @@ class ClientApi:
                 "retention_days": self.config.logging.retention_days,
                 "directory": self.config.logging.directory,
             },
+            "archive": {
+                "retention_forever": self.config.archive.retention_forever,
+                "retention_days": self.config.archive.retention_days,
+            },
             "recent_jobs": list(self.recent_jobs),
             "logs": list(self.logs),
             "error_details": list(self.error_details),
@@ -1654,7 +1664,9 @@ class ClientApi:
             heartbeat_interval_seconds=self.config.heartbeat_interval_seconds,
             start_polling_on_launch=self.start_polling_on_launch,
             start_at_login=self.start_at_login,
+            restart_on_crash=self.restart_on_crash,
             logging=self.config.logging,
+            archive=self.config.archive,
             appearance=self.config.appearance,
             dashboard_widgets=self.config.dashboard_widgets,
             printer_stats=self.printer_stats,
@@ -1670,7 +1682,9 @@ class ClientApi:
             heartbeat_interval_seconds=server.heartbeat_interval_seconds,
             start_polling_on_launch=self.start_polling_on_launch,
             start_at_login=self.start_at_login,
+            restart_on_crash=self.restart_on_crash,
             logging=self.config.logging,
+            archive=self.config.archive,
             appearance=self.config.appearance,
         )
 
