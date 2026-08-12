@@ -861,6 +861,11 @@ button.danger-text {
   color: #86efac;
 }
 
+.badge-error {
+  background: rgba(242, 95, 104, 0.16);
+  color: #f8a7ac;
+}
+
 /* Server connection list */
 .server-list {
   flex: 1 1 auto;
