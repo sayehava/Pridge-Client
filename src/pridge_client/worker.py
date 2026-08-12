@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from pridge_client.api import ApiError, PridgeClient, ReservedJob
+from pridge_client.archive import ArchiveStore
 from pridge_client.config import ClientConfig, PrinterMapping, PrinterProfile, ServerConfig, mapping_scope_key
 from pridge_client.logging_setup import log_detailed_error
 from pridge_client.models import JobHistoryEntry
@@ -45,6 +46,7 @@ class PollingWorker:
         config: ClientConfig,
         client_token: str,
         printer_manager: PrinterManager | None = None,
+        archive_store: ArchiveStore | None = None,
         on_status: StatusCallback | None = None,
         on_job: JobCallback | None = None,
         on_config: ConfigCallback | None = None,
@@ -52,6 +54,7 @@ class PollingWorker:
         self.config = config
         self.client_token = client_token
         self.printer_manager = printer_manager or PrinterManager()
+        self.archive_store = archive_store or ArchiveStore()
         self.on_status = on_status
         self.on_job = on_job
         self.on_config = on_config
@@ -123,6 +126,7 @@ class PollingWorker:
         override = server.printer_profiles.get(printer_name) if server else None
         profile = override or self.config.printer_profiles.get(printer_name, PrinterProfile())
         self._record_job(job.job_id, "reserved", printer_name=printer_name)
+        payload: bytes | None = None
         try:
             payload = decode_payload(job.payload_base64)
             client.report_printing(job.job_id)
@@ -138,6 +142,9 @@ class PollingWorker:
             # the server's original data unmodified without losing the design.
             composer_active = bool(mapping and mapping.composer_enabled)
             receipt_scope_key = mapping_scope_key(server.id, mapping.remote_printer_id) if server and mapping else ""
+            raw_template = mapping.raw_template if composer_active else ""
+            raw_paper_width_dots = mapping.raw_paper_width_dots if mapping else 384
+            raw_chars_per_line = mapping.raw_chars_per_line if mapping else 32
             for copy_number in range(job.copies):
                 logger.info("Printing job %s copy %s of %s", job.job_id, copy_number + 1, job.copies)
                 self.printer_manager.print_job(
@@ -151,13 +158,25 @@ class PollingWorker:
                     submission_method=submission_method,
                     explicit_renderer=job.renderer or None,
                     fit_mode=profile.fit_mode,
-                    raw_template=mapping.raw_template if composer_active else "",
-                    raw_paper_width_dots=mapping.raw_paper_width_dots if mapping else 384,
-                    raw_chars_per_line=mapping.raw_chars_per_line if mapping else 32,
+                    raw_template=raw_template,
+                    raw_paper_width_dots=raw_paper_width_dots,
+                    raw_chars_per_line=raw_chars_per_line,
                     receipt_scope_key=receipt_scope_key,
                 )
             client.report_printed(job.job_id)
             self._record_job(job.job_id, "printed", printer_name=printer_name)
+            self._archive_job(
+                job,
+                printer_name,
+                "printed",
+                payload,
+                profile,
+                submission_method,
+                raw_template,
+                raw_paper_width_dots,
+                raw_chars_per_line,
+                receipt_scope_key,
+            )
         except (ApiError, PrinterError, ValueError) as exc:
             message = _safe_error_message(exc)
             logger.warning("Job %s failed: %s", job.job_id, message)
@@ -167,6 +186,61 @@ class PollingWorker:
             except ApiError as report_exc:
                 logger.warning("Could not report failed job %s: %s", job.job_id, _safe_error_message(report_exc))
             self._record_job(job.job_id, "failed", message, printer_name=printer_name)
+            # A payload that never decoded isn't a job that can be resent
+            # from history - there's nothing meaningful to archive for it.
+            if payload is not None:
+                self._archive_job(
+                    job,
+                    printer_name,
+                    "failed",
+                    payload,
+                    profile,
+                    submission_method,
+                    raw_template,
+                    raw_paper_width_dots,
+                    raw_chars_per_line,
+                    receipt_scope_key,
+                    detail=message,
+                )
+
+    def _archive_job(
+        self,
+        job: ReservedJob,
+        printer_name: str,
+        status: str,
+        payload: bytes,
+        profile: PrinterProfile,
+        submission_method: str | None,
+        raw_template: str,
+        raw_paper_width_dots: int,
+        raw_chars_per_line: int,
+        receipt_scope_key: str,
+        detail: str = "",
+    ) -> None:
+        try:
+            self.archive_store.record_job(
+                job.job_id,
+                printer_name,
+                status,
+                payload,
+                detail=detail,
+                mode=profile.mode,
+                driver_settings=dict(profile.driver_settings),
+                content_type=job.content_type or "",
+                filename=job.filename or "",
+                submission_method=submission_method or "",
+                explicit_renderer=job.renderer or "",
+                fit_mode=profile.fit_mode,
+                raw_template=raw_template,
+                raw_paper_width_dots=raw_paper_width_dots,
+                raw_chars_per_line=raw_chars_per_line,
+                receipt_scope_key=receipt_scope_key,
+                copies=job.copies,
+            )
+            if not self.config.archive.retention_forever:
+                self.archive_store.prune(self.config.archive.retention_days)
+        except Exception as exc:  # noqa: BLE001 - archiving must never break the print pipeline
+            logger.warning("Could not archive job %s: %s", job.job_id, _safe_error_message(exc))
 
     def _set_status(self, status: str) -> None:
         self.state.status = status
