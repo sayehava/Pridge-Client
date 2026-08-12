@@ -234,3 +234,35 @@ class TuiController:
             )
         return out
 
+    # ------------------------------------------------------------------
+    # Dashboard
+    # ------------------------------------------------------------------
+    def dashboard_data(self) -> dict:
+        jobs = self.archive_store.list_jobs(limit=DASHBOARD_JOBS_SCANNED)
+        now = datetime.now(timezone.utc)
+        buckets = [0.0] * JOB_HISTORY_BUCKETS
+        for job in jobs:
+            age_hours = (now - job.created_at).total_seconds() / 3600
+            if 0 <= age_hours < JOB_HISTORY_BUCKETS:
+                buckets[JOB_HISTORY_BUCKETS - 1 - int(age_hours)] += 1
+        printed_today = sum(1 for job in jobs if job.status == "printed" and job.created_at.date() == now.date())
+        recent = [
+            {
+                "time": job.created_at.astimezone().strftime("%H:%M:%S"),
+                "status": job.status,
+                "printer_name": job.printer_name,
+                "label": job.filename or job.job_id,
+            }
+            for job in jobs[:RECENT_JOBS_SHOWN]
+        ]
+        return {
+            "printer_count": len(self._list_printers()),
+            "printed_today": printed_today,
+            "job_history": buckets,
+            "recent_jobs": recent,
+        }
+
+    def about_data(self) -> dict:
+        return {"version": __version__, "build_variant": BUILD_VARIANT, "build_system": BUILD_SYSTEM}
+
+
