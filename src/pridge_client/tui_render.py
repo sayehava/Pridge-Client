@@ -228,3 +228,55 @@ def zip_columns(col_a: list[str], col_b: list[str], gap: str = "  ") -> list[str
     return out
 
 
+SCREENS = ["Dashboard", "Servers", "Printers", "Plugins", "Settings", "About"]
+
+
+def header(width: int, screen_name: str, version: str) -> list[str]:
+    title = f"{BOLD}{PRIDGE_BLUE}◆ Pridge Client{RESET} {DIM_MUTED}v{version}{RESET}"
+
+    def build_tabs(compact: bool) -> str:
+        tabs = []
+        for i, name in enumerate(SCREENS, start=1):
+            if name == screen_name:
+                tabs.append(f"{ACCENT_BG}{BOLD}{TEXT} {i} {name} {RESET}")
+            elif compact:
+                tabs.append(f"{MUTED} {i} {RESET}")
+            else:
+                tabs.append(f"{MUTED} {i} {name} {RESET}")
+        return "".join(tabs)
+
+    # Tab labels are sized for a wide terminal; a resize can always make
+    # them not fit, so fall back to number-only tabs and, as a last
+    # resort, a hard truncate rather than let the line run past `width`.
+    if width >= 90:
+        combined = pad(title, 28) + build_tabs(compact=False)
+        if visible_len(combined) > width:
+            combined = pad(title, 28) + build_tabs(compact=True)
+        if visible_len(combined) > width:
+            combined = visible_truncate(combined, width)
+        lines = [combined]
+    else:
+        tab_line = build_tabs(compact=False)
+        if visible_len(tab_line) > width:
+            tab_line = build_tabs(compact=True)
+        if visible_len(tab_line) > width:
+            tab_line = visible_truncate(tab_line, width)
+        lines = [title, tab_line]
+    lines.append(f"{BORDER}{'═' * width}{RESET}")
+    return lines
+
+
+def footer(width: int, message: str = "") -> list[str]:
+    hints = (
+        f"{MUTED}[1-6]{RESET} screen  {MUTED}[⏎]{RESET} next  "
+        f"{MUTED}[⌫]{RESET} back  {MUTED}[space]{RESET} toggle  {MUTED}[q]{RESET} exit view"
+    )
+    short_hints = f"{MUTED}[1-6] [⏎] [⌫] [␣] [q]{RESET}"
+    line = hints if not message else f"{message}   {DIM_MUTED}│{RESET}   {hints}"
+    if visible_len(line) > width:
+        line = short_hints if not message else f"{message}   {DIM_MUTED}│{RESET}   {short_hints}"
+    if visible_len(line) > width:
+        line = visible_truncate(line, width)
+    return [f"{BORDER}{'═' * width}{RESET}", line]
+
+
