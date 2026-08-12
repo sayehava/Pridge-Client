@@ -438,3 +438,66 @@ def about_screen(width: int, version: str, build_variant: str, build_system: str
     return box(width, "About", rows)
 
 
+def render_frame(
+    screen_name: str,
+    width: int,
+    height: int,
+    version: str,
+    dashboard_data: dict,
+    servers: list[dict],
+    printers: list[dict],
+    plugins: list[dict],
+    settings: list[dict],
+    build_variant: str,
+    build_system: str,
+    selection: dict,
+    message: str = "",
+) -> str:
+    width = max(40, width)
+    out = [CLEAR_SCREEN + BG]
+    out.extend(header(width, screen_name, version))
+
+    if screen_name == "Dashboard":
+        out.extend(
+            dashboard_screen(
+                width,
+                servers,
+                dashboard_data["printer_count"],
+                dashboard_data["printed_today"],
+                dashboard_data["job_history"],
+                dashboard_data["recent_jobs"],
+                selection.get("Servers", 0),
+            )
+        )
+    elif screen_name == "Servers":
+        out.extend(servers_screen(width, servers, selection.get("Servers", 0)))
+    elif screen_name == "Printers":
+        out.extend(printers_screen(width, printers, selection.get("Printers", 0)))
+    elif screen_name == "Plugins":
+        out.extend(plugins_screen(width, plugins, selection.get("Plugins", 0)))
+    elif screen_name == "Settings":
+        out.extend(settings_screen(width, settings, selection.get("Settings", 0)))
+    elif screen_name == "About":
+        out.extend(about_screen(width, version, build_variant, build_system))
+
+    if width < 70:
+        out.append(f"{DIM_MUTED}(narrow terminal — compact layout){RESET}")
+
+    out.append("")
+    out.extend(footer(width, message or f"{DIM_MUTED}{width}×{height}{RESET}"))
+    return "\n".join(out) + RESET
+
+
+def render_splash(width: int, version: str) -> str:
+    lines = [CLEAR_SCREEN + BG, ""]
+    if width >= 72:
+        lines.extend(center(row, width) for row in render_banner())
+    else:
+        lines.append(center(f"{BOLD}{PRIDGE_BLUE}◆ Pridge Client{RESET}", width))
+    lines.append("")
+    lines.append(center(f"{MUTED}Full-color ANSI CLI{RESET} {DIM_MUTED}v{version}{RESET}", width))
+    lines.append("")
+    lines.append(center(gradient_rule(min(40, max(0, width - 4)), peak=CYAN_RGB), width))
+    lines.append("")
+    lines.append(center(f"{DIM_MUTED}press any key to continue…{RESET}", width))
+    return "\n".join(lines) + RESET
