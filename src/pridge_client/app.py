@@ -22,7 +22,9 @@ logger = logging.getLogger(__name__)
 def main() -> None:
     parser = argparse.ArgumentParser(prog="pridge-client")
     parser.add_argument("--version", action="store_true", help="Show version and exit.")
-    parser.add_argument("--headless", action="store_true", help="Start without opening the settings window.")
+    startup_mode = parser.add_mutually_exclusive_group()
+    startup_mode.add_argument("--headless", action="store_true", help="Start without opening the settings window.")
+    startup_mode.add_argument("--tui", action="store_true", help="Start the full-color terminal dashboard (POSIX only).")
     parser.add_argument("--gui-smoke-test", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--supervised-child", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -35,11 +37,19 @@ def main() -> None:
     configure_logging(config)
     logger.info("%s %s starting", APP_NAME, __version__)
 
-    if config.restart_on_crash and not args.supervised_child and not args.gui_smoke_test:
+    if config.restart_on_crash and not args.supervised_child and not args.gui_smoke_test and not args.tui:
         from pridge_client.supervisor import run_supervised
 
         extra_args = ["--headless"] if args.headless else []
         raise SystemExit(run_supervised(extra_args))
+
+    if args.tui:
+        from pridge_client.tui import TuiController, run_tui
+
+        controller = TuiController()
+        controller.start()
+        run_tui(controller)
+        return
 
     if args.headless:
         token_store = ClientTokenStore()
