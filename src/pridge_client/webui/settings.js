@@ -68,6 +68,26 @@
     `;
   }
 
+  function ClearHistoryConfirm({ onCancel, onConfirm }) {
+    return html`
+      <div class="modal-backdrop" role="presentation" onMouseDown=${(event) => {
+        if (event.target === event.currentTarget) onCancel();
+      }}>
+        <div class="confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="clear-history-title" aria-describedby="clear-history-message">
+          <img class="confirm-app-icon" src="assets/Icon.png" alt="" />
+          <div class="confirm-copy">
+            <h2 id="clear-history-title">${S.clear_history_confirm_title}</h2>
+            <p id="clear-history-message">${S.clear_history_confirm_message}</p>
+          </div>
+          <div class="confirm-actions">
+            <button autoFocus=${true} onClick=${onCancel}>${S.cancel}</button>
+            <button class="danger" onClick=${onConfirm}>${S.clear}</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function Settings() {
     const [form, setForm] = useState(null);
     const [message, setMessage] = useState("");
@@ -80,6 +100,11 @@
     const [exportingErrors, setExportingErrors] = useState(false);
     const [clearingErrors, setClearingErrors] = useState(false);
     const [showClearErrorConfirm, setShowClearErrorConfirm] = useState(false);
+    const [archiveRetentionUnit, setArchiveRetentionUnit] = useState("days");
+    const [archiveRetentionYears, setArchiveRetentionYears] = useState(0);
+    const [archiveRetentionMonths, setArchiveRetentionMonths] = useState(0);
+    const [clearingHistory, setClearingHistory] = useState(false);
+    const [showClearHistoryConfirm, setShowClearHistoryConfirm] = useState(false);
     const saveSequence = useRef(0);
 
     useEffect(() => {
@@ -89,13 +114,17 @@
           const initial = {
             start_polling_on_launch: result.state.start_polling_on_launch,
             start_at_login: result.state.start_at_login,
+            restart_on_crash: result.state.restart_on_crash,
             darkness_grade: result.state.appearance.darkness_grade,
             log_file_enabled: result.state.logging.file_enabled,
             log_retention_days: result.state.logging.retention_days,
             log_directory: result.state.logging.directory,
+            archive_retention_forever: result.state.archive.retention_forever,
+            archive_retention_days: result.state.archive.retention_days,
           };
           setForm(initial);
           setPreview(initial);
+          setArchiveRetentionUnit(initial.archive_retention_forever ? "forever" : "days");
         });
       });
     }, []);
@@ -124,6 +153,40 @@
           return;
         }
         if (result.directory) change("log_directory", result.directory);
+      });
+    };
+
+    const setArchiveRetentionDays = (years, months) => {
+      const next = { ...form, archive_retention_days: years * 365 + months * 30 };
+      setForm(next);
+      const sequence = ++saveSequence.current;
+      setMessage(S.saving_settings);
+      callApi("update_application_settings", next).then((result) => {
+        if (!result || sequence !== saveSequence.current) return;
+        setMessage(result.ok ? S.settings_saved_automatically : (result.error || S.save_failed));
+      });
+    };
+
+    const changeArchiveRetentionUnit = (unit) => {
+      setArchiveRetentionUnit(unit);
+      if (unit === "forever") {
+        change("archive_retention_forever", true);
+      } else if (unit === "days") {
+        change("archive_retention_forever", false);
+      } else {
+        change("archive_retention_forever", false);
+        setArchiveRetentionDays(archiveRetentionYears, archiveRetentionMonths);
+      }
+    };
+
+    const clearHistory = () => {
+      setShowClearHistoryConfirm(false);
+      setClearingHistory(true);
+      setMessage(S.clearing_history);
+      callApi("clear_archive").then((result) => {
+        setClearingHistory(false);
+        if (!result) return;
+        setMessage(result.ok ? (result.message || S.history_cleared) : (result.error || S.save_failed));
       });
     };
 
@@ -285,6 +348,9 @@
             : null}
           ${showClearErrorConfirm
             ? html`<${ClearErrorLogConfirm} onCancel=${() => setShowClearErrorConfirm(false)} onConfirm=${clearErrorLog} />`
+            : null}
+          ${showClearHistoryConfirm
+            ? html`<${ClearHistoryConfirm} onCancel=${() => setShowClearHistoryConfirm(false)} onConfirm=${clearHistory} />`
             : null}
         </div>
         <div class="utility-actions">
