@@ -184,3 +184,53 @@ class TuiController:
         self.config_store.save(self.config)
         return message
 
+    # ------------------------------------------------------------------
+    # Servers
+    # ------------------------------------------------------------------
+    def servers_data(self) -> list[dict]:
+        out = []
+        for server in self.config.servers:
+            worker = self.workers.get(server.id)
+            state = worker.state if worker else None
+            printers = {mapping.local_printer_name for mapping in server.printer_mappings}
+            if server.default_printer:
+                printers.add(server.default_printer)
+            out.append(
+                {
+                    "name": server.name,
+                    "url": server.server_url,
+                    "status": state.status if state else "Stopped",
+                    "printers": len(printers),
+                    "heartbeat": _format_heartbeat(state.last_heartbeat_at) if state else "—",
+                    "last_error": state.last_error if state else "",
+                }
+            )
+        return out
+
+    # ------------------------------------------------------------------
+    # Printers
+    # ------------------------------------------------------------------
+    def _list_printers(self):
+        try:
+            return self.printer_manager.list_printers()
+        except PrinterError as exc:
+            logger.warning("Printer refresh failed: %s", exc)
+            return []
+
+    def printers_data(self) -> list[dict]:
+        out = []
+        for printer in self._list_printers():
+            profile = self.config.printer_profiles.get(printer.name)
+            mode = "RAW" if profile and profile.mode == "raw" else "System Driver"
+            remote_stats = self.config.printer_stats.get(printer.name, {}).get("remote", {})
+            out.append(
+                {
+                    "name": printer.name,
+                    "mode": mode,
+                    "used": printer.name in self.config.printer_stats,
+                    "success_count": remote_stats.get("success", 0),
+                    "failed_count": remote_stats.get("failed", 0),
+                }
+            )
+        return out
+
