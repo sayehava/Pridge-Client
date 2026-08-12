@@ -280,3 +280,94 @@ def footer(width: int, message: str = "") -> list[str]:
     return [f"{BORDER}{'═' * width}{RESET}", line]
 
 
+def dashboard_screen(
+    width: int,
+    servers: list[dict],
+    printer_count: int,
+    printed_today: int,
+    job_history: list[float],
+    recent_jobs: list[dict],
+    selected: int,
+) -> list[str]:
+    lines = []
+    running = sum(1 for s in servers if s["status"] == "Running")
+    errored = sum(1 for s in servers if "error" in s["status"].lower())
+    status_line = (
+        f"{PANEL_BG}{TEXT} Status {RESET}  "
+        f"{SUCCESS}{running} running{RESET}  ·  "
+        f"{DANGER}{errored} error{'s' if errored != 1 else ''}{RESET}  ·  "
+        f"{MUTED}{printer_count} printers{RESET}  ·  "
+        f"{MUTED}{printed_today} printed today{RESET}"
+    )
+    lines.append(visible_truncate(status_line, width))
+    lines.append(
+        visible_truncate(f"{DIM_MUTED}Jobs/hr, last 12h{RESET}  {sparkline(job_history, fg=PRIDGE_BLUE)}", width)
+    )
+    lines.append("")
+
+    server_rows = []
+    for i, s in enumerate(servers):
+        marker = f"{ACCENT}▸{RESET} " if i == selected else "  "
+        server_rows.append(f"{marker}{pad(s['name'], 12)} {status_pill(s['status'])}")
+        server_rows.append(f"   {DIM_MUTED}{s['printers']} printer(s) · heartbeat {s['heartbeat']}{RESET}")
+    if not server_rows:
+        server_rows = [f"{DIM_MUTED}No servers configured{RESET}"]
+
+    job_rows = []
+    for job in recent_jobs:
+        icon = f"{SUCCESS}✓{RESET}" if job["status"] == "printed" else f"{DANGER}✗{RESET}"
+        job_rows.append(f"{DIM_MUTED}{job['time']}{RESET} {icon} {truncate(job['printer_name'], 22)}")
+        job_rows.append(f"   {MUTED}{truncate(job['label'], 30)}{RESET}")
+    if not job_rows:
+        job_rows = [f"{DIM_MUTED}No print jobs yet{RESET}"]
+
+    if width >= 100:
+        col_w = (width - 6) // 2
+        servers_box = box(col_w, "Servers", server_rows)
+        jobs_box = box(width - 4 - col_w, "Recent Jobs", job_rows)
+        lines.extend(zip_columns(servers_box, jobs_box))
+    else:
+        lines.extend(box(width, "Servers", server_rows))
+        lines.append("")
+        lines.extend(box(width, "Recent Jobs", job_rows))
+
+    return lines
+
+
+def servers_screen(width: int, servers: list[dict], selected: int) -> list[str]:
+    if not servers:
+        return box(width, "Servers", [f"{DIM_MUTED}No servers configured{RESET}"])
+    rows = []
+    for i, s in enumerate(servers):
+        marker = f"{ACCENT}▸{RESET}" if i == selected else " "
+        rows.append(f"{marker} {pad(s['name'], 14)} {status_pill(s['status']):<20} {MUTED}{truncate(s['url'], 28)}{RESET}")
+    detail = servers[selected]
+    rows.append("")
+    rows.append(f"{BOLD}{detail['name']}{RESET}")
+    rows.append(f"{MUTED}URL{RESET}      {detail['url']}")
+    rows.append(f"{MUTED}Status{RESET}   {status_pill(detail['status'])}")
+    rows.append(f"{MUTED}Printers{RESET} {detail['printers']} mapped")
+    if detail.get("last_error"):
+        rows.append(f"{MUTED}Error{RESET}    {DANGER}{truncate(detail['last_error'], width - 15)}{RESET}")
+    rows.append("")
+    rows.append(f"{BORDER}{'─' * max(0, width - 4)}{RESET}")
+    rows.append(chip("space", "start / stop"))
+    return box(width, "Servers", rows)
+
+
+def printers_screen(width: int, printers: list[dict], selected: int) -> list[str]:
+    if not printers:
+        return box(width, "Printers", [f"{DIM_MUTED}No printers found{RESET}"])
+    rows = [f"{MUTED}{pad('NAME', 32)}{pad('MODE', 16)}USED{RESET}"]
+    for i, p in enumerate(printers):
+        marker = f"{ACCENT}▸{RESET}" if i == selected else " "
+        mode_color = WARNING if p["mode"] == "RAW" else ACCENT
+        used = f"{SUCCESS}yes{RESET}" if p["used"] else f"{DIM_MUTED}no{RESET}"
+        rows.append(f"{marker}{pad(truncate(p['name'], 30), 32)}{mode_color}{pad(p['mode'], 16)}{RESET}{used}")
+        rows.append(
+            f"   {DIM_MUTED}printed{RESET} {SUCCESS}{p['success_count']}{RESET} "
+            f"{DIM_MUTED}failed{RESET} {DANGER}{p['failed_count']}{RESET}"
+        )
+    return box(width, "Printers", rows)
+
+
