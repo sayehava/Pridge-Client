@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from pridge_client.api import RemotePrinter
+from pridge_client.archive import ArchiveStore
 from pridge_client.config import ConfigStore
 from pridge_client.gui import APP_ICON_PATH, ClientApi, _shutdown_smoke_test, _webview_start_icon, _window_effects
 from pridge_client.logging_setup import ERROR_LOGGER_NAME
@@ -144,10 +145,12 @@ class ClientApiTests(unittest.TestCase):
         self.previous_error_handlers = list(logging.getLogger(ERROR_LOGGER_NAME).handlers)
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.config_path = Path(self.temporary_directory.name) / "config.json"
+        self.archive_path = Path(self.temporary_directory.name) / "archive.sqlite3"
         self.api = ClientApi(
             config_store=ConfigStore(self.config_path),
             token_store=MemoryTokenStore(),
             printer_manager=NoPrinters(),
+            archive_store=ArchiveStore(self.archive_path),
         )
 
     def tearDown(self):
@@ -167,6 +170,7 @@ class ClientApiTests(unittest.TestCase):
             config_store=ConfigStore(self.config_path),
             token_store=MemoryTokenStore(),
             printer_manager=NoPrinters(),
+            archive_store=ArchiveStore(self.archive_path),
         )
 
         self.assertEqual(restarted.printer_stats["Receipt Printer"]["test"], {"success": 1, "failed": 1})
@@ -619,6 +623,7 @@ class ClientApiTests(unittest.TestCase):
             config_store=self.api.config_store,
             token_store=self.api.token_store,
             printer_manager=self.api.printer_manager,
+            archive_store=self.api.archive_store,
             gui_smoke_test=True,
         )
         api._window = Mock()
@@ -637,6 +642,7 @@ class ClientApiTests(unittest.TestCase):
             config_store=self.api.config_store,
             token_store=self.api.token_store,
             printer_manager=manager,
+            archive_store=self.api.archive_store,
             gui_smoke_test=True,
         )
 
@@ -1055,6 +1061,7 @@ class ReceiptComposerApiTests(unittest.TestCase):
             config_store=ConfigStore(config_path),
             token_store=MemoryTokenStore(),
             printer_manager=NoPrinters(),
+            archive_store=ArchiveStore(Path(self.temporary_directory.name) / "archive.sqlite3"),
         )
 
     def tearDown(self):
@@ -1242,6 +1249,7 @@ class MappingReceiptDesignApiTests(unittest.TestCase):
             config_store=ConfigStore(config_path),
             token_store=MemoryTokenStore(),
             printer_manager=NoPrinters(),
+            archive_store=ArchiveStore(Path(self.temporary_directory.name) / "archive.sqlite3"),
         )
         add_result = self.api.add_server(
             {
@@ -1389,6 +1397,7 @@ class DashboardWidgetTests(unittest.TestCase):
             config_store=ConfigStore(config_path),
             token_store=MemoryTokenStore(),
             printer_manager=NoPrinters(),
+            archive_store=ArchiveStore(Path(self.temporary_directory.name) / "archive.sqlite3"),
         )
 
     def tearDown(self):
@@ -1540,6 +1549,7 @@ class ReceiptComposerWidgetSupportTests(unittest.TestCase):
             config_store=ConfigStore(config_path),
             token_store=MemoryTokenStore(),
             printer_manager=NoPrinters(),
+            archive_store=ArchiveStore(Path(self.temporary_directory.name) / "archive.sqlite3"),
         )
         add_result = self.api.add_server(
             {
