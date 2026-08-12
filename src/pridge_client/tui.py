@@ -139,3 +139,48 @@ class TuiController:
         else:
             self.start_worker(server)
 
+    # ------------------------------------------------------------------
+    # Plugins
+    # ------------------------------------------------------------------
+    def _plugin_entries(self):
+        return sorted(self.printer_manager.renderer_registry.all_entries(), key=lambda entry: entry.priority)
+
+    def plugins_data(self) -> list[dict]:
+        return [
+            {
+                "plugin_id": entry.plugin.plugin_id,
+                "name": entry.plugin.display_name,
+                "category": entry.category,
+                "enabled": entry.enabled,
+                "core": entry.is_builtin,
+            }
+            for entry in self._plugin_entries()
+        ]
+
+    def toggle_plugin(self, index: int) -> None:
+        entries = self._plugin_entries()
+        if index < 0 or index >= len(entries):
+            return
+        entry = entries[index]
+        self.printer_manager.renderer_registry.set_enabled(entry.plugin.plugin_id, not entry.enabled)
+
+    # ------------------------------------------------------------------
+    # Settings
+    # ------------------------------------------------------------------
+    def settings_data(self) -> list[dict]:
+        return [{"label": label, "enabled": bool(getattr(self.config, key))} for key, label in SETTING_ITEMS]
+
+    def toggle_setting(self, index: int) -> str:
+        if index < 0 or index >= len(SETTING_ITEMS):
+            return ""
+        key, _label = SETTING_ITEMS[index]
+        setattr(self.config, key, not getattr(self.config, key))
+        message = ""
+        if key == "start_at_login":
+            try:
+                set_start_at_login(self.config.start_at_login)
+            except AutoStartError as exc:
+                message = str(exc)
+        self.config_store.save(self.config)
+        return message
+
