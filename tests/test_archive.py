@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileComment: Additional terms apply; see ADDITIONAL_TERMS.md.
 
+import sqlite3
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -67,6 +68,13 @@ class ArchiveStoreTests(unittest.TestCase):
 
     def test_get_job_returns_none_for_an_unknown_id(self) -> None:
         self.assertIsNone(self.store.get_job("does-not-exist"))
+
+    def test_connection_is_closed_after_use(self) -> None:
+        with self.store._connect() as connection:
+            connection.execute("SELECT 1")
+
+        with self.assertRaises(sqlite3.ProgrammingError):
+            connection.execute("SELECT 1")
 
     def test_prune_removes_only_entries_older_than_the_retention_window(self) -> None:
         self.store.record_job("recent", "Kitchen", "printed", b"recent")
