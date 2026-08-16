@@ -16,9 +16,11 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Iterator
 
 from pridge_client.config import default_archive_path
 
@@ -81,10 +83,15 @@ class ArchiveStore:
             )
             connection.execute("CREATE INDEX IF NOT EXISTS archived_jobs_created_at ON archived_jobs (created_at)")
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
         connection = sqlite3.connect(self.db_path)
         connection.row_factory = sqlite3.Row
-        return connection
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
     def record_job(
         self,
