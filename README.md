@@ -36,7 +36,7 @@ Run in background/headless mode:
 python3 -m pridge_client --headless
 ```
 
-On Windows, headless mode automatically starts a Browser GUI and shows its exact local address, normally `http://127.0.0.1:8765`. The address is also printed and logged. If that port is occupied, the client selects a free loopback port and reports the address it actually opened. The server accepts connections only from the same computer.
+On Windows, headless mode automatically starts a Browser GUI and shows its exact local address, normally `http://127.0.0.1:8765`. The address is also printed and logged. Change the preferred port under Settings > Startup; a running Browser GUI reconnects immediately. If the requested port is occupied, the client selects a free loopback port and reports the address it actually opened. The server accepts connections only from the same computer.
 
 Run the interactive terminal dashboard on macOS or Linux:
 
