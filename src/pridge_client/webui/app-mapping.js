@@ -127,10 +127,15 @@
     };
 
     const removeMapping = (mappingId, name) => {
-      if (!window.confirm(S.mapping_remove_confirm.replace("{name}", name))) return;
-      callApi("remove_app_mapping", mappingId).then((result) => {
+      const remove = () => callApi("remove_app_mapping", mappingId).then((result) => {
         if (result && result.ok) setMappings(result.mappings);
       });
+      const prompt = S.mapping_remove_confirm.replace("{name}", name);
+      if (window.PridgeBrowserConfirm) {
+        window.PridgeBrowserConfirm(prompt).then((confirmed) => confirmed && remove());
+      } else if (window.confirm(prompt)) {
+        remove();
+      }
     };
 
     return html`
