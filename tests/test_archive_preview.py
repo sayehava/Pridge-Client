@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 from pridge_client.archive import ArchivedJob
 from pridge_client.archive_preview import build_archive_preview
+from pridge_client.pdfium_service import RenderedPage
 
 
 ONE_PIXEL_PNG = base64.b64decode(
@@ -27,6 +28,29 @@ def archived(payload: bytes, **fields) -> ArchivedJob:
     }
     values.update(fields)
     return ArchivedJob(**values)
+
+
+class _PdfService:
+    def __init__(self) -> None:
+        self.render_call = None
+
+    def get_page_count(self, _data: bytes) -> int:
+        return 3
+
+    def render_pages(self, data: bytes, **options):
+        self.render_call = (data, options)
+        return [
+            RenderedPage(
+                width_px=1,
+                height_px=1,
+                stride=4,
+                pixel_format="BGRA",
+                data=b"\xff\xff\xff\xff",
+                pdf_page_width_pt=1,
+                pdf_page_height_pt=1,
+                dpi=96,
+            )
+        ]
 
 
 class ArchivePreviewTests(unittest.TestCase):
@@ -49,6 +73,27 @@ class ArchivePreviewTests(unittest.TestCase):
 
         self.assertEqual(preview["kind"], "image")
         self.assertTrue(preview["data_url"].startswith("data:image/png;base64,"))
+
+    def test_previews_only_the_first_pdf_page(self) -> None:
+        service = _PdfService()
+
+        preview = build_archive_preview(archived(b"%PDF-test"), pdf_service=service)
+
+        self.assertEqual(preview["kind"], "image")
+        self.assertEqual(preview["page_count"], 3)
+        self.assertEqual(service.render_call[1]["page_indices"], [0])
+        self.assertIn("first page", preview["note"])
+
+    def test_reports_an_unrenderable_pdf_without_leaking_an_exception(self) -> None:
+        class BrokenPdfService:
+            def get_page_count(self, _data):
+                raise ValueError("sensitive decoder detail")
+
+        preview = build_archive_preview(archived(b"%PDF-broken"), pdf_service=BrokenPdfService())
+
+        self.assertEqual(preview["kind"], "unavailable")
+        self.assertNotIn("sensitive", preview["message"])
+
 
 if __name__ == "__main__":
     unittest.main()
