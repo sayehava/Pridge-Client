@@ -13,7 +13,14 @@ from pridge_client.archive import ArchiveStore
 from pridge_client.config import ClientConfig, ConfigStore, PrinterMapping, PrinterProfile, ServerConfig
 from pridge_client.printers import Printer, PrinterError
 from pridge_client.renderers.registry import RendererRegistry
-from pridge_client.tui import TuiController, _draw, _exit_action_for_key, _list_length, _start_background_service
+from pridge_client.tui import (
+    TuiController,
+    _draw,
+    _exit_action_for_key,
+    _finish_controller,
+    _list_length,
+    _start_background_service,
+)
 
 
 class FakePlugin:
@@ -57,11 +64,14 @@ class TuiControllerTestCase(unittest.TestCase):
 
 
 class SettingsDataTests(TuiControllerTestCase):
-    def test_settings_data_reflects_config_defaults(self) -> None:
+    @patch("pridge_client.tui.installed_terminal_command", return_value="Pridge_client")
+    def test_settings_data_reflects_config_defaults(self, _installed_command) -> None:
         data = self.controller.settings_data()
         labels = [item["label"] for item in data]
         self.assertIn("Start at login", labels)
         self.assertIn("Restart automatically if the app crashes", labels)
+        self.assertEqual(data[-1]["detail"], "Pridge_client")
+        self.assertEqual(data[-1]["action"], "install_terminal_command")
         restart_item = next(item for item in data if "Restart" in item["label"])
         self.assertTrue(restart_item["enabled"])
 
@@ -219,7 +229,7 @@ class ListLengthTests(TuiControllerTestCase):
         self.assertEqual(_list_length(self.controller, "Servers"), 1)
         self.assertEqual(_list_length(self.controller, "Printers"), 1)
         self.assertEqual(_list_length(self.controller, "Plugins"), 1)
-        self.assertEqual(_list_length(self.controller, "Settings"), 3)
+        self.assertEqual(_list_length(self.controller, "Settings"), 4)
         self.assertEqual(_list_length(self.controller, "About"), 0)
 
 
@@ -235,10 +245,13 @@ class DrawResilienceTests(TuiControllerTestCase):
 
 
 class DetachTests(unittest.TestCase):
+    @patch("pridge_client.tui.service_available", return_value=True)
     @patch("pridge_client.tui.subprocess.Popen")
     @patch("pridge_client.tui.independent_child_environment", return_value={"FROZEN": "fresh"})
     @patch("pridge_client.tui.command", return_value=["fake-exe", "--headless"])
-    def test_spawns_a_detached_headless_child(self, fake_command, _environment, popen) -> None:
+    def test_spawns_a_detached_headless_child(
+        self, fake_command, _environment, popen, _service_available
+    ) -> None:
         popen.return_value.poll.return_value = None
 
         started = _start_background_service()
@@ -266,6 +279,15 @@ class DetachTests(unittest.TestCase):
         self.assertEqual(_exit_action_for_key("q"), "quit")
         self.assertEqual(_exit_action_for_key("d"), "detach")
         self.assertEqual(_exit_action_for_key("ESC"), "detach")
+
+    def test_detaching_remote_view_keeps_service_but_quit_stops_it(self) -> None:
+        remote = Mock()
+
+        _finish_controller(remote, "detach", attached_to_service=True)
+        remote.shutdown.assert_not_called()
+
+        _finish_controller(remote, "quit", attached_to_service=True)
+        remote.shutdown.assert_called_once_with()
 
 
 if __name__ == "__main__":
