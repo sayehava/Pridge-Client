@@ -91,6 +91,11 @@ class HeaderFooterTests(unittest.TestCase):
         for line in lines:
             self.assertLessEqual(t.visible_len(line), 30)
 
+    def test_footer_distinguishes_detach_from_quit(self) -> None:
+        text = "\n".join(t.footer(120, ""))
+        self.assertIn("detach", text)
+        self.assertIn("quit", text)
+
 
 class ScreenBuilderTests(unittest.TestCase):
     def test_dashboard_screen_handles_no_servers_or_jobs(self) -> None:
