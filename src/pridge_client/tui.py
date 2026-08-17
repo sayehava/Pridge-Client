@@ -60,6 +60,7 @@ SETTING_ITEMS: list[tuple[str, str]] = [
     ("start_polling_on_launch", "Start polling on launch"),
     ("start_at_login", "Start at login"),
     ("restart_on_crash", "Restart automatically if the app crashes"),
+    ("web_gui_enabled", "Browser GUI"),
 ]
 
 
