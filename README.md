@@ -36,6 +36,8 @@ Run in background/headless mode:
 python3 -m pridge_client --headless
 ```
 
+On Windows, headless mode automatically starts a Browser GUI and shows its exact local address, normally `http://127.0.0.1:8765`. The address is also printed and logged. If that port is occupied, the client selects a free loopback port and reports the address it actually opened. The server accepts connections only from the same computer.
+
 Run the interactive terminal dashboard on macOS or Linux:
 
 ```bash
@@ -43,6 +45,8 @@ python3 -m pridge_client --tui
 ```
 
 Press `d` or `Esc` to detach the dashboard and keep the print service running in the background. Run the same TUI command later to reconnect to that service. Press `q` or `Ctrl-C` to stop the client and its background service.
+
+On macOS and Linux, select `Browser GUI` in TUI Settings and press Space to enable or disable it. Enabling it reports the live local URL immediately. Utility views in the Browser GUI open as in-page modal boxes; the normal pywebview desktop GUI continues to use its native utility windows.
 
 The TUI Settings screen can install a custom terminal command such as `Pridge_client`. Select `Terminal command`, press Space, and enter the name you want. The installer creates a user-level command in `~/.local/bin` that always opens or reconnects to the TUI, adds that directory to the appropriate shell profile, and works with both packaged and Python source builds. Open a new terminal after installation, then run the chosen name without `--tui`. Launching the desktop application normally still opens the full GUI.
 
