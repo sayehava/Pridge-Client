@@ -7,8 +7,8 @@ import unittest
 from pathlib import Path
 from threading import Event, Thread
 
-from pridge_client.tui_ipc import RemoteTuiController
-from pridge_client.tui_service import TuiServiceServer
+from pridge_client.tui_ipc import RemoteTuiController, request, service_available
+from pridge_client.tui_service import TuiServiceAlreadyRunning, TuiServiceServer
 
 
 class _FakeController:
@@ -74,6 +74,19 @@ class TuiServiceTests(unittest.TestCase):
         self.thread.join(timeout=2)
 
         self.assertFalse(self.thread.is_alive())
+
+    def test_a_second_server_cannot_replace_a_live_socket(self) -> None:
+        with self.assertRaises(TuiServiceAlreadyRunning):
+            TuiServiceServer(_FakeController(), self.socket_path).open()
+
+    def test_rejects_unknown_methods(self) -> None:
+        with self.assertRaises(ConnectionError):
+            request("unknown", socket_path=self.socket_path)
+
+    def test_service_socket_is_private(self) -> None:
+        self.assertTrue(service_available(self.socket_path))
+        self.assertEqual(self.socket_path.stat().st_mode & 0o777, 0o600)
+
 
 if __name__ == "__main__":
     unittest.main()
