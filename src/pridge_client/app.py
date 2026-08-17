@@ -83,7 +83,7 @@ def _run_headless_service() -> None:
     def stop(_signum: int, _frame: object) -> None:
         stop_event.set()
 
-    def set_browser_enabled(enabled: bool) -> None:
+    def set_browser_enabled(enabled: bool) -> str:
         nonlocal browser
         if enabled and browser is None:
             browser = BrowserGuiServer(api, api.config.web_gui_port, on_stop=stop_event.set)
@@ -91,9 +91,12 @@ def _run_headless_service() -> None:
             print(f"Browser GUI: {url}", flush=True)
             if sys.platform == "win32":
                 show_headless_address(APP_NAME, url)
+            return f"Browser GUI: {url}"
         elif not enabled and browser is not None:
             browser.close()
             browser = None
+            return "Browser GUI disabled"
+        return f"Browser GUI: {browser.url}" if browser is not None else "Browser GUI disabled"
 
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
