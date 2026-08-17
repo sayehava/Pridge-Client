@@ -13,6 +13,7 @@ from pridge_client.platform_window import (
     disable_minimize,
     ensure_webview2_runtime,
     preferred_webview_gui,
+    show_headless_address,
     show_startup_error,
 )
 
@@ -36,6 +37,24 @@ class PlatformWindowTests(unittest.TestCase):
         show_startup_error("Pridge Client", "Could not start")
 
         log_error.assert_called_once_with("%s Startup Error: %s", "Pridge Client", "Could not start")
+
+    @patch("pridge_client.platform_window.platform.system", return_value="Windows")
+    def test_announces_the_headless_address_on_windows(self, _system):
+        send_message = Mock(return_value=True)
+        fake_ctypes = SimpleNamespace(
+            windll=SimpleNamespace(
+                kernel32=SimpleNamespace(WTSGetActiveConsoleSessionId=Mock(return_value=3)),
+                wtsapi32=SimpleNamespace(WTSSendMessageW=send_message),
+            ),
+            c_ulong=Mock(return_value=object()),
+            byref=lambda value: value,
+        )
+
+        with patch.dict(sys.modules, {"ctypes": fake_ctypes}):
+            show_headless_address("Pridge Client", "http://127.0.0.1:8765")
+
+        send_message.assert_called_once()
+        self.assertIn("http://127.0.0.1:8765", send_message.call_args.args[4])
 
     @patch("pridge_client.platform_window.platform.system", return_value="Darwin")
     def test_sets_macos_process_and_bundle_name(self, _system):
