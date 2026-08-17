@@ -1456,7 +1456,7 @@ class ArchiveApiTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertIn("no longer found", result["error"])
 
-    def test_reprint_job_resends_the_archived_payload_to_the_same_printer(self):
+    def test_reprint_job_resends_the_payload_without_adding_a_history_entry(self):
         entry_id = self.api.archive_store.record_job(
             "job-1", "Kitchen", "failed", b"receipt bytes", mode="raw", detail="no paper"
         )
@@ -1469,8 +1469,9 @@ class ArchiveApiTests(unittest.TestCase):
         self.assertEqual(args[0], "Kitchen")
         self.assertEqual(args[1], b"receipt bytes")
         self.assertEqual(kwargs["mode"], "raw")
-        statuses = [job.status for job in self.api.archive_store.list_jobs()]
-        self.assertIn("reprinted", statuses)
+        jobs = self.api.archive_store.list_jobs()
+        self.assertEqual([job.id for job in jobs], [entry_id])
+        self.assertEqual(jobs[0].status, "failed")
 
     def test_reprint_job_reports_a_printer_error_without_archiving_again(self):
         entry_id = self.api.archive_store.record_job("job-1", "Kitchen", "printed", b"receipt bytes")
