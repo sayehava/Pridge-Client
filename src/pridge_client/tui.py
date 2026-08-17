@@ -10,10 +10,9 @@ PrinterManager/ArchiveStore objects --headless already builds, and turns
 them into the plain data structures tui_render.py's pure rendering
 functions expect.
 
-Pressing d or Esc, or losing the terminal via SIGHUP, starts a detached
---headless process before this view exits. Pressing q or Ctrl-C stops the
-client. There is no live reattach yet: running --tui again later starts a
-separate instance, not a reconnect to the detached one.
+Pressing d or Esc, or losing the terminal via SIGHUP, keeps a detached
+--headless service running before this view exits. A later --tui command
+reattaches to that service. Pressing q or Ctrl-C stops the client.
 
 POSIX only for now (termios/tty-based raw terminal handling has no direct
 Windows equivalent) - run_tui refuses to start on Windows with a clear
@@ -38,6 +37,13 @@ from pridge_client.autostart import AutoStartError, command, independent_child_e
 from pridge_client.build_info import BUILD_SYSTEM, BUILD_VARIANT
 from pridge_client.config import ClientConfig, ClientTokenStore, ConfigStore, ServerConfig
 from pridge_client.printers import PrinterError, PrinterManager
+from pridge_client.terminal_command import (
+    DEFAULT_COMMAND_NAME,
+    TerminalCommandError,
+    install_terminal_command,
+    installed_terminal_command,
+)
+from pridge_client.tui_ipc import RemoteTuiController, service_available
 from pridge_client.version import __version__
 from pridge_client.worker import PollingWorker
 
@@ -166,7 +172,17 @@ class TuiController:
     # Settings
     # ------------------------------------------------------------------
     def settings_data(self) -> list[dict]:
-        return [{"label": label, "enabled": bool(getattr(self.config, key))} for key, label in SETTING_ITEMS]
+        settings = [{"label": label, "enabled": bool(getattr(self.config, key))} for key, label in SETTING_ITEMS]
+        command_name = installed_terminal_command()
+        settings.append(
+            {
+                "label": "Terminal command",
+                "enabled": bool(command_name),
+                "detail": command_name or "not installed",
+                "action": "install_terminal_command",
+            }
+        )
+        return settings
 
     def toggle_setting(self, index: int) -> str:
         if index < 0 or index >= len(SETTING_ITEMS):
@@ -334,10 +350,15 @@ def _start_background_service() -> bool:
     except OSError as exc:
         logger.warning("Could not spawn a detached headless process: %s", exc)
         return False
-    if process.poll() is not None:
-        logger.warning("The detached headless process exited during startup")
-        return False
-    return True
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline and process.poll() is None:
+        if service_available():
+            return True
+        time.sleep(0.05)
+    logger.warning("The detached headless service did not become ready")
+    if process.poll() is None:
+        process.terminate()
+    return False
 
 
 def _exit_action_for_key(key: str | None) -> str | None:
@@ -346,6 +367,31 @@ def _exit_action_for_key(key: str | None) -> str | None:
     if key in ("d", "ESC"):
         return "detach"
     return None
+
+
+def _finish_controller(controller, action: str | None, attached_to_service: bool) -> None:
+    if attached_to_service:
+        if action == "quit":
+            controller.shutdown()
+    else:
+        controller.stop_all()
+
+
+def _prompt_for_terminal_command(fd: int, old_settings) -> str:
+    import termios
+    import tty
+
+    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    sys.stdout.write(tui_render.SHOW_CURSOR + tui_render.RESET + tui_render.CLEAR_SCREEN)
+    sys.stdout.flush()
+    try:
+        name = input(f"Terminal command name [{DEFAULT_COMMAND_NAME}]: ").strip() or DEFAULT_COMMAND_NAME
+        return install_terminal_command(name)
+    except (EOFError, OSError, TerminalCommandError) as exc:
+        return f"Terminal command was not installed: {exc}"
+    finally:
+        tty.setcbreak(fd)
+        sys.stdout.write(tui_render.HIDE_CURSOR)
 
 
 def _read_key(fd: int) -> str | None:
@@ -380,7 +426,7 @@ def _read_key(fd: int) -> str | None:
     return {"A": "UP", "B": "DOWN", "C": "RIGHT", "D": "LEFT"}.get(ch3)
 
 
-def run_tui(controller: TuiController) -> None:
+def run_tui(controller: TuiController | RemoteTuiController, attached_to_service: bool = False) -> None:
     if sys.platform == "win32":
         raise RuntimeError(
             "TUI mode requires a POSIX terminal (Linux/macOS) and is not yet available on Windows."
@@ -410,7 +456,7 @@ def run_tui(controller: TuiController) -> None:
 
     screen_name = "Dashboard"
     selection = {"Servers": 0, "Printers": 0, "Plugins": 0, "Settings": 0}
-    message = ""
+    message = "Attached to the running print service." if attached_to_service else ""
 
     try:
         tty.setcbreak(fd)
@@ -443,7 +489,7 @@ def run_tui(controller: TuiController) -> None:
                 exit_action["value"] = "quit"
                 break
             if requested_action == "detach":
-                background_started = _start_background_service()
+                background_started = attached_to_service or _start_background_service()
                 if background_started:
                     exit_action["value"] = "detach"
                     break
@@ -462,7 +508,13 @@ def run_tui(controller: TuiController) -> None:
             elif key == " " and screen_name == "Plugins":
                 controller.toggle_plugin(selection["Plugins"])
             elif key == " " and screen_name == "Settings":
-                message = controller.toggle_setting(selection["Settings"])
+                settings = controller.settings_data()
+                selected_setting = settings[selection["Settings"]]
+                if selected_setting.get("action") == "install_terminal_command":
+                    message = _prompt_for_terminal_command(fd, old_settings)
+                    resized["flag"] = True
+                else:
+                    message = controller.toggle_setting(selection["Settings"])
             else:
                 continue
 
@@ -475,9 +527,9 @@ def run_tui(controller: TuiController) -> None:
             sys.stdout.flush()
         except OSError:
             logger.debug("The terminal closed before its TUI state could be restored")
-        if exit_action["value"] == "detach" and not background_started:
+        if exit_action["value"] == "detach" and not background_started and not attached_to_service:
             background_started = _start_background_service()
-        controller.stop_all()
+        _finish_controller(controller, exit_action["value"], attached_to_service)
         if exit_action["value"] == "detach" and background_started:
             print(f"{tui_render.DIM_MUTED}Pridge Client is running in the background.{tui_render.RESET}")
         else:
