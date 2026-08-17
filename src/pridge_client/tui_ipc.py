@@ -60,3 +60,44 @@ def service_available(socket_path: Path | None = None) -> bool:
     except TuiServiceUnavailable:
         return False
 
+
+class RemoteTuiController:
+    """TuiController-compatible proxy for an existing headless service."""
+
+    def __init__(self, socket_path: Path | None = None) -> None:
+        self.socket_path = socket_path or default_socket_path()
+
+    @classmethod
+    def connect(cls, socket_path: Path | None = None) -> "RemoteTuiController | None":
+        controller = cls(socket_path)
+        return controller if service_available(controller.socket_path) else None
+
+    def _call(self, method: str, *args):
+        return request(method, *args, socket_path=self.socket_path)
+
+    def dashboard_data(self) -> dict:
+        return self._call("dashboard_data")
+
+    def servers_data(self) -> list[dict]:
+        return self._call("servers_data")
+
+    def printers_data(self) -> list[dict]:
+        return self._call("printers_data")
+
+    def plugins_data(self) -> list[dict]:
+        return self._call("plugins_data")
+
+    def settings_data(self) -> list[dict]:
+        return self._call("settings_data")
+
+    def toggle_server(self, index: int) -> None:
+        self._call("toggle_server", index)
+
+    def toggle_plugin(self, index: int) -> None:
+        self._call("toggle_plugin", index)
+
+    def toggle_setting(self, index: int) -> str:
+        return self._call("toggle_setting", index)
+
+    def shutdown(self) -> None:
+        self._call("shutdown")
