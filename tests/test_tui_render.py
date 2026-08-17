@@ -144,11 +144,20 @@ class ScreenBuilderTests(unittest.TestCase):
         self.assertIn("MAPPER", text)
 
     def test_settings_screen_marks_the_selected_row(self) -> None:
-        settings = [{"label": "Start at login", "enabled": True}]
+        settings = [
+            {"label": "Start at login", "enabled": True},
+            {
+                "label": "Terminal command",
+                "enabled": True,
+                "detail": "Pridge_client",
+                "action": "install_terminal_command",
+            },
+        ]
         lines = t.settings_screen(100, settings, 0)
         text = "\n".join(lines)
         self.assertIn("Start at login", text)
         self.assertIn("enabled", text)
+        self.assertIn("Pridge_client", text)
         self.assertNotIn("WebGUI", text)
 
     def test_about_screen_includes_version_and_build(self) -> None:
