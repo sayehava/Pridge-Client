@@ -396,15 +396,20 @@ def plugins_screen(width: int, plugins: list[dict], selected: int) -> list[str]:
 
 
 def settings_screen(width: int, settings: list[dict], selected: int) -> list[str]:
-    def toggle_row(index: int, label: str, enabled: bool) -> str:
+    def setting_row(index: int, item: dict) -> str:
         marker = f"{ACCENT}▸{RESET} " if index == selected else "  "
+        if item.get("action"):
+            detail = item.get("detail", "not installed")
+            return f"{marker}{MUTED}{pad(item['label'], 20)}{RESET} {ACCENT}◆{RESET} {detail}"
+        label = item["label"]
+        enabled = item["enabled"]
         dot = f"{SUCCESS}●{RESET}" if enabled else f"{DIM_MUTED}○{RESET}"
         state = f"{SUCCESS}enabled{RESET}" if enabled else f"{DIM_MUTED}disabled{RESET}"
         return f"{marker}{MUTED}{pad(label, 20)}{RESET} {dot} {state}"
 
     divider = f"{BORDER}{'─' * max(0, width - 4)}{RESET}"
 
-    rows = [toggle_row(i, item["label"], item["enabled"]) for i, item in enumerate(settings)]
+    rows = [setting_row(i, item) for i, item in enumerate(settings)]
     rows.extend(
         [
             "",
@@ -412,7 +417,7 @@ def settings_screen(width: int, settings: list[dict], selected: int) -> list[str
             "",
             f"{DIM_MUTED}SHORTCUTS — THIS VIEW{RESET}",
             f"{chip('1-6', 'screen')}  {chip('⏎', 'next')}  {chip('⌫', 'back')}  "
-            f"{chip('␣', 'toggle')}  {chip('d', 'detach')}  {chip('q', 'quit')}",
+            f"{chip('␣', 'toggle / install')}  {chip('d', 'detach')}  {chip('q', 'quit')}",
             f"{DIM_MUTED}Detach returns to the terminal while the print service keeps running.{RESET}",
         ]
     )
