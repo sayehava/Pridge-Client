@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileComment: Additional terms apply; see ADDITIONAL_TERMS.md.
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -40,6 +41,7 @@ class _FakeController:
         return f"setting {index}"
 
 
+@unittest.skipUnless(os.name == "posix", "TUI service requires POSIX Unix sockets")
 class TuiServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory(dir="/private/tmp")
