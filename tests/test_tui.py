@@ -13,7 +13,7 @@ from pridge_client.archive import ArchiveStore
 from pridge_client.config import ClientConfig, ConfigStore, PrinterMapping, PrinterProfile, ServerConfig
 from pridge_client.printers import Printer, PrinterError
 from pridge_client.renderers.registry import RendererRegistry
-from pridge_client.tui import TuiController, _detach_and_exit, _draw, _list_length
+from pridge_client.tui import TuiController, _draw, _exit_action_for_key, _list_length, _start_background_service
 
 
 class FakePlugin:
@@ -236,15 +236,20 @@ class DrawResilienceTests(TuiControllerTestCase):
 
 class DetachTests(unittest.TestCase):
     @patch("pridge_client.tui.subprocess.Popen")
+    @patch("pridge_client.tui.independent_child_environment", return_value={"FROZEN": "fresh"})
     @patch("pridge_client.tui.command", return_value=["fake-exe", "--headless"])
-    def test_spawns_a_detached_headless_child(self, fake_command, popen) -> None:
-        _detach_and_exit()
+    def test_spawns_a_detached_headless_child(self, fake_command, _environment, popen) -> None:
+        popen.return_value.poll.return_value = None
 
+        started = _start_background_service()
+
+        self.assertTrue(started)
         fake_command.assert_called_once_with("--headless")
         popen.assert_called_once()
         args, kwargs = popen.call_args
         self.assertEqual(args[0], ["fake-exe", "--headless"])
         self.assertTrue(kwargs["start_new_session"])
+        self.assertEqual(kwargs["env"], {"FROZEN": "fresh"})
         # Not just detached from the process group - also disconnected from
         # this session's actual terminal, or the terminal (and, over SSH,
         # the connection) never really gets released.
@@ -254,8 +259,13 @@ class DetachTests(unittest.TestCase):
 
     @patch("pridge_client.tui.subprocess.Popen", side_effect=OSError("no more processes"))
     @patch("pridge_client.tui.command", return_value=["fake-exe", "--headless"])
-    def test_a_spawn_failure_is_logged_not_raised(self, _fake_command, _popen) -> None:
-        _detach_and_exit()  # must not raise
+    def test_a_spawn_failure_keeps_the_tui_running(self, _fake_command, _popen) -> None:
+        self.assertFalse(_start_background_service())
+
+    def test_q_quits_while_d_and_escape_detach(self) -> None:
+        self.assertEqual(_exit_action_for_key("q"), "quit")
+        self.assertEqual(_exit_action_for_key("d"), "detach")
+        self.assertEqual(_exit_action_for_key("ESC"), "detach")
 
 
 if __name__ == "__main__":
