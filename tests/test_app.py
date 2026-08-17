@@ -61,6 +61,39 @@ class ApplicationStartupTests(unittest.TestCase):
 
         run_service.assert_called_once_with()
 
+    @patch("pridge_client.app.show_headless_address")
+    @patch("pridge_client.app.signal.signal")
+    @patch("pridge_client.app.sys.platform", "win32")
+    def test_windows_headless_starts_and_announces_browser_gui(self, _signal, announce):
+        api = Mock(config=Mock(web_gui_port=9012, web_gui_enabled=False))
+        controller = Mock()
+        browser_instances = []
+
+        class FakeBrowser:
+            def __init__(self, _api, port, on_stop):
+                self.port = port
+                self.on_stop = on_stop
+                self.closed = False
+                browser_instances.append(self)
+
+            def start(self):
+                self.on_stop()
+                return "http://127.0.0.1:9012"
+
+            def close(self):
+                self.closed = True
+
+        with patch("pridge_client.gui.ClientApi", return_value=api), patch(
+            "pridge_client.headless_tui.HeadlessTuiController", return_value=controller
+        ), patch("pridge_client.web_gui.BrowserGuiServer", FakeBrowser):
+            app._run_headless_service()
+
+        controller.start.assert_called_once_with()
+        controller.stop_all.assert_called_once_with()
+        announce.assert_called_once_with(app.APP_NAME, "http://127.0.0.1:9012")
+        self.assertEqual(browser_instances[0].port, 9012)
+        self.assertTrue(browser_instances[0].closed)
+
 
 class SupervisorHandoffTests(unittest.TestCase):
     @patch("pridge_client.gui.run_gui")
