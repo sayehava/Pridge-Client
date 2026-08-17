@@ -34,9 +34,11 @@ class _RecordingPopenFactory:
     def __init__(self, exit_codes: list[int]) -> None:
         self._exit_codes = list(exit_codes)
         self.calls: list[list[str]] = []
+        self.environments = []
 
-    def __call__(self, command, *_args, **_kwargs):
+    def __call__(self, command, *_args, **kwargs):
         self.calls.append(list(command))
+        self.environments.append(kwargs.get("env"))
         return _FakeProcess(self._exit_codes.pop(0))
 
 
@@ -84,11 +86,14 @@ class RunSupervisedTests(unittest.TestCase):
         factory = _RecordingPopenFactory([0])
         with patch("pridge_client.supervisor.subprocess.Popen", factory), patch(
             "pridge_client.supervisor.command", return_value=["fake-exe"]
+        ), patch(
+            "pridge_client.supervisor.independent_child_environment", return_value={"FROZEN": "fresh"}
         ):
             exit_code = run_supervised(["--headless"])
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(factory.calls, [["fake-exe", "--headless"]])
+        self.assertEqual(factory.environments, [{"FROZEN": "fresh"}])
 
     def test_gives_up_after_repeated_rapid_crashes(self) -> None:
         factory = _RecordingPopenFactory([1, 1, 1])
