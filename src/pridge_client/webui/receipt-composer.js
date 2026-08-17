@@ -1001,10 +1001,15 @@
     };
 
     const removeImage = (imageId, name) => {
-      if (!window.confirm(S.receipt_remove_image_confirm.replace("{name}", name))) return;
-      callApi("remove_receipt_image", imageId).then((result) => {
+      const remove = () => callApi("remove_receipt_image", imageId).then((result) => {
         if (result && result.ok) setImages(result.images);
       });
+      const prompt = S.receipt_remove_image_confirm.replace("{name}", name);
+      if (window.PridgeBrowserConfirm) {
+        window.PridgeBrowserConfirm(prompt).then((confirmed) => confirmed && remove());
+      } else if (window.confirm(prompt)) {
+        remove();
+      }
     };
 
     const addCounter = () => {
@@ -1025,26 +1030,35 @@
 
     const resetCounter = (key, label) => {
       if (!selectedMapping) return;
-      const input = window.prompt(S.receipt_reset_counter_prompt.replace("{name}", label || key), "0");
-      if (input === null) return;
-      const value = parseInt(input, 10);
-      callApi(
-        "reset_receipt_counter",
-        selectedMapping.serverId,
-        selectedMapping.remotePrinterId,
-        key,
-        Number.isFinite(value) ? value : 0
-      ).then((result) => {
-        if (result && result.ok) setCounters(result.counters);
-      });
+      const reset = (input) => {
+        if (input === null) return;
+        const value = parseInt(input, 10);
+        callApi(
+          "reset_receipt_counter",
+          selectedMapping.serverId,
+          selectedMapping.remotePrinterId,
+          key,
+          Number.isFinite(value) ? value : 0
+        ).then((result) => {
+          if (result && result.ok) setCounters(result.counters);
+        });
+      };
+      const prompt = S.receipt_reset_counter_prompt.replace("{name}", label || key);
+      if (window.PridgeBrowserPrompt) window.PridgeBrowserPrompt(prompt, "0").then(reset);
+      else reset(window.prompt(prompt, "0"));
     };
 
     const removeCounter = (key, label) => {
       if (!selectedMapping) return;
-      if (!window.confirm(S.receipt_remove_counter_confirm.replace("{name}", label || key))) return;
-      callApi("remove_receipt_counter", selectedMapping.serverId, selectedMapping.remotePrinterId, key).then((result) => {
+      const remove = () => callApi("remove_receipt_counter", selectedMapping.serverId, selectedMapping.remotePrinterId, key).then((result) => {
         if (result && result.ok) setCounters(result.counters);
       });
+      const prompt = S.receipt_remove_counter_confirm.replace("{name}", label || key);
+      if (window.PridgeBrowserConfirm) {
+        window.PridgeBrowserConfirm(prompt).then((confirmed) => confirmed && remove());
+      } else if (window.confirm(prompt)) {
+        remove();
+      }
     };
 
     const defaultCounterValue = (counters.__default__ && counters.__default__.value) || 0;
