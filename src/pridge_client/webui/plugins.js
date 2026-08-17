@@ -85,12 +85,17 @@
     };
 
     const removePlugin = (pluginId, name) => {
-      if (!window.confirm(S.plugin_remove_confirm.replace("{name}", name))) return;
-      callApi("remove_plugin", pluginId).then((result) => {
+      const remove = () => callApi("remove_plugin", pluginId).then((result) => {
         if (!result) return;
         if (result.plugins) setPlugins(result.plugins);
         setMessage(result.ok ? (result.message || S.plugin_removed) : (result.error || S.plugin_remove_failed));
       });
+      const prompt = S.plugin_remove_confirm.replace("{name}", name);
+      if (window.PridgeBrowserConfirm) {
+        window.PridgeBrowserConfirm(prompt).then((confirmed) => confirmed && remove());
+      } else if (window.confirm(prompt)) {
+        remove();
+      }
     };
 
     const rescanPlugins = () => {
