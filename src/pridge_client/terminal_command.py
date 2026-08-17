@@ -72,6 +72,9 @@ def install_terminal_command(
     target.chmod(0o755)
     config_dir.mkdir(parents=True, exist_ok=True)
     (config_dir / "tui-command.json").write_text(json.dumps({"name": name}) + "\n", encoding="utf-8")
+    if str(bin_dir) not in environment.get("PATH", "").split(os.pathsep):
+        profile = _shell_profile(home, environment.get("SHELL", ""))
+        _ensure_user_bin_on_path(profile)
     return f"Installed {name}. Open a new terminal, then run {name}."
 
 
@@ -84,3 +87,20 @@ def _wrapper_content() -> str:
     lines.append(f'exec {launch} "$@"')
     return "\n".join(lines) + "\n"
 
+
+def _shell_profile(home: Path, shell: str) -> Path:
+    shell_name = Path(shell).name
+    if shell_name == "zsh":
+        return home / ".zshrc"
+    if shell_name == "bash":
+        return home / ".bashrc"
+    return home / ".profile"
+
+
+def _ensure_user_bin_on_path(profile: Path) -> None:
+    path_line = 'export PATH="$HOME/.local/bin:$PATH"'
+    existing = profile.read_text(encoding="utf-8") if profile.exists() else ""
+    if path_line in existing:
+        return
+    separator = "" if not existing or existing.endswith("\n") else "\n"
+    profile.write_text(existing + separator + f"\n{MANAGED_MARKER}\n{path_line}\n", encoding="utf-8")
