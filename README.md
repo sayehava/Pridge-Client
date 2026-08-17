@@ -42,7 +42,9 @@ Run the interactive terminal dashboard on macOS or Linux:
 python3 -m pridge_client --tui
 ```
 
-Press `d` or `Esc` to detach the dashboard and keep the print service running in the background. Press `q` or `Ctrl-C` to stop the client.
+Press `d` or `Esc` to detach the dashboard and keep the print service running in the background. Run the same TUI command later to reconnect to that service. Press `q` or `Ctrl-C` to stop the client and its background service.
+
+The TUI Settings screen can install a custom terminal command such as `Pridge_client`. Select `Terminal command`, press Space, and enter the name you want. The installer creates a user-level command in `~/.local/bin` that always opens or reconnects to the TUI, adds that directory to the appropriate shell profile, and works with both packaged and Python source builds. Open a new terminal after installation, then run the chosen name without `--tui`. Launching the desktop application normally still opens the full GUI.
 
 Show the installed version:
 
