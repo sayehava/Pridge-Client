@@ -58,19 +58,29 @@ flowchart LR
     class WB,PB purple
 ```
 
-Open the settings window:
+### 🪟 Windows
 
-```bash
-python3 -m pridge_client
-```
+#### 🟦 Desktop GUI
 
-Run in background/headless mode:
+Open **Pridge Client** from the Start menu or double-click the application. From PowerShell, use the command that matches your installation:
 
-```bash
-python3 -m pridge_client --headless
-```
+| Installation | Command |
+| --- | --- |
+| Installed application | `& "$env:ProgramFiles\Pridge Client\Pridge Client.exe"` |
+| Portable application | `& ".\Pridge Client.exe"` |
+| Python package | `py -m pridge_client` |
 
-On Windows, headless mode automatically starts a Browser GUI and shows its exact local address, normally `http://127.0.0.1:8765`. The address is also printed and logged. Change the preferred port under Settings > Startup; a running Browser GUI reconnects immediately. If the requested port is occupied, the client selects a free loopback port and reports the address it actually opened. The server accepts connections only from the same computer.
+#### 🟨 Headless + 🟪 Browser GUI
+
+| Installation | PowerShell command |
+| --- | --- |
+| Installed application | `Start-Process "$env:ProgramFiles\Pridge Client\Pridge Client.exe" -ArgumentList "--headless"` |
+| Portable application | `Start-Process ".\Pridge Client.exe" -ArgumentList "--headless"` |
+| Python package | `py -m pridge_client --headless` |
+
+Windows starts the Browser GUI automatically in headless mode and reports its exact local address, normally `http://127.0.0.1:8765`. Open that address in any browser on the same computer. Use **Quit** in the Browser GUI to stop the service.
+
+> 🚫 The terminal TUI is not available on Windows. Headless Windows users manage the app through the Browser GUI instead.
 
 Run the interactive terminal dashboard on macOS or Linux:
 
