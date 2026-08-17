@@ -78,7 +78,7 @@ class ApplicationStartupTests(unittest.TestCase):
 
             def start(self):
                 self.on_stop()
-                return "http://127.0.0.1:9012"
+                return f"http://127.0.0.1:{self.port}"
 
             def close(self):
                 self.closed = True
@@ -93,6 +93,13 @@ class ApplicationStartupTests(unittest.TestCase):
         announce.assert_called_once_with(app.APP_NAME, "http://127.0.0.1:9012")
         self.assertEqual(browser_instances[0].port, 9012)
         self.assertTrue(browser_instances[0].closed)
+
+        port_handler = api.set_browser_port_change_handler.call_args.args[0]
+        rebound_url = port_handler(9345)
+
+        self.assertEqual(rebound_url, "http://127.0.0.1:9345")
+        self.assertEqual(browser_instances[1].port, 9345)
+        browser_instances[1].close()
 
 
 class SupervisorHandoffTests(unittest.TestCase):
