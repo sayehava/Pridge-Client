@@ -431,6 +431,15 @@ class ClientApi:
         server_id, remote_printer_id = pending or ("", "")
         return {"ok": True, "error": None, "server_id": server_id, "remote_printer_id": remote_printer_id}
 
+    def set_pending_receipt_selection(self, server_id: str, remote_printer_id: str) -> dict:
+        server_id = str(server_id).strip()
+        remote_printer_id = str(remote_printer_id).strip()
+        _server, mapping = self._find_mapping(server_id, remote_printer_id)
+        if mapping is None:
+            return self._error("The selected printer mapping was not found.")
+        self._pending_receipt_selection = (server_id, remote_printer_id)
+        return self._ok()
+
     def open_plugin_settings_window(self, settings_window: str) -> dict:
         openers = {
             "app_mapping": self.open_app_mapping_window,
