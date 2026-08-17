@@ -75,6 +75,8 @@ window.PridgeStrings = Object.freeze({
   start_polling_on_launch: "Start polling on launch",
   start_at_login: "Start at login",
   restart_on_crash: "Restart automatically if the app crashes",
+  browser_gui_port: "Browser GUI port",
+  browser_gui_port_hint: "Changing this reconnects the Browser GUI. If the port is busy, Pridge selects a free port.",
   connection_status: "Connection Status",
   heartbeat: "Heartbeat",
   save: "Save",
