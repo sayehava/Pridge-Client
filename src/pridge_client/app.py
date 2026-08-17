@@ -5,6 +5,7 @@
 import argparse
 import logging
 import signal
+import sys
 import threading
 
 from pridge_client.config import ClientTokenStore, ConfigStore, ClientConfig, ServerConfig
@@ -44,13 +45,21 @@ def main() -> None:
 
     if args.tui:
         from pridge_client.tui import TuiController, run_tui
+        from pridge_client.tui_ipc import RemoteTuiController
 
-        controller = TuiController()
-        controller.start()
-        run_tui(controller)
+        remote_controller = RemoteTuiController.connect()
+        if remote_controller is not None:
+            run_tui(remote_controller, attached_to_service=True)
+        else:
+            controller = TuiController()
+            controller.start()
+            run_tui(controller)
         return
 
     if args.headless:
+        if sys.platform != "win32":
+            _run_headless_service()
+            return
         token_store = ClientTokenStore()
         workers = [
             PollingWorker(_runtime_config(config, server), token_store.get(server.id))
@@ -82,6 +91,32 @@ def main() -> None:
         if not args.gui_smoke_test:
             show_startup_error(APP_NAME, MESSAGE_GUI_STARTUP_FAILED)
         raise SystemExit(1)
+
+
+def _run_headless_service() -> None:
+    from pridge_client.tui import TuiController
+    from pridge_client.tui_service import TuiServiceAlreadyRunning, TuiServiceServer
+
+    controller = TuiController()
+    server = TuiServiceServer(controller)
+    stop_event = threading.Event()
+
+    def stop(_signum: int, _frame: object) -> None:
+        stop_event.set()
+
+    signal.signal(signal.SIGINT, stop)
+    signal.signal(signal.SIGTERM, stop)
+    try:
+        server.open()
+    except TuiServiceAlreadyRunning:
+        logger.info("The headless service is already running")
+        return
+    try:
+        controller.start()
+        server.serve(stop_event)
+    finally:
+        server.close()
+        controller.stop_all()
 
 
 def _runtime_config(config: ClientConfig, server: ServerConfig) -> ClientConfig:
