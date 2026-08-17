@@ -53,6 +53,19 @@
     return html`<span class=${active ? "badge badge-active" : "badge"}>${text}</span>`;
   }
 
+  function BrowserUtilityModal({ page, onClose }) {
+    return html`
+      <div class="browser-modal-backdrop" role="presentation" onMouseDown=${(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}>
+        <section class="browser-modal" role="dialog" aria-modal="true">
+          <button class="browser-modal-close" type="button" aria-label="Close" onClick=${onClose}>×</button>
+          <iframe class="browser-modal-frame" src=${page} title="Pridge Client"></iframe>
+        </section>
+      </div>
+    `;
+  }
+
   function Sidebar({ state, onPlugins, onServers, onPrinters, onHistory, onSettings, onAbout, onQuit }) {
     return html`
       <div class="sidebar">
@@ -763,6 +776,7 @@
   function App() {
     const [state, setState] = useState(null);
     const [error, setError] = useState(null);
+    const [browserModals, setBrowserModals] = useState([]);
     const stateSignature = useRef("");
     const readyNotified = useRef(false);
 
@@ -801,6 +815,21 @@
       }
     }, [state]);
 
+    useEffect(() => {
+      if (!window.PridgeBrowserMode) return undefined;
+      const receiveModal = (event) => {
+        const message = event.data;
+        if (event.origin !== window.location.origin || !message || message.source !== "pridge-browser") return;
+        const page = String(message.page || "");
+        if (message.action === "open" && !/^(about|app-mapping|history|plugins|printers|receipt-composer|server|servers|settings)\.html(?:\?[^#]*)?$/.test(page)) return;
+        setBrowserModals((current) => message.action === "open"
+          ? [...current, page]
+          : current.slice(0, -1));
+      };
+      window.addEventListener("message", receiveModal);
+      return () => window.removeEventListener("message", receiveModal);
+    }, []);
+
     if (!state) {
       return html`<div class="loading">${S.loading}</div>`;
     }
@@ -833,6 +862,12 @@
           />
         </div>
         ${error ? html`<div class="toast">${error}</div>` : null}
+        ${browserModals.length
+          ? html`<${BrowserUtilityModal}
+              page=${browserModals[browserModals.length - 1]}
+              onClose=${() => setBrowserModals((current) => current.slice(0, -1))}
+            />`
+          : null}
       </div>
     `;
   }
