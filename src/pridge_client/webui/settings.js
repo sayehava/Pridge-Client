@@ -115,6 +115,7 @@
             start_polling_on_launch: result.state.start_polling_on_launch,
             start_at_login: result.state.start_at_login,
             restart_on_crash: result.state.restart_on_crash,
+            web_gui_port: result.state.browser_gui.port,
             darkness_grade: result.state.appearance.darkness_grade,
             log_file_enabled: result.state.logging.file_enabled,
             log_retention_days: result.state.logging.retention_days,
@@ -139,6 +140,10 @@
       setMessage(S.saving_settings);
       callApi("update_application_settings", next).then((result) => {
         if (!result || sequence !== saveSequence.current) return;
+        if (result.browser_gui_url && window.PridgeBrowserMode) {
+          window.top.location.assign(result.browser_gui_url);
+          return;
+        }
         setMessage(result.ok ? S.settings_saved_automatically : (result.error || S.save_failed));
       });
     };
@@ -271,6 +276,18 @@
             <div class="setting-row">
               <div class="setting-copy"><strong>${S.restart_on_crash}</strong></div>
               <input class="setting-check" type="checkbox" checked=${form.restart_on_crash} onChange=${(event) => change("restart_on_crash", event.target.checked)} />
+            </div>
+            <div class="setting-row">
+              <div class="setting-copy"><strong>${S.browser_gui_port}</strong><small>${S.browser_gui_port_hint}</small></div>
+              <input
+                type="number"
+                min="1"
+                max="65535"
+                value=${form.web_gui_port}
+                onInput=${(event) => setForm((current) => ({ ...current, web_gui_port: event.target.value }))}
+                onBlur=${(event) => change("web_gui_port", parseInt(event.target.value, 10) || 8765)}
+                onKeyDown=${(event) => event.key === "Enter" && event.currentTarget.blur()}
+              />
             </div>
           </section>
           <section class="settings-section">
