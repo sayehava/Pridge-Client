@@ -81,6 +81,24 @@ class ConfigStoreTests(unittest.TestCase):
 
         self.assertFalse(config.restart_on_crash)
 
+    def test_browser_gui_defaults_to_disabled_on_port_8765(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = ConfigStore(Path(directory) / "config.json").load()
+
+        self.assertFalse(config.web_gui_enabled)
+        self.assertEqual(config.web_gui_port, 8765)
+
+    def test_saves_and_loads_browser_gui_preferences(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            store = ConfigStore(path)
+            store.save(ClientConfig(web_gui_enabled=True, web_gui_port=9123))
+
+            config = store.load()
+
+        self.assertTrue(config.web_gui_enabled)
+        self.assertEqual(config.web_gui_port, 9123)
+
     def test_malformed_dashboard_widgets_fall_back_to_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.json"
