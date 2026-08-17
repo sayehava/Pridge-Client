@@ -85,6 +85,23 @@ class BrowserGuiServerTests(unittest.TestCase):
             finally:
                 fallback.close()
 
+    def test_port_update_response_survives_a_live_server_rebind(self) -> None:
+        old_server = self.server
+
+        def update_settings(fields: dict) -> dict:
+            old_server.close()
+            self.server = BrowserGuiServer(self.api, int(fields["web_gui_port"]))
+            new_url = self.server.start()
+            return {"ok": True, "browser_gui_url": new_url}
+
+        self.api.update_application_settings = update_settings
+        result = self._rpc("update_application_settings", [{"web_gui_port": 0}])
+
+        self.assertTrue(result["ok"])
+        self.assertNotEqual(result["browser_gui_url"], self.url)
+        with urlopen(result["browser_gui_url"]) as response:
+            self.assertEqual(response.status, 200)
+
     def _rpc(self, method: str, args: list | None = None) -> dict:
         request = Request(
             self.url + "/api/rpc",
