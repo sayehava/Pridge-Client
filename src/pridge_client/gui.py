@@ -1551,24 +1551,6 @@ class ClientApi:
         except PrinterError as exc:
             log_detailed_error(f"Reprint failed for job {archived.job_id}", exc)
             return self._error(str(exc))
-        self.archive_store.record_job(
-            archived.job_id,
-            archived.printer_name,
-            "reprinted",
-            archived.payload,
-            mode=archived.mode,
-            driver_settings=archived.driver_settings,
-            content_type=archived.content_type,
-            filename=archived.filename,
-            submission_method=archived.submission_method,
-            explicit_renderer=archived.explicit_renderer,
-            fit_mode=archived.fit_mode,
-            raw_template=archived.raw_template,
-            raw_paper_width_dots=archived.raw_paper_width_dots,
-            raw_chars_per_line=archived.raw_chars_per_line,
-            receipt_scope_key=archived.receipt_scope_key,
-            copies=archived.copies,
-        )
         return {"ok": True, "error": None, "message": MESSAGE_REPRINT_SUBMITTED, "state": self._build_state()}
 
     def clear_archive(self) -> dict:
