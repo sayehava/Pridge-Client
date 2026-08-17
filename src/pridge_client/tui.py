@@ -10,12 +10,10 @@ PrinterManager/ArchiveStore objects --headless already builds, and turns
 them into the plain data structures tui_render.py's pure rendering
 functions expect.
 
-Exiting the view (q/Esc, Ctrl-C, or losing the terminal via SIGHUP) does
-not stop the print service: run_tui spawns a brand-new detached --headless
-child process and stops this process's own in-process workers, so the
-service keeps running independently of the terminal session. There is no
-live reattach yet - running --tui again later starts a separate instance,
-not a reconnect to the detached one.
+Pressing d or Esc, or losing the terminal via SIGHUP, starts a detached
+--headless process before this view exits. Pressing q or Ctrl-C stops the
+client. There is no live reattach yet: running --tui again later starts a
+separate instance, not a reconnect to the detached one.
 
 POSIX only for now (termios/tty-based raw terminal handling has no direct
 Windows equivalent) - run_tui refuses to start on Windows with a clear
@@ -36,7 +34,7 @@ from datetime import datetime, timezone
 
 from pridge_client import tui_render
 from pridge_client.archive import ArchiveStore
-from pridge_client.autostart import AutoStartError, command, set_start_at_login
+from pridge_client.autostart import AutoStartError, command, independent_child_environment, set_start_at_login
 from pridge_client.build_info import BUILD_SYSTEM, BUILD_VARIANT
 from pridge_client.config import ClientConfig, ClientTokenStore, ConfigStore, ServerConfig
 from pridge_client.printers import PrinterError, PrinterManager
@@ -320,34 +318,34 @@ def _draw(controller: TuiController, screen_name: str, selection: dict, width: i
     sys.stdout.flush()
 
 
-def _detach_and_exit() -> None:
-    """Spawns a brand-new detached --headless process so the print service
-    survives past this session, then this process's own workers are the
-    caller's responsibility to stop (see run_tui's finally block).
-
-    Not a fork of this process: PollingWorker's background threads would
-    not survive a POSIX fork (only the calling thread continues in the
-    child), so a fresh headless child - the same mechanism the crash
-    watchdog in supervisor.py already uses - is the correct approach here,
-    not just a simpler one.
-    """
+def _start_background_service() -> bool:
+    """Start a detached headless instance before the TUI process exits."""
     child_command = command("--headless")
     try:
         with open(os.devnull, "rb") as devnull_in, open(os.devnull, "ab") as devnull_out:
-            # start_new_session alone only detaches the process/session
-            # group - without also redirecting these away from the
-            # controlling terminal, the child inherits this session's
-            # stdin/stdout/stderr and keeps the terminal (and, over SSH,
-            # the connection) from ever really being released.
-            subprocess.Popen(
+            process = subprocess.Popen(
                 child_command,
                 start_new_session=True,
                 stdin=devnull_in,
                 stdout=devnull_out,
                 stderr=devnull_out,
+                env=independent_child_environment(),
             )
     except OSError as exc:
         logger.warning("Could not spawn a detached headless process: %s", exc)
+        return False
+    if process.poll() is not None:
+        logger.warning("The detached headless process exited during startup")
+        return False
+    return True
+
+
+def _exit_action_for_key(key: str | None) -> str | None:
+    if key == "q":
+        return "quit"
+    if key in ("d", "ESC"):
+        return "detach"
+    return None
 
 
 def _read_key(fd: int) -> str | None:
@@ -394,16 +392,20 @@ def run_tui(controller: TuiController) -> None:
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
     resized = {"flag": True}
-    detaching = {"flag": False}
+    exit_action = {"value": None}
+    background_started = False
 
     def request_detach(_signum=None, _frame=None) -> None:
-        detaching["flag"] = True
+        exit_action["value"] = "detach"
+
+    def request_quit(_signum=None, _frame=None) -> None:
+        exit_action["value"] = "quit"
 
     def on_resize(_signum, _frame) -> None:
         resized["flag"] = True
 
     signal.signal(signal.SIGWINCH, on_resize)
-    signal.signal(signal.SIGINT, request_detach)
+    signal.signal(signal.SIGINT, request_quit)
     signal.signal(signal.SIGHUP, request_detach)
 
     screen_name = "Dashboard"
@@ -422,7 +424,7 @@ def run_tui(controller: TuiController) -> None:
             os.read(fd, 1)
 
         last_render = 0.0
-        while not detaching["flag"]:
+        while exit_action["value"] is None:
             width, height = shutil.get_terminal_size(fallback=(80, 24))
             now = time.monotonic()
             if resized["flag"] or now - last_render >= REFRESH_INTERVAL_SECONDS:
@@ -432,13 +434,21 @@ def run_tui(controller: TuiController) -> None:
                 message = ""
 
             key = _read_key(fd)
-            if detaching["flag"]:
+            if exit_action["value"] is not None:
                 break
             if key is None:
                 continue
-            if key in ("q", "ESC"):
-                detaching["flag"] = True
+            requested_action = _exit_action_for_key(key)
+            if requested_action == "quit":
+                exit_action["value"] = "quit"
                 break
+            if requested_action == "detach":
+                background_started = _start_background_service()
+                if background_started:
+                    exit_action["value"] = "detach"
+                    break
+                message = "Could not start the background service. The client is still running."
+                continue
             if key in "123456":
                 screen_name = tui_render.SCREENS[int(key) - 1]
             elif key in ("\r", "\n", "DOWN") and _list_length(controller, screen_name) > 0:
@@ -459,9 +469,16 @@ def run_tui(controller: TuiController) -> None:
             width, height = shutil.get_terminal_size(fallback=(80, 24))
             _draw(controller, screen_name, selection, width, height, message)
     finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-        sys.stdout.write(tui_render.SHOW_CURSOR + tui_render.RESET + tui_render.CLEAR_SCREEN)
-        sys.stdout.flush()
-        _detach_and_exit()
+        try:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            sys.stdout.write(tui_render.SHOW_CURSOR + tui_render.RESET + tui_render.CLEAR_SCREEN)
+            sys.stdout.flush()
+        except OSError:
+            logger.debug("The terminal closed before its TUI state could be restored")
+        if exit_action["value"] == "detach" and not background_started:
+            background_started = _start_background_service()
         controller.stop_all()
-        print(f"{tui_render.DIM_MUTED}Exited the view — Pridge Client keeps running in the background.{tui_render.RESET}")
+        if exit_action["value"] == "detach" and background_started:
+            print(f"{tui_render.DIM_MUTED}Pridge Client is running in the background.{tui_render.RESET}")
+        else:
+            print(f"{tui_render.DIM_MUTED}Pridge Client stopped.{tui_render.RESET}")
