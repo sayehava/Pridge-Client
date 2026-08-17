@@ -28,7 +28,8 @@ RPC_METHODS = frozenset(
     test_mapping_receipt_design get_receipt_counters add_receipt_counter reset_receipt_counter
     remove_receipt_counter preview_receipt_template reorder_renderer_plugin clear_logs
     clear_error_log start_workers start_server stop_server stop_workers quit_application
-    list_archived_jobs preview_archived_job reprint_job clear_archive get_pending_receipt_selection""".split()
+    list_archived_jobs preview_archived_job reprint_job clear_archive get_pending_receipt_selection
+    set_pending_receipt_selection""".split()
 )
 
 
