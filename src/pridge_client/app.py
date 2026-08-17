@@ -37,11 +37,10 @@ def main() -> None:
     configure_logging(config)
     logger.info("%s %s starting", APP_NAME, __version__)
 
-    if config.restart_on_crash and not args.supervised_child and not args.gui_smoke_test and not args.tui:
+    if args.headless and config.restart_on_crash and not args.supervised_child:
         from pridge_client.supervisor import run_supervised
 
-        extra_args = ["--headless"] if args.headless else []
-        raise SystemExit(run_supervised(extra_args))
+        raise SystemExit(run_supervised(["--headless"]))
 
     if args.tui:
         from pridge_client.tui import TuiController, run_tui
