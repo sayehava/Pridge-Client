@@ -44,6 +44,13 @@ def command(*extra_args: str) -> list[str]:
     return [sys.executable, *extra_args]
 
 
+def independent_child_environment() -> dict[str, str]:
+    """Return an environment for a new long-lived application instance."""
+    environment = os.environ.copy()
+    environment["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    return environment
+
+
 def _set_macos_launch_agent(enabled: bool) -> None:
     directory = Path.home() / "Library" / "LaunchAgents"
     path = directory / f"{APP_ID}.plist"
