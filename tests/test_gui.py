@@ -697,6 +697,19 @@ class ClientApiTests(unittest.TestCase):
         self.assertFalse(result["state"]["restart_on_crash"])
         self.assertFalse(self.api.config_store.load().restart_on_crash)
 
+    @patch("pridge_client.gui.set_start_at_login")
+    def test_updates_browser_gui_port_and_requests_a_live_rebind(self, _set_start_at_login):
+        rebind = Mock(return_value="http://127.0.0.1:9123")
+        self.api.set_browser_port_change_handler(rebind)
+
+        result = self.api.update_application_settings({"web_gui_port": 9123})
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["state"]["browser_gui"]["port"], 9123)
+        self.assertEqual(result["browser_gui_url"], "http://127.0.0.1:9123")
+        self.assertEqual(self.api.config_store.load().web_gui_port, 9123)
+        rebind.assert_called_once_with(9123)
+
     def test_exports_the_current_run_log_to_a_chosen_destination(self):
         log_dir = Path(self.temporary_directory.name) / "logs"
         log_dir.mkdir()
