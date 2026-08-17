@@ -11,7 +11,7 @@ import platform
 import queue
 import sys
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from logging import Handler, LogRecord
 from pathlib import Path
@@ -189,6 +189,7 @@ class ClientApi:
         self.gui_smoke_test = gui_smoke_test
         self.gui_ready = Event()
         self._pending_receipt_selection: tuple[str, str] | None = None
+        self._browser_port_change: Callable[[int], str] | None = None
 
         self.selected_server_id = self.config.servers[0].id if self.config.servers else ""
         self.selected_printer = self.config.selected_printer
@@ -887,6 +888,9 @@ class ClientApi:
         self.start_at_login = bool(value)
         return self._ok()
 
+    def set_browser_port_change_handler(self, handler: Callable[[int], str]) -> None:
+        self._browser_port_change = handler
+
     def save_settings(self) -> dict:
         self.config = self._current_config()
         self.config_store.save(self.config)
@@ -901,6 +905,9 @@ class ClientApi:
         self.start_polling_on_launch = bool(fields.get("start_polling_on_launch", self.start_polling_on_launch))
         self.start_at_login = bool(fields.get("start_at_login", self.start_at_login))
         self.restart_on_crash = bool(fields.get("restart_on_crash", self.restart_on_crash))
+        previous_browser_port = self.config.web_gui_port
+        if "web_gui_port" in fields:
+            self.config.web_gui_port = self._safe_int(fields["web_gui_port"], previous_browser_port, 1, 65535)
         darkness_grade = str(fields.get("darkness_grade", self.config.appearance.darkness_grade)).strip().title()
         if darkness_grade in DARKNESS_GRADES:
             self.config.appearance.darkness_grade = darkness_grade
@@ -941,13 +948,16 @@ class ClientApi:
             configure_logging(self.config)
             self._install_log_handler()
         logger.info(MESSAGE_SETTINGS_SAVED)
-        return {
+        result = {
             "ok": True,
             "error": None,
             "message": MESSAGE_SETTINGS_SAVED,
             "restart_required": False,
             "state": self._build_state(),
         }
+        if self.config.web_gui_port != previous_browser_port and self._browser_port_change is not None:
+            result["browser_gui_url"] = self._browser_port_change(self.config.web_gui_port)
+        return result
 
     def get_renderer_plugins(self) -> dict:
         entries = self.printer_manager.renderer_registry.all_entries()
@@ -1624,6 +1634,10 @@ class ClientApi:
             "start_polling_on_launch": self.start_polling_on_launch,
             "start_at_login": self.start_at_login,
             "restart_on_crash": self.restart_on_crash,
+            "browser_gui": {
+                "enabled": self.config.web_gui_enabled,
+                "port": self.config.web_gui_port,
+            },
             "appearance": {
                 "darkness_grade": self.config.appearance.darkness_grade,
             },
