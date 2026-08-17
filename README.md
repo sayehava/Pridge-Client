@@ -82,11 +82,29 @@ Windows starts the Browser GUI automatically in headless mode and reports its ex
 
 > 🚫 The terminal TUI is not available on Windows. Headless Windows users manage the app through the Browser GUI instead.
 
-Run the interactive terminal dashboard on macOS or Linux:
+### 🍎 macOS
 
-```bash
-python3 -m pridge_client --tui
-```
+| Mode | Packaged application | Python package |
+| --- | --- | --- |
+| 🟦 Desktop GUI | `open -a "Pridge Client"` | `python3 -m pridge_client` |
+| 🟨 Headless | `"/Applications/Pridge Client.app/Contents/MacOS/Pridge Client" --headless` | `python3 -m pridge_client --headless` |
+| 🟩 TUI | `"/Applications/Pridge Client.app/Contents/MacOS/Pridge Client" --tui` | `python3 -m pridge_client --tui` |
+
+To add the 🟪 Browser GUI, open **Settings** in the TUI, select **Browser GUI**, and press Space. Open the local address reported by the TUI.
+
+### 🐧 Linux
+
+Extract the release archive, open a terminal in its `Pridge Client` directory, and use:
+
+| Mode | Packaged application | Python package |
+| --- | --- | --- |
+| 🟦 Desktop GUI | `"./Pridge Client"` | `python3 -m pridge_client` |
+| 🟨 Headless | `"./Pridge Client" --headless` | `python3 -m pridge_client --headless` |
+| 🟩 TUI | `"./Pridge Client" --tui` | `python3 -m pridge_client --tui` |
+
+To add the 🟪 Browser GUI, open **Settings** in the TUI, select **Browser GUI**, and press Space. Open the local address reported by the TUI.
+
+### 🟩 TUI life cycle on macOS and Linux
 
 Press `d` or `Esc` to detach the dashboard and keep the print service running in the background. Run the same TUI command later to reconnect to that service. Press `q` or `Ctrl-C` to stop the client and its background service.
 
