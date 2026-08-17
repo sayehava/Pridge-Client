@@ -83,23 +83,36 @@ def _run_headless_service() -> None:
     def stop(_signum: int, _frame: object) -> None:
         stop_event.set()
 
+    def start_browser(port: int) -> str:
+        nonlocal browser
+        browser = BrowserGuiServer(api, port, on_stop=stop_event.set)
+        url = browser.start()
+        print(f"Browser GUI: {url}", flush=True)
+        if sys.platform == "win32":
+            show_headless_address(APP_NAME, url)
+        return url
+
     def set_browser_enabled(enabled: bool) -> str:
         nonlocal browser
         if enabled and browser is None:
-            browser = BrowserGuiServer(api, api.config.web_gui_port, on_stop=stop_event.set)
-            url = browser.start()
-            print(f"Browser GUI: {url}", flush=True)
-            if sys.platform == "win32":
-                show_headless_address(APP_NAME, url)
-            return f"Browser GUI: {url}"
+            return f"Browser GUI: {start_browser(api.config.web_gui_port)}"
         elif not enabled and browser is not None:
             browser.close()
             browser = None
             return "Browser GUI disabled"
         return f"Browser GUI: {browser.url}" if browser is not None else "Browser GUI disabled"
 
+    def change_browser_port(port: int) -> str:
+        nonlocal browser
+        if browser is None:
+            return ""
+        browser.close()
+        browser = None
+        return start_browser(port)
+
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
+    api.set_browser_port_change_handler(change_browser_port)
     controller = HeadlessTuiController(api, set_browser_enabled)
     if sys.platform != "win32":
         from pridge_client.tui_service import TuiServiceAlreadyRunning, TuiServiceServer
