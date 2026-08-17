@@ -22,6 +22,7 @@ import webview
 
 from pridge_client.api import ApiError, PridgeClient
 from pridge_client.archive import ArchivedJob, ArchiveStore
+from pridge_client.archive_preview import build_archive_preview
 from pridge_client.autostart import AutoStartError, set_start_at_login
 from pridge_client.build_info import BUILD_SYSTEM, BUILD_VARIANT
 from pridge_client.config import (
@@ -1498,6 +1499,12 @@ class ClientApi:
     def list_archived_jobs(self) -> dict:
         jobs = [self._archived_job_public(job) for job in self.archive_store.list_jobs()]
         return {"ok": True, "error": None, "jobs": jobs}
+
+    def preview_archived_job(self, entry_id: str) -> dict:
+        archived = self.archive_store.get_job(entry_id)
+        if archived is None:
+            return self._error(MESSAGE_ARCHIVED_JOB_NOT_FOUND)
+        return {"ok": True, "error": None, "preview": build_archive_preview(archived)}
 
     def reprint_job(self, entry_id: str) -> dict:
         archived = self.archive_store.get_job(entry_id)
