@@ -36,6 +36,14 @@ Run in background/headless mode:
 python3 -m pridge_client --headless
 ```
 
+Run the interactive terminal dashboard on macOS or Linux:
+
+```bash
+python3 -m pridge_client --tui
+```
+
+Press `d` or `Esc` to detach the dashboard and keep the print service running in the background. Press `q` or `Ctrl-C` to stop the client.
+
 Show the installed version:
 
 ```bash
