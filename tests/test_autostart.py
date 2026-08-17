@@ -8,7 +8,15 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pridge_client.autostart import APP_ID, LEGACY_APP_IDS, AutoStartError, _set_macos_launch_agent, _set_windows_run_key, command
+from pridge_client.autostart import (
+    APP_ID,
+    LEGACY_APP_IDS,
+    AutoStartError,
+    _set_macos_launch_agent,
+    _set_windows_run_key,
+    command,
+    independent_child_environment,
+)
 
 
 class _FakeWinRegKey:
@@ -44,6 +52,13 @@ class _FakeWinReg:
 
 
 class AutoStartTests(unittest.TestCase):
+    @patch.dict("os.environ", {"PRIDGE_TEST_VALUE": "preserved"}, clear=True)
+    def test_independent_child_environment_resets_pyinstaller(self) -> None:
+        environment = independent_child_environment()
+
+        self.assertEqual(environment["PRIDGE_TEST_VALUE"], "preserved")
+        self.assertEqual(environment["PYINSTALLER_RESET_ENVIRONMENT"], "1")
+
     def test_headless_command_uses_client_package_in_development_builds(self) -> None:
         with patch("pridge_client.autostart.BUILD_VARIANT", "Development"):
             self.assertEqual(command("--headless")[1:], ["-m", "pridge_client", "--headless"])
