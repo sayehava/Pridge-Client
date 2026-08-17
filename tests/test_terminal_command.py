@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pridge_client.terminal_command import (
+    MANAGED_MARKER,
     TerminalCommandError,
     install_terminal_command,
     installed_terminal_command,
@@ -60,6 +61,33 @@ class TerminalCommandTests(unittest.TestCase):
             install_terminal_command("Pridge_client", self.home, self.config_dir, {"SHELL": "/bin/zsh"})
 
         self.assertEqual(target.read_text(encoding="utf-8"), "#!/bin/sh\necho mine\n")
+
+    def test_rejects_a_name_that_already_resolves_on_path(self) -> None:
+        commands = Path(self.directory.name) / "commands"
+        commands.mkdir()
+        existing_command = commands / "Pridge_client"
+        existing_command.write_text("existing", encoding="utf-8")
+        existing_command.chmod(0o755)
+
+        with self.assertRaises(TerminalCommandError):
+            install_terminal_command(
+                "Pridge_client",
+                self.home,
+                self.config_dir,
+                {"SHELL": "/bin/zsh", "PATH": str(commands)},
+            )
+
+    def test_reinstall_updates_a_managed_command_without_repeating_path_line(self) -> None:
+        target = self.home / ".local" / "bin" / "Pridge_client"
+        target.parent.mkdir(parents=True)
+        target.write_text(f"#!/bin/sh\n{MANAGED_MARKER}\nold\n", encoding="utf-8")
+        profile = self.home / ".profile"
+        profile.write_text('export PATH="$HOME/.local/bin:$PATH"\n', encoding="utf-8")
+
+        install_terminal_command("Pridge_client", self.home, self.config_dir, {"SHELL": "/bin/sh"})
+
+        self.assertEqual(profile.read_text(encoding="utf-8").count(".local/bin"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
