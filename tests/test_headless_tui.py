@@ -24,7 +24,7 @@ class HeadlessTuiControllerTests(unittest.TestCase):
         self.api.archive_store = ArchiveStore(Path(self.directory.name) / "archive.sqlite3")
         self.api.config = config_store.load()
         self.api.workers = {}
-        self.browser_toggle = Mock()
+        self.browser_toggle = Mock(return_value="Browser GUI: http://127.0.0.1:8765")
         self.controller = HeadlessTuiController(self.api, self.browser_toggle)
 
     def tearDown(self) -> None:
@@ -40,7 +40,7 @@ class HeadlessTuiControllerTests(unittest.TestCase):
     def test_browser_setting_takes_effect_immediately(self) -> None:
         result = self.controller.toggle_setting(3)
 
-        self.assertEqual(result, "")
+        self.assertEqual(result, "Browser GUI: http://127.0.0.1:8765")
         self.assertTrue(self.api.config.web_gui_enabled)
         self.assertTrue(self.api.config_store.load().web_gui_enabled)
         self.browser_toggle.assert_called_once_with(True)
