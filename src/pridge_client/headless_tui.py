@@ -12,7 +12,7 @@ from pridge_client.tui import SETTING_ITEMS, TuiController
 class HeadlessTuiController:
     """Expose TUI data while sharing one worker set with the browser API."""
 
-    def __init__(self, api: object, browser_toggle: Callable[[bool], None]) -> None:
+    def __init__(self, api: object, browser_toggle: Callable[[bool], str]) -> None:
         self.api = api
         self.browser_toggle = browser_toggle
         self.delegate = TuiController(
@@ -72,5 +72,7 @@ class HeadlessTuiController:
         self.api.start_at_login = self.delegate.config.start_at_login
         self.api.restart_on_crash = self.delegate.config.restart_on_crash
         if 0 <= index < len(SETTING_ITEMS) and SETTING_ITEMS[index][0] == "web_gui_enabled":
-            self.browser_toggle(self.delegate.config.web_gui_enabled)
+            browser_message = self.browser_toggle(self.delegate.config.web_gui_enabled)
+            if browser_message:
+                message = browser_message
         return message
