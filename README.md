@@ -24,6 +24,40 @@ The application can run without the optional secure storage package. If `keyring
 
 ## Running
 
+### 🎨 Pick your mode
+
+| Color | Mode | What you get |
+| --- | --- | --- |
+| 🟦 | Desktop GUI | The native pywebview application |
+| 🟨 | Headless | The print service without a desktop window |
+| 🟩 | TUI | An interactive terminal dashboard |
+| 🟪 | Browser GUI | The full interface at a private localhost address |
+
+| Operating system | 🟦 Desktop GUI | 🟨 Headless | 🟩 TUI | 🟪 Browser GUI |
+| --- | :---: | :---: | :---: | :---: |
+| 🪟 Windows | ✅ | ✅ | ❌ | ✅ Automatic with headless mode |
+| 🍎 macOS | ✅ | ✅ | ✅ | ✅ Optional from TUI Settings |
+| 🐧 Linux | ✅ | ✅ | ✅ | ✅ Optional from TUI Settings |
+
+```mermaid
+flowchart LR
+    A["🚀 Start Pridge Client"] --> B{"Which OS?"}
+    B -->|Windows| W["🟨 Start headless"]
+    W --> WB["🟪 Browser GUI starts automatically"]
+    B -->|macOS or Linux| P{"Choose an interface"}
+    P --> D["🟦 Desktop GUI"]
+    P --> T["🟩 TUI"]
+    T -->|Enable Browser GUI| PB["🟪 Browser GUI"]
+    classDef blue fill:#2563eb,color:#ffffff,stroke:#60a5fa
+    classDef yellow fill:#a16207,color:#ffffff,stroke:#facc15
+    classDef green fill:#15803d,color:#ffffff,stroke:#4ade80
+    classDef purple fill:#7e22ce,color:#ffffff,stroke:#c084fc
+    class D blue
+    class W yellow
+    class T green
+    class WB,PB purple
+```
+
 Open the settings window:
 
 ```bash
