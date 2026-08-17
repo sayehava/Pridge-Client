@@ -108,9 +108,41 @@ To add the 🟪 Browser GUI, open **Settings** in the TUI, select **Browser GUI*
 
 Press `d` or `Esc` to detach the dashboard and keep the print service running in the background. Run the same TUI command later to reconnect to that service. Press `q` or `Ctrl-C` to stop the client and its background service.
 
-On macOS and Linux, select `Browser GUI` in TUI Settings and press Space to enable or disable it. Enabling it reports the live local URL immediately. Utility views in the Browser GUI open as in-page modal boxes; the normal pywebview desktop GUI continues to use its native utility windows.
+| Key | Action |
+| --- | --- |
+| `1` to `6` | Open Dashboard, Servers, Printers, Plugins, Settings, or About |
+| `↓` or `Enter` | Select the next item |
+| `↑` or `Backspace` | Select the previous item |
+| `Space` | Toggle or run the selected action |
+| `d` or `Esc` | Detach and leave the service running |
+| `q` or `Ctrl-C` | Stop the TUI and its service |
+
+#### ✨ Install your own short command
 
 The TUI Settings screen can install a custom terminal command such as `Pridge_client`. Select `Terminal command`, press Space, and enter the name you want. The installer creates a user-level command in `~/.local/bin` that always opens or reconnects to the TUI, adds that directory to the appropriate shell profile, and works with both packaged and Python source builds. Open a new terminal after installation, then run the chosen name without `--tui`. Launching the desktop application normally still opens the full GUI.
+
+### 🟪 Browser GUI and port safety
+
+> 🟣 Default address: `http://127.0.0.1:8765`
+
+- Windows enables the Browser GUI automatically in headless mode.
+- macOS and Linux users can toggle **Browser GUI** in TUI Settings with Space.
+- Change the preferred port under **Settings > Startup > Browser GUI port**.
+- A live Browser GUI moves to the new port immediately and redirects the current page.
+- If that port is busy, Pridge Client chooses a free loopback port and reports the exact address.
+- The Browser GUI accepts connections only from the same computer.
+
+Browser settings and utility views open as modal boxes inside the page. The 🟦 pywebview desktop GUI keeps its native windows.
+
+### 🧪 Quick test checklist
+
+1. Start the 🟦 Desktop GUI and confirm its main window opens.
+2. Close it, then run the 🟨 headless command for your operating system.
+3. Open the reported 🟪 localhost address and confirm the dashboard loads.
+4. Open Settings and confirm it appears as an in-page modal.
+5. Change the Browser GUI port and confirm the page reconnects at the new address.
+6. On macOS or Linux, start the 🟩 TUI, detach with `d`, then run the command again to reconnect.
+7. Choose **Quit** in the Browser GUI, or press `q` in the TUI, and confirm the service stops.
 
 Show the installed version:
 
