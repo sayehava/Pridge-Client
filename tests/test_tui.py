@@ -70,6 +70,7 @@ class SettingsDataTests(TuiControllerTestCase):
         labels = [item["label"] for item in data]
         self.assertIn("Start at login", labels)
         self.assertIn("Restart automatically if the app crashes", labels)
+        self.assertIn("Browser GUI", labels)
         self.assertEqual(data[-1]["detail"], "Pridge_client")
         self.assertEqual(data[-1]["action"], "install_terminal_command")
         restart_item = next(item for item in data if "Restart" in item["label"])
@@ -92,6 +93,13 @@ class SettingsDataTests(TuiControllerTestCase):
 
         self.assertTrue(self.controller.config.start_at_login)
         set_start_at_login.assert_called_once_with(True)
+
+    @patch("pridge_client.tui.set_start_at_login")
+    def test_toggling_browser_gui_persists_the_choice(self, _set_start_at_login) -> None:
+        self.controller.toggle_setting(3)
+
+        self.assertTrue(self.controller.config.web_gui_enabled)
+        self.assertTrue(self.controller.config_store.load().web_gui_enabled)
 
     @patch("pridge_client.tui.set_start_at_login")
     def test_toggle_setting_ignores_an_out_of_range_index(self, set_start_at_login) -> None:
@@ -229,7 +237,7 @@ class ListLengthTests(TuiControllerTestCase):
         self.assertEqual(_list_length(self.controller, "Servers"), 1)
         self.assertEqual(_list_length(self.controller, "Printers"), 1)
         self.assertEqual(_list_length(self.controller, "Plugins"), 1)
-        self.assertEqual(_list_length(self.controller, "Settings"), 4)
+        self.assertEqual(_list_length(self.controller, "Settings"), 5)
         self.assertEqual(_list_length(self.controller, "About"), 0)
 
 
