@@ -114,10 +114,10 @@ class BrowserGuiServer:
                     if method == "quit_application" and callable(owner.on_stop):
                         owner.on_stop()
                 except (AttributeError, TypeError, ValueError) as exc:
-                    self._json_response(400, {"ok": False, "message": str(exc)})
+                    self._json_response(400, {"ok": False, "error": str(exc)})
                 except Exception:
                     logger.exception("Browser GUI API request failed")
-                    self._json_response(500, {"ok": False, "message": "The request failed."})
+                    self._json_response(500, {"ok": False, "error": "The request failed."})
 
             def _trusted_host(self) -> bool:
                 host = self.headers.get("Host", "")
