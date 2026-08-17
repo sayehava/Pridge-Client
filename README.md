@@ -204,6 +204,10 @@ CUPS options can include media or label size, orientation, resolution, input sou
 
 System-driver payloads should include an accurate `content_type`, such as `application/pdf` or `image/png`, so the correct renderer plugin is selected; unknown types fall back to MIME/extension/magic-byte detection. See [PLUGINS.md](PLUGINS.md) for the renderer plugin system, including how to install a third-party plugin from the Plugins window and how to write your own.
 
+## Print History
+
+Print History keeps a local copy of each submitted job together with the printer and print settings needed to send it again. Select **Preview** to identify an archived job before reprinting it. PDFs show their first page, images show a bounded thumbnail, and text jobs show their content. RAW jobs show cleaned printable payload text; template decoration, binary controls, and graphics may not appear. Formats that cannot be rendered fail closed with an unavailable message instead of exposing or executing their payload.
+
 ## Background Operation
 
 The worker processes one job at a time:
