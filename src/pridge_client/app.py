@@ -8,13 +8,12 @@ import signal
 import sys
 import threading
 
-from pridge_client.config import ClientTokenStore, ConfigStore, ClientConfig, ServerConfig
+from pridge_client.config import ConfigStore
 from pridge_client.logging_setup import configure_logging
 from pridge_client.platform_window import show_startup_error
 from pridge_client.strings import APP_NAME
 from pridge_client.strings import MESSAGE_GUI_STARTUP_FAILED
 from pridge_client.version import __version__
-from pridge_client.worker import PollingWorker
 
 
 logger = logging.getLogger(__name__)
@@ -57,29 +56,7 @@ def main() -> None:
         return
 
     if args.headless:
-        if sys.platform != "win32":
-            _run_headless_service()
-            return
-        token_store = ClientTokenStore()
-        workers = [
-            PollingWorker(_runtime_config(config, server), token_store.get(server.id))
-            for server in config.servers
-            if server.enabled
-        ]
-        stop_event = threading.Event()
-
-        def stop(_signum: int, _frame: object) -> None:
-            for worker in workers:
-                worker.stop()
-            stop_event.set()
-
-        signal.signal(signal.SIGINT, stop)
-        signal.signal(signal.SIGTERM, stop)
-        for worker in workers:
-            worker.start()
-        stop_event.wait()
-        for worker in workers:
-            worker.join(timeout=10)
+        _run_headless_service()
         return
 
     try:
@@ -94,41 +71,50 @@ def main() -> None:
 
 
 def _run_headless_service() -> None:
-    from pridge_client.tui import TuiController
-    from pridge_client.tui_service import TuiServiceAlreadyRunning, TuiServiceServer
+    from pridge_client.gui import ClientApi
+    from pridge_client.headless_tui import HeadlessTuiController
+    from pridge_client.web_gui import BrowserGuiServer
 
-    controller = TuiController()
-    server = TuiServiceServer(controller)
+    api = ClientApi()
     stop_event = threading.Event()
+    browser: BrowserGuiServer | None = None
+    tui_server = None
 
     def stop(_signum: int, _frame: object) -> None:
         stop_event.set()
 
+    def set_browser_enabled(enabled: bool) -> None:
+        nonlocal browser
+        if enabled and browser is None:
+            browser = BrowserGuiServer(api, api.config.web_gui_port, on_stop=stop_event.set)
+            url = browser.start()
+            print(f"Browser GUI: {url}", flush=True)
+        elif not enabled and browser is not None:
+            browser.close()
+            browser = None
+
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
-    try:
-        server.open()
-    except TuiServiceAlreadyRunning:
-        logger.info("The headless service is already running")
-        return
+    controller = HeadlessTuiController(api, set_browser_enabled)
+    if sys.platform != "win32":
+        from pridge_client.tui_service import TuiServiceAlreadyRunning, TuiServiceServer
+
+        tui_server = TuiServiceServer(controller)
+        try:
+            tui_server.open()
+        except TuiServiceAlreadyRunning:
+            logger.info("The headless service is already running")
+            return
     try:
         controller.start()
-        server.serve(stop_event)
+        set_browser_enabled(sys.platform == "win32" or api.config.web_gui_enabled)
+        if tui_server is not None:
+            tui_server.serve(stop_event)
+        else:
+            stop_event.wait()
     finally:
-        server.close()
+        if browser is not None:
+            browser.close()
+        if tui_server is not None:
+            tui_server.close()
         controller.stop_all()
-
-
-def _runtime_config(config: ClientConfig, server: ServerConfig) -> ClientConfig:
-    return ClientConfig(
-        server_url=server.server_url,
-        servers=[server],
-        selected_printer=config.selected_printer,
-        printer_profiles=config.printer_profiles,
-        polling_interval_seconds=server.polling_interval_seconds,
-        heartbeat_interval_seconds=server.heartbeat_interval_seconds,
-        start_polling_on_launch=config.start_polling_on_launch,
-        start_at_login=config.start_at_login,
-        logging=config.logging,
-        archive=config.archive,
-    )
