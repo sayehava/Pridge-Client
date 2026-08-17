@@ -10,7 +10,7 @@ import threading
 
 from pridge_client.config import ConfigStore
 from pridge_client.logging_setup import configure_logging
-from pridge_client.platform_window import show_startup_error
+from pridge_client.platform_window import show_headless_address, show_startup_error
 from pridge_client.strings import APP_NAME
 from pridge_client.strings import MESSAGE_GUI_STARTUP_FAILED
 from pridge_client.version import __version__
@@ -89,6 +89,8 @@ def _run_headless_service() -> None:
             browser = BrowserGuiServer(api, api.config.web_gui_port, on_stop=stop_event.set)
             url = browser.start()
             print(f"Browser GUI: {url}", flush=True)
+            if sys.platform == "win32":
+                show_headless_address(APP_NAME, url)
         elif not enabled and browser is not None:
             browser.close()
             browser = None
