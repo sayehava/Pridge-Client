@@ -10,7 +10,7 @@ import subprocess
 import time
 from collections.abc import Sequence
 
-from pridge_client.autostart import command
+from pridge_client.autostart import command, independent_child_environment
 
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ def run_supervised(extra_args: Sequence[str]) -> int:
 
     while not forwarder.terminating:
         started_at = time.monotonic()
-        forwarder.process = subprocess.Popen(child_command)
+        forwarder.process = subprocess.Popen(child_command, env=independent_child_environment())
         exit_code = forwarder.process.wait()
         forwarder.process = None
 
