@@ -38,6 +38,21 @@ class ApplicationStartupTests(unittest.TestCase):
 
 
 class SupervisorHandoffTests(unittest.TestCase):
+    @patch("pridge_client.gui.run_gui")
+    @patch("pridge_client.supervisor.run_supervised", return_value=0)
+    @patch("pridge_client.app.configure_logging")
+    @patch("pridge_client.app.ConfigStore")
+    @patch("sys.argv", ["pridge-client"])
+    def test_default_desktop_launch_runs_the_gui_directly(
+        self, config_store, _configure_logging, run_supervised, run_gui
+    ):
+        config_store.return_value.load.return_value = Mock(servers=[], logging=Mock(), restart_on_crash=True)
+
+        app.main()
+
+        run_gui.assert_called_once_with(gui_smoke_test=False)
+        run_supervised.assert_not_called()
+
     @patch("pridge_client.supervisor.run_supervised", return_value=0)
     @patch("pridge_client.app.configure_logging")
     @patch("pridge_client.app.ConfigStore")
