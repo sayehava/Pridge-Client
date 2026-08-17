@@ -1426,6 +1426,23 @@ class ArchiveApiTests(unittest.TestCase):
         self.assertEqual(result["jobs"][0]["detail"], "no paper")
         self.assertNotIn("payload", result["jobs"][0])
 
+    @patch("pridge_client.gui.build_archive_preview", return_value={"kind": "text", "text": "Order 42"})
+    def test_previews_an_archived_job_without_exposing_its_payload(self, build_preview):
+        entry_id = self.api.archive_store.record_job("job-1", "Kitchen", "printed", b"secret print data")
+
+        result = self.api.preview_archived_job(entry_id)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["preview"]["text"], "Order 42")
+        self.assertNotIn("payload", result)
+        build_preview.assert_called_once()
+
+    def test_preview_reports_an_unknown_archived_job(self):
+        result = self.api.preview_archived_job("does-not-exist")
+
+        self.assertFalse(result["ok"])
+        self.assertIn("no longer found", result["error"])
+
     def test_reprint_job_resends_the_archived_payload_to_the_same_printer(self):
         entry_id = self.api.archive_store.record_job(
             "job-1", "Kitchen", "failed", b"receipt bytes", mode="raw", detail="no paper"
