@@ -269,9 +269,10 @@ def header(width: int, screen_name: str, version: str) -> list[str]:
 def footer(width: int, message: str = "") -> list[str]:
     hints = (
         f"{MUTED}[1-6]{RESET} screen  {MUTED}[⏎]{RESET} next  "
-        f"{MUTED}[⌫]{RESET} back  {MUTED}[space]{RESET} toggle  {MUTED}[q]{RESET} exit view"
+        f"{MUTED}[⌫]{RESET} back  {MUTED}[space]{RESET} toggle  "
+        f"{MUTED}[d]{RESET} detach  {MUTED}[q]{RESET} quit"
     )
-    short_hints = f"{MUTED}[1-6] [⏎] [⌫] [␣] [q]{RESET}"
+    short_hints = f"{MUTED}[1-6] [⏎] [⌫] [␣] [d] [q]{RESET}"
     line = hints if not message else f"{message}   {DIM_MUTED}│{RESET}   {hints}"
     if visible_len(line) > width:
         line = short_hints if not message else f"{message}   {DIM_MUTED}│{RESET}   {short_hints}"
@@ -411,8 +412,8 @@ def settings_screen(width: int, settings: list[dict], selected: int) -> list[str
             "",
             f"{DIM_MUTED}SHORTCUTS — THIS VIEW{RESET}",
             f"{chip('1-6', 'screen')}  {chip('⏎', 'next')}  {chip('⌫', 'back')}  "
-            f"{chip('␣', 'toggle')}  {chip('q', 'exit view')}",
-            f"{DIM_MUTED}Exiting the view detaches the print service - it keeps running.{RESET}",
+            f"{chip('␣', 'toggle')}  {chip('d', 'detach')}  {chip('q', 'quit')}",
+            f"{DIM_MUTED}Detach returns to the terminal while the print service keeps running.{RESET}",
         ]
     )
     return box(width, "Settings", rows)
