@@ -56,6 +56,60 @@
     return response.json();
   }
 
+  function browserDialog(message, promptValue) {
+    return new Promise((resolve) => {
+      const hasInput = promptValue !== undefined;
+      const backdrop = document.createElement("div");
+      backdrop.className = "modal-backdrop";
+      const modal = document.createElement("div");
+      modal.className = "confirm-modal";
+      modal.setAttribute("role", "alertdialog");
+      modal.setAttribute("aria-modal", "true");
+      const icon = document.createElement("img");
+      icon.className = "confirm-app-icon";
+      icon.src = "/assets/Icon.png";
+      icon.alt = "";
+      const copy = document.createElement("div");
+      copy.className = "confirm-copy";
+      const heading = document.createElement("h2");
+      heading.textContent = hasInput ? "Set counter value" : "Confirm action";
+      const detail = document.createElement("p");
+      detail.textContent = message;
+      const input = hasInput ? document.createElement("input") : null;
+      if (input) {
+        input.type = "number";
+        input.value = String(promptValue);
+        input.min = "0";
+      }
+      copy.append(heading, detail);
+      if (input) copy.append(input);
+      const actions = document.createElement("div");
+      actions.className = "confirm-actions";
+      const cancel = document.createElement("button");
+      cancel.textContent = (window.PridgeStrings && window.PridgeStrings.cancel) || "Cancel";
+      const confirm = document.createElement("button");
+      confirm.className = hasInput ? "primary" : "danger";
+      confirm.textContent = hasInput ? "Set" : ((window.PridgeStrings && window.PridgeStrings.remove) || "Remove");
+      actions.append(cancel, confirm);
+      modal.append(icon, copy, actions);
+      backdrop.append(modal);
+      const finish = (value) => {
+        backdrop.remove();
+        resolve(value);
+      };
+      cancel.addEventListener("click", () => finish(hasInput ? null : false));
+      confirm.addEventListener("click", () => finish(hasInput ? input.value : true));
+      backdrop.addEventListener("mousedown", (event) => {
+        if (event.target === backdrop) finish(hasInput ? null : false);
+      });
+      document.body.append(backdrop);
+      (input || cancel).focus();
+    });
+  }
+
+  window.PridgeBrowserConfirm = (message) => browserDialog(message);
+  window.PridgeBrowserPrompt = (message, initialValue) => browserDialog(message, initialValue);
+
   const api = new Proxy({}, {
     get(_target, method) {
       return (...args) => navigate(String(method), args) || rpc(String(method), args);
