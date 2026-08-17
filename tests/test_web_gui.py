@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import socket
 import unittest
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -70,6 +71,19 @@ class BrowserGuiServerTests(unittest.TestCase):
             urlopen(self.url + "/%2e%2e/config.py")
 
         self.assertEqual(context.exception.code, 404)
+
+    def test_selects_a_free_port_when_the_configured_port_is_busy(self) -> None:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as blocker:
+            blocker.bind(("127.0.0.1", 0))
+            blocker.listen(1)
+            busy_port = blocker.getsockname()[1]
+            fallback = BrowserGuiServer(FakeApi(), busy_port)
+            try:
+                url = fallback.start()
+                self.assertNotEqual(fallback.httpd.server_port, busy_port)
+                self.assertEqual(url, f"http://127.0.0.1:{fallback.httpd.server_port}")
+            finally:
+                fallback.close()
 
     def _rpc(self, method: str, args: list | None = None) -> dict:
         request = Request(
