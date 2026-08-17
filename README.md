@@ -8,6 +8,24 @@ Self-contained Native (Nuitka) and PyInstaller release builds for Windows, macOS
 
 ## Installation
 
+### 📦 Native application
+
+Native releases are self-contained applications compiled with Nuitka. They do not require Python. Download the package for your computer from [GitHub Releases](https://github.com/sayehava/Pridge-Client/releases/latest).
+
+| Operating system | Download | Install |
+| --- | --- | --- |
+| 🪟 Windows x64 | `Pridge-Client-Native-Setup-x64.exe` | Run the installer, then open Pridge Client from the Start menu. |
+| 🪟 Windows x64 portable | `Pridge-Client-Native-Windows-x64-Portable.zip` | Extract the entire ZIP, then run `Pridge Client.exe`. |
+| 🍎 macOS Apple Silicon | `Pridge-Client-Native-macOS-arm64.dmg` | Open the DMG and drag Pridge Client into Applications. |
+| 🍎 macOS Intel | `Pridge-Client-Native-macOS-x86_64.dmg` | Open the DMG and drag Pridge Client into Applications. |
+| 🐧 Linux x86_64 | `Pridge-Client-Native-Linux-x86_64-Ubuntu22.04+.tar.gz` | Extract the archive and run `Pridge Client` inside its directory. |
+
+### 🧰 PyInstaller application
+
+Each operating system also has a self-contained package with `PyInstaller` in its filename. Installation is identical to the Native package for that platform, and Python is not required. The two variants are independent builds, so users can try the other variant if one is incompatible with their system.
+
+### 🐍 Python source installation
+
 Use Python 3.9 or newer.
 
 ```bash
