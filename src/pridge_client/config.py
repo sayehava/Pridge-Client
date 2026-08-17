@@ -139,6 +139,8 @@ class ClientConfig:
     start_polling_on_launch: bool = False
     start_at_login: bool = False
     restart_on_crash: bool = True
+    web_gui_enabled: bool = False
+    web_gui_port: int = 8765
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     archive: ArchiveConfig = field(default_factory=ArchiveConfig)
     appearance: AppearanceConfig = field(default_factory=AppearanceConfig)
@@ -192,6 +194,8 @@ class ConfigStore:
             start_polling_on_launch=bool(raw.get("start_polling_on_launch", False)),
             start_at_login=bool(raw.get("start_at_login", False)),
             restart_on_crash=bool(raw.get("restart_on_crash", True)),
+            web_gui_enabled=bool(raw.get("web_gui_enabled", False)),
+            web_gui_port=_bounded_int(raw.get("web_gui_port", 8765), 8765, 1, 65535),
             logging=LoggingConfig(
                 level=str(logging_raw.get("level", "INFO")),
                 file_enabled=bool(logging_raw.get("file_enabled", True)),
