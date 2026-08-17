@@ -102,6 +102,33 @@ def show_startup_error(title: str, message: str) -> None:
         logger.error("Could not display the startup error dialog: %s", exc)
 
 
+def show_headless_address(title: str, url: str) -> None:
+    """Show Windows users where the headless browser interface is running."""
+    if platform.system() != "Windows":
+        return
+    try:
+        import ctypes
+
+        session_id = ctypes.windll.kernel32.WTSGetActiveConsoleSessionId()
+        response = ctypes.c_ulong()
+        heading = f"{title} Browser GUI"
+        message = f"The headless client is ready at:\n\n{url}"
+        ctypes.windll.wtsapi32.WTSSendMessageW(
+            None,
+            session_id,
+            heading,
+            len(heading.encode("utf-16-le")),
+            message,
+            len(message.encode("utf-16-le")),
+            0x40,
+            15,
+            ctypes.byref(response),
+            False,
+        )
+    except Exception as exc:
+        logger.warning("Could not show the Browser GUI address: %s", exc)
+
+
 def configure_application_identity(name: str) -> None:
     """Set the native process and bundle name used by the macOS menu bar."""
     if platform.system() != "Darwin":
