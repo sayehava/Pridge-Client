@@ -49,12 +49,41 @@
     `;
   }
 
+  function ArchivePreview({ job, preview, onClose }) {
+    const title = job.filename || `Job ${job.job_id}`;
+    return html`
+      <div class="modal-backdrop" role="presentation" onMouseDown=${(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}>
+        <div class="archive-preview-modal" role="dialog" aria-modal="true" aria-labelledby="archive-preview-title">
+          <div class="archive-preview-header">
+            <div><small>${S.archive_preview_title}</small><h2 id="archive-preview-title">${title}</h2></div>
+            <button aria-label=${S.close} onClick=${onClose}>×</button>
+          </div>
+          <div class="archive-preview-content">
+            ${preview === null
+              ? html`<div class="loading">${S.previewing}</div>`
+              : preview.kind === "image"
+                ? html`<img src=${preview.data_url} alt=${title} />`
+                : preview.kind === "text"
+                  ? html`<pre>${preview.text}</pre>`
+                  : html`<p class="hint-text">${preview.message || S.archive_preview_unavailable}</p>`}
+          </div>
+          ${preview && preview.note ? html`<p class="archive-preview-note">${preview.note}</p>` : null}
+          <div class="archive-preview-actions"><button onClick=${onClose}>${S.close}</button></div>
+        </div>
+      </div>
+    `;
+  }
+
   function History() {
     const [jobs, setJobs] = useState(null);
     const [message, setMessage] = useState("");
     const [reprintingId, setReprintingId] = useState("");
     const [clearing, setClearing] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
+    const [previewJob, setPreviewJob] = useState(null);
+    const [preview, setPreview] = useState(null);
 
     const refresh = () => {
       callApi("get_state").then((result) => {
@@ -78,6 +107,18 @@
         if (!result) return;
         setMessage(result.ok ? (result.message || S.reprint_submitted) : (result.error || S.reprint_failed));
         if (result.ok) refresh();
+      });
+    };
+
+    const showPreview = (job) => {
+      setPreviewJob(job);
+      setPreview(null);
+      callApi("preview_archived_job", job.id).then((result) => {
+        if (!result || !result.ok) {
+          setPreview({ kind: "unavailable", message: result && result.error ? result.error : S.archive_preview_unavailable });
+          return;
+        }
+        setPreview(result.preview);
       });
     };
 
@@ -116,6 +157,7 @@
                       </div>
                       <div class="button-row">
                         <span class=${job.status === "failed" ? "badge badge-error" : "badge badge-active"}>${job.status}</span>
+                        <button onClick=${() => showPreview(job)}>${S.preview}</button>
                         <button onClick=${() => reprint(job)} disabled=${reprintingId === job.id}>
                           ${reprintingId === job.id ? S.reprinting : S.reprint}
                         </button>
@@ -127,6 +169,9 @@
           ${message ? html`<div class="settings-message">${message}</div>` : null}
           ${showClearConfirm
             ? html`<${ClearHistoryConfirm} onCancel=${() => setShowClearConfirm(false)} onConfirm=${clearHistory} />`
+            : null}
+          ${previewJob
+            ? html`<${ArchivePreview} job=${previewJob} preview=${preview} onClose=${() => setPreviewJob(null)} />`
             : null}
         </div>
         <div class="utility-actions">
