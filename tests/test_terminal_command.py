@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileComment: Additional terms apply; see ADDITIONAL_TERMS.md.
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +17,7 @@ from pridge_client.terminal_command import (
 )
 
 
+@unittest.skipUnless(os.name == "posix", "TUI command installer requires a POSIX shell")
 class TerminalCommandTests(unittest.TestCase):
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()
