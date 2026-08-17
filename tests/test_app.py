@@ -36,6 +36,31 @@ class ApplicationStartupTests(unittest.TestCase):
 
         run_gui.assert_called_once_with(gui_smoke_test=True)
 
+    @patch("pridge_client.tui.run_tui")
+    @patch("pridge_client.tui_ipc.RemoteTuiController.connect")
+    @patch("pridge_client.app.configure_logging")
+    @patch("pridge_client.app.ConfigStore")
+    @patch("sys.argv", ["pridge-client", "--tui"])
+    def test_tui_reattaches_to_a_running_service(self, config_store, _logging, connect, run_tui):
+        config_store.return_value.load.return_value = Mock(servers=[], logging=Mock(), restart_on_crash=True)
+        remote = connect.return_value
+
+        app.main()
+
+        run_tui.assert_called_once_with(remote, attached_to_service=True)
+
+    @patch("pridge_client.app._run_headless_service")
+    @patch("pridge_client.app.sys.platform", "darwin")
+    @patch("pridge_client.app.configure_logging")
+    @patch("pridge_client.app.ConfigStore")
+    @patch("sys.argv", ["pridge-client", "--headless", "--supervised-child"])
+    def test_posix_headless_child_hosts_the_tui_service(self, config_store, _logging, run_service):
+        config_store.return_value.load.return_value = Mock(servers=[], logging=Mock(), restart_on_crash=True)
+
+        app.main()
+
+        run_service.assert_called_once_with()
+
 
 class SupervisorHandoffTests(unittest.TestCase):
     @patch("pridge_client.gui.run_gui")
