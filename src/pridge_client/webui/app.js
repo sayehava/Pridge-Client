@@ -237,8 +237,13 @@
     };
 
     const removeItem = (item) => {
-      if (!window.confirm(S.receipt_widget_remove_confirm.replace("{name}", receiptItemLabel(item)))) return;
-      callApi("clear_mapping_receipt_design", item.serverId, item.remotePrinterId);
+      const remove = () => callApi("clear_mapping_receipt_design", item.serverId, item.remotePrinterId);
+      const prompt = S.receipt_widget_remove_confirm.replace("{name}", receiptItemLabel(item));
+      if (window.PridgeBrowserConfirm) {
+        window.PridgeBrowserConfirm(prompt).then((confirmed) => confirmed && remove());
+      } else if (window.confirm(prompt)) {
+        remove();
+      }
     };
 
     return html`
