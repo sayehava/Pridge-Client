@@ -44,7 +44,7 @@ class _FakeController:
 @unittest.skipUnless(os.name == "posix", "TUI service requires POSIX Unix sockets")
 class TuiServiceTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.directory = tempfile.TemporaryDirectory(dir="/private/tmp")
+        self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.socket_path = Path(self.directory.name) / "service.sock"
         self.controller = _FakeController()
