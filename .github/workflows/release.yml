@@ -12,22 +12,78 @@ on:
         type: string
 
 permissions:
+  actions: write
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  cancel-superseded:
+    name: Cancel superseded release runs
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Cancel older active runs
+        run: |
+          gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow release.yml \
+            --status in_progress \
+            --limit 100 \
+            --json databaseId \
+            --jq '.[].databaseId' |
+          while read -r release_run_id; do
+            if [[ "$release_run_id" != "$GITHUB_RUN_ID" ]]; then
+              gh run cancel "$release_run_id" \
+                --repo "$GITHUB_REPOSITORY"
+            fi
+          done
+
+  test:
+    name: Preflight test suite
+    needs: cancel-superseded
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -e ".[secure,tray]"
+
+      - name: Run tests
+        run: python3 -B -m unittest discover -s tests
+
   windows:
+    needs: test
     uses: ./.github/workflows/build-windows.yml
     with:
       version: ${{ inputs.version || github.ref_name }}
     secrets: inherit
 
   macos:
+    needs: test
     uses: ./.github/workflows/build-macos.yml
     with:
       version: ${{ inputs.version || github.ref_name }}
     secrets: inherit
 
   linux:
+    needs: test
     uses: ./.github/workflows/build-linux.yml
     with:
       version: ${{ inputs.version || github.ref_name }}
@@ -53,11 +109,18 @@ jobs:
           python-version: "3.12"
 
       - name: Download all release packages
-        uses: actions/download-artifact@v8
-        with:
-          pattern: pridge-*
-          path: ${{ github.workspace }}/build
-          merge-multiple: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p \
+            "$GITHUB_WORKSPACE/build" \
+            "$RUNNER_TEMP/release-artifacts"
+          gh run download "$GITHUB_RUN_ID" \
+            --pattern 'pridge-*' \
+            --dir "$RUNNER_TEMP/release-artifacts"
+          find "$RUNNER_TEMP/release-artifacts" \
+            -type f \
+            -exec cp {} "$GITHUB_WORKSPACE/build/" \;
 
       - name: Generate release notes and checksums
         run: |
